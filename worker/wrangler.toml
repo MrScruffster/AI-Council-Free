@@ -1,0 +1,7 @@
+name = "ai-council-proxy"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+
+[vars]
+# The exact origin of the page that calls this Worker (no trailing slash, no path).
+ALLOWED_ORIGIN = "https://mrscruffster.github.io"

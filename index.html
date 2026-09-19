@@ -327,32 +327,6 @@
     <button class="icon-btn" id="closeSettings">✕</button>
   </div>
   <div class="s-body" id="settingsBody">
-    <div class="correction-note">
-      <b>This is the hosted, "deploy your own copy" build.</b> Your API keys never touch this
-      page at all — they live as secrets on the Cloudflare Worker you deployed, and every
-      built-in provider below already routes through it automatically. The provider cards below
-      are mainly useful for checking which ones you've configured (Test button) and for adding
-      any extra custom provider with your own key.
-      <br><br>
-      <b>No "Sign in with Google / Apple / Microsoft" here on purpose:</b> none of these AI
-      providers let a third-party app like this one obtain your API access that way — it isn't
-      a limitation of this page, it's just not a thing any of them offer. Each provider's own
-      sign-up page has its own login options instead (shown on each card below — mostly Google
-      and email; Apple/Microsoft aren't offered by any provider in this free lineup). Clicking
-      "Get key" takes you to that real page.
-      <br><br>
-      <b>Copilot isn't here at all</b> — GitHub Copilot doesn't expose a public API a third-party
-      page can call with a pasted key. Its "custom model" feature runs the opposite direction (you
-      put your <i>own</i> OpenAI/Anthropic key <i>into</i> Copilot, inside VS Code or GitHub — not
-      the reverse), and the only ways to pull Copilot's own completions programmatically involve
-      GitHub's Copilot Extensions SDK (a full GitHub App + OAuth integration, not a paste-a-key
-      flow) or unofficial reverse-engineered proxies that risk your GitHub account — neither of
-      which belongs in this app.
-      <br><br>
-      <b>Every built-in provider below is free, no card required.</b> Claude and ChatGPT were
-      removed on request — both are paid-only APIs with no free tier. If you want them back,
-      add them as a custom provider below with your own paid key.
-    </div>
     <p class="s-note" style="margin-bottom:14px">
       If you set a <code>PROXY_TOKEN</code> secret when you deployed your Worker, paste that
       same value into the 🔒 proxy card below once per browser — otherwise leave it blank. Any
