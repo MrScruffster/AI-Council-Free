@@ -586,7 +586,11 @@ async function callModel(providerId, model, messages, maxTokens, onDelta) {
     bodyObj = { model, max_tokens: maxTokens || 2048, messages: rest, stream: streaming };
     if (system) bodyObj.system = system;
   } else {
-    bodyObj = { model, messages, max_tokens: maxTokens || 2048, temperature: 0.7, stream: streaming };
+    /* Reasoning models (e.g. Groq's gpt-oss, Gemini 2.5+, Cerebras/SambaNova reasoning models)
+       spend part of max_tokens on hidden reasoning. With a tiny cap (Test button, router: 10)
+       the whole budget goes on reasoning and the visible reply comes back empty, so keep a
+       floor. Short answers still stop early; the floor only raises the ceiling. */
+    bodyObj = { model, messages, max_tokens: Math.max(maxTokens || 2048, 512), temperature: 0.7, stream: streaming };
   }
 
   const ctrl = new AbortController();
@@ -659,6 +663,10 @@ async function callModel(providerId, model, messages, maxTokens, onDelta) {
     content = data.choices?.[0]?.message?.content;
   }
   if (typeof content !== "string" || content.trim() === "") {
+    const why = data.choices?.[0]?.finish_reason || data.stop_reason;
+    if (why === "length" || why === "max_tokens") {
+      throw new Error(`${prov.label}: the model used its whole token limit on hidden reasoning before answering — this is not a connection or key problem.`);
+    }
     throw new Error(`${prov.label}: empty response (model may be unavailable — try updating its ID in CONFIG)`);
   }
   return content.trim();
