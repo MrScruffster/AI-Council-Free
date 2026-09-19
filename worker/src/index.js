@@ -15,8 +15,8 @@
  *                     (paste the same value into the app's ⚙ Keys → proxy card)
  *
  * Variables (wrangler.toml [vars]):
- *   ALLOWED_ORIGIN  — the exact site origin allowed to call this Worker,
- *                     e.g. https://mrscruffster.github.io
+ *   ALLOWED_ORIGIN  — the exact site origin(s) allowed to call this Worker,
+ *                     comma-separated, e.g. https://mrscruffster.github.io,https://www.ai-council.co.uk
  */
 
 const PROVIDERS = {
@@ -32,10 +32,10 @@ const PROVIDERS = {
 const MAX_BODY_BYTES = 256 * 1024;   // chat requests are small; refuse anything huge
 
 function corsHeaders(origin, env) {
-  const allowed = (env.ALLOWED_ORIGIN || "").trim();
-  // Reflect the origin only if it is exactly the allowed one. No wildcard: an
-  // open proxy would let any website spend your keys.
-  const ok = allowed !== "" && origin === allowed;
+  const allowed = (env.ALLOWED_ORIGIN || "").split(",").map(s => s.trim()).filter(Boolean);
+  // Reflect the origin only if it exactly matches one of the allowed ones. No
+  // wildcard: an open proxy would let any website spend your keys.
+  const ok = origin !== "" && allowed.includes(origin);
   return ok
     ? {
         "Access-Control-Allow-Origin": origin,

@@ -3,5 +3,6 @@ main = "src/index.js"
 compatibility_date = "2025-01-01"
 
 [vars]
-# The exact origin of the page that calls this Worker (no trailing slash, no path).
-ALLOWED_ORIGIN = "https://mrscruffster.github.io"
+# The exact origin(s) of the page that calls this Worker (no trailing slash, no path),
+# comma-separated.
+ALLOWED_ORIGIN = "https://mrscruffster.github.io,https://www.ai-council.co.uk"
