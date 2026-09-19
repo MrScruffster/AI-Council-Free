@@ -57,8 +57,15 @@
   .icon-btn:disabled { opacity: .4; cursor: not-allowed; }
   .icon-btn:disabled:hover { border-color: var(--border); }
   .provider-dots { display: flex; gap: 6px; align-items: center; font-size: .78rem; color: var(--text-dim); }
-  .pdot { width: 8px; height: 8px; border-radius: 50%; background: #555; display: inline-block; margin-right: 3px; }
+  .provider-dots { cursor: pointer; flex-wrap: wrap; }
+  .provider-dots > span { display: inline-flex; align-items: center; }
+  /* Status dots: green = verified working, red = not connected / failing,
+     amber = configured but not verified yet (or rate-limited). */
+  .pdot { width: 8px; height: 8px; border-radius: 50%; background: var(--err); display: inline-block; margin-right: 3px; }
   .pdot.on { background: var(--ok); }
+  .pdot.off, .pdot.fail { background: var(--err); }
+  .pdot.limited, .pdot.unverified { background: var(--warn); }
+  .pdot.checking { background: var(--warn); animation: pulse 1s infinite; }
 
   /* ---------- Layout: sidebar + main ---------- */
   #layout { flex: 1; display: flex; overflow: hidden; position: relative; }
@@ -147,6 +154,31 @@
   details.workings { margin-top: 12px; border-top: 1px dashed var(--border); padding-top: 8px; }
   details.workings summary { cursor: pointer; font-size: .78rem; color: var(--text-dim); user-select: none; }
   details.workings summary:hover { color: var(--accent); }
+
+  /* ---------- Plain-language answer + diagrams ---------- */
+  .plain-body { font-size: 1.02rem; line-height: 1.6; }
+  .plain-body > p:first-child {
+    background: rgba(108, 140, 255, .10); border-left: 3px solid var(--accent);
+    padding: 10px 14px; border-radius: 8px; margin-bottom: 14px;
+  }
+  .plain-body ul { margin-left: 20px; }
+  .plain-body li { margin-bottom: 6px; }
+  details.tech { margin-top: 14px; border-top: 1px dashed var(--border); padding-top: 8px; }
+  details.tech > summary { cursor: pointer; font-size: .8rem; color: var(--text-dim); user-select: none; }
+  details.tech > summary:hover { color: var(--accent); }
+  details.tech .tech-body { margin-top: 10px; padding: 12px 14px; background: #10131a; border: 1px solid var(--border); border-radius: 8px; font-size: .9rem; }
+  .diagram { margin: 4px 0 14px; padding: 14px; background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius); }
+  .diagram.flow, .diagram.cycle { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .dstep { display: inline-flex; align-items: center; gap: 8px; background: var(--panel); border: 1px solid var(--accent); border-radius: 10px; padding: 8px 12px; font-size: .9rem; line-height: 1.3; }
+  .dnum { flex: none; width: 20px; height: 20px; border-radius: 50%; background: var(--accent); color: #fff; font-size: .72rem; display: inline-flex; align-items: center; justify-content: center; }
+  .dgroup { display: inline-flex; align-items: center; gap: 8px; }
+  .darrow { color: var(--accent); font-size: 1.1rem; }
+  .dloop { flex-basis: 100%; color: var(--text-dim); font-size: .78rem; padding-left: 4px; }
+  .diagram.bars { display: flex; flex-direction: column; gap: 8px; }
+  .brow { display: grid; grid-template-columns: minmax(70px, 30%) 1fr auto; gap: 10px; align-items: center; font-size: .88rem; }
+  .btrack { background: #10131a; border-radius: 999px; height: 12px; overflow: hidden; }
+  .bfill { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); border-radius: 999px; }
+  .bval { color: var(--text-dim); white-space: nowrap; font-size: .82rem; }
   .working-block { margin-top: 10px; font-size: .82rem; }
   .working-block h4 { font-size: .74rem; text-transform: uppercase; letter-spacing: .6px; color: var(--accent); margin-bottom: 4px; }
   .working-block .wb-body { background: #10131a; border: 1px solid var(--border); border-radius: 8px; padding: 10px; color: var(--text-dim); white-space: pre-wrap; word-wrap: break-word; max-height: 260px; overflow-y: auto; line-height: 1.45; }
@@ -273,6 +305,7 @@
     <button data-mode="balanced" class="active" title="Route → generate → critique → revise. 3–4 calls.">Balanced</button>
     <button data-mode="council" title="All models answer in parallel, one synthesizes, another critiques, then a final revision. 6–7 calls.">Council</button>
   </div>
+  <button class="icon-btn active" id="plainToggle" title="Explain answers in plain, everyday language (with a simple diagram where it helps). The full technical answer stays one click away.">🗣 Plain: on</button>
   <button class="icon-btn" id="toolsToggle" title="Let a model use a small built-in toolset (calculator, current date/time) while drafting — Fast/Balanced modes only.">🔧 Tools: off</button>
   <button class="icon-btn" id="memoryBtn">🧠 Memory</button>
   <button class="icon-btn" id="settingsBtn">⚙ Keys</button>
@@ -287,7 +320,8 @@
   <div id="maincol">
     <main id="chat">
       <div class="sysnote">Pick a mode, add your API keys under <b>⚙ Keys</b>, and ask something.<br>
-      <b>Fast</b> = routing only · <b>Balanced</b> = routing + critique loop · <b>Council</b> = everything: ensemble + synthesis + critique.</div>
+      <b>Fast</b> = routing only · <b>Balanced</b> = routing + critique loop · <b>Council</b> = everything: ensemble + synthesis + critique.<br>
+      Answers come back in plain English with a simple diagram where it helps — the full technical answer is one click below (switch off with <b>🗣 Plain</b>).</div>
     </main>
     <div id="composer">
       <textarea id="input" rows="1" placeholder="Ask the council anything…"></textarea>
@@ -515,7 +549,81 @@ function pickProvider(preferredId) {
 function pickOtherProvider(notThisOne) {
   const avail = availableProviders();
   const others = avail.filter(id => id !== notThisOne);
-  return others.length ? others[0] : (avail[0] || null);
+  /* Prefer a reviewer that isn't known to be failing or rate-limited (see the header dots). */
+  const healthy = others.filter(id => !["fail", "limited"].includes(providerStatus(id).state));
+  return healthy.length ? healthy[0] : others.length ? others[0] : (avail[0] || null);
+}
+
+/* =====================================================================
+   Provider health — what the header dots show.
+   A dot is only green once a real request to that provider has succeeded.
+   Having a key (or a proxy URL) filled in is NOT proof of a connection: the
+   key may be wrong, or the proxy may not hold that provider's secret.
+     off        no key and no proxy            -> red
+     fail       last request failed            -> red
+     limited    reachable but rate-limited     -> amber
+     unverified configured, not tested yet     -> amber
+     checking   test in flight                 -> amber, pulsing
+     ok         last request succeeded         -> green
+   State is kept in memory only. It is tied to the key/proxy it was measured
+   with (`sig`), so editing a key resets that provider to "unverified".
+   ===================================================================== */
+const health = {};   // providerId -> { state, msg, sig, at }
+
+function isConfigured(id) {
+  const p = P[id];
+  return !!p && ((proxyOn() && !!p.proxyable) || p.key.trim() !== "");
+}
+function healthSig(id) {
+  const p = P[id];
+  return useProxy(p) ? "proxy|" + CONFIG.proxy.url.trim() + "|" + CONFIG.proxy.token : "key|" + p.key.trim();
+}
+function providerStatus(id) {
+  const p = P[id];
+  if (!isConfigured(id)) return { state: "off", msg: "Not connected — no API key added" };
+  if (p.corsBlocked && !useProxy(p)) return { state: "fail", msg: "Not connected — this provider blocks direct browser calls; it only works through the proxy" };
+  const h = health[id];
+  if (!h || h.sig !== healthSig(id)) return { state: "unverified", msg: "Key added but not tested yet" };
+  return h;
+}
+function setHealth(id, state, msg) {
+  if (!P[id]) return;
+  health[id] = { state, msg, sig: healthSig(id), at: Date.now() };
+  if (document.getElementById("provDots")) refreshDots();
+}
+function recordCallResult(id, err) {
+  if (!P[id] || !isConfigured(id)) return;
+  if (!err) return setHealth(id, "ok", "Connected — last request succeeded");
+  const m = String(err.message || err);
+  if (/rate limit/i.test(m)) return setHealth(id, "limited", "Connected but rate-limited right now");
+  if (/token limit|hidden reasoning/i.test(m)) return setHealth(id, "ok", "Connected");   // reached the model; not a connection problem
+  if (/No API key/i.test(m)) return;
+  return setHealth(id, "fail", "Not connected — " + m.replace(/\s+/g, " ").slice(0, 160));
+}
+
+async function callModel(providerId, model, messages, maxTokens, onDelta) {
+  try {
+    const out = await callModelRaw(providerId, model, messages, maxTokens, onDelta);
+    recordCallResult(providerId, null);
+    return out;
+  } catch (e) { recordCallResult(providerId, e); throw e; }
+}
+
+async function checkProvider(id) {
+  const p = P[id];
+  if (!p || !isConfigured(id)) return;
+  if (p.corsBlocked && !useProxy(p)) return;   // already shown red by providerStatus()
+  setHealth(id, "checking", "Checking…");
+  try { await callModel(id, p.fast || p.workhorse, [{ role: "user", content: "Reply with the single word: ready" }], 10); }
+  catch (_) { /* recordCallResult already logged it */ }
+}
+/* Tests every provider that is configured but not yet verified (used on load
+   and whenever the Keys drawer closes) — or all of them when `force` is set. */
+function verifyProviders(force) {
+  return Promise.all(Object.keys(P).filter(id => {
+    const s = providerStatus(id).state;
+    return force ? isConfigured(id) : s === "unverified";
+  }).map(checkProvider));
 }
 
 /* onDelta (optional): called with the accumulated text as tokens stream in.
@@ -534,7 +642,7 @@ function splitSystemMessage(messages) {
   return { system: undefined, rest: messages };
 }
 
-async function callModel(providerId, model, messages, maxTokens, onDelta) {
+async function callModelRaw(providerId, model, messages, maxTokens, onDelta) {
   const prov = P[providerId];
   if (!prov) throw new Error(`Unknown provider ${providerId}`);
   const viaProxy = useProxy(prov);
@@ -701,9 +809,17 @@ const TOOLS = {
 
 let toolsEnabled = false;
 
+async function callModelWithTools(providerId, model, messages) {
+  try {
+    const out = await callModelWithToolsRaw(providerId, model, messages);
+    recordCallResult(providerId, null);
+    return out;
+  } catch (e) { recordCallResult(providerId, e); throw e; }
+}
+
 /** Like callModel(), but drives a multi-turn tool-call loop instead of a single
  * request — non-streaming (see the comment above this section). */
-async function callModelWithTools(providerId, model, messages) {
+async function callModelWithToolsRaw(providerId, model, messages) {
   const prov = P[providerId];
   if (!prov) throw new Error(`Unknown provider ${providerId}`);
   const anthropic = isAnthropic(prov);
@@ -1044,11 +1160,64 @@ async function councilGenerate(category, history, question, ui) {
   return { genProvId: provId, draft, disagreement };
 }
 
+/* Stage: PLAIN ENGLISH — the finished (technical) answer is rewritten for a
+   smart reader with no specialist background: short, everyday words, a
+   bottom line first, and an optional simple diagram. The technical version
+   is kept and shown collapsed underneath. */
+async function plainify(question, technical, disagreement, category, ui) {
+  const preferred = pickProvider(CONFIG.specialists.factual);
+  if (!preferred) throw new Error("no providers");
+  ui.stage("plain", "running", `Explaining in plain English · ${P[preferred].label}`);
+  const DISAGREE = "%%%DISAGREE%%%";
+  const F = "```";
+  const sys =
+    "You are a friendly explainer. You will get a QUESTION and a detailed TECHNICAL ANSWER prepared by a panel of AI experts. " +
+    "Rewrite it so a smart person with NO specialist background understands it in under a minute.\n\n" +
+    "RULES\n" +
+    "- Start with \"**The short answer:**\" followed by one or two plain sentences giving the bottom line.\n" +
+    "- Then 3 to 6 short bullet points (\"- \") covering what matters most. One idea per bullet, one or two short sentences each.\n" +
+    "- Use everyday words. No jargon, no unexplained acronyms. If a technical term is unavoidable, explain it in brackets the first time. " +
+    "A quick everyday analogy is welcome where it genuinely helps.\n" +
+    "- Keep the important numbers, but round them and say what they mean in real life. Never add facts that are not in the technical answer.\n" +
+    "- Be honest about uncertainty: if it is an estimate, a design idea or unproven, say so in one plain sentence.\n" +
+    "- Keep it concise: about 150 words of prose, 220 at the very most (a diagram does not count). Shorter is better.\n" +
+    "- DIAGRAM: if the answer is about a process, sequence, cycle or a comparison of quantities, include ONE small diagram after the short answer, " +
+    "in a fenced block labelled diagram, using ONLY these formats, and skip the diagram if it would not help:\n" +
+    F + "diagram\nflow: Step one -> Step two -> Step three\n" + F + "\n" +
+    "  flow: = 3 to 6 short steps joined by ->;  cycle: = same, but the last step loops back to the first;\n" +
+    "  bars: = then one line per item as 'Label: number unit' (2 to 6 items) to compare sizes.\n" +
+    "  Labels are 1 to 4 plain words and may start with one emoji.\n" +
+    "- If the question was for code, a script or a document, say in plain words what it does and how to use it. Do NOT reproduce the code; the full version is shown separately.\n" +
+    "- Never mention 'the technical answer', 'the panel', 'the experts' or these rules (except in the disagreement section below). Output only the rewritten answer.\n" +
+    (disagreement
+      ? "- The experts disagreed on some points (listed in the input). After your answer, on a new line by itself, write exactly " + DISAGREE +
+        " followed by 1 to 3 plain-language bullets saying what they disagreed about and what that means for the reader.\n"
+      : "");
+  const { text, provId } = await callWithFallback(preferred, [
+    { role: "system", content: sys },
+    { role: "user", content:
+      "QUESTION:\n" + question.slice(0, 3000) +
+      "\n\nTECHNICAL ANSWER:\n" + technical.slice(0, 12000) +
+      (disagreement ? "\n\nPOINTS WHERE THE EXPERTS DISAGREED:\n" + disagreement : "") }
+  ], null, ui.stream, ui, "plain-language rewrite");
+  let plain = text, plainDisagree = "";
+  const idx = text.indexOf(DISAGREE);
+  if (idx !== -1) { plain = text.slice(0, idx).trim(); plainDisagree = text.slice(idx + DISAGREE.length).trim(); }
+  if (!plain) throw new Error("empty plain-language answer");
+  ui.stage("plain", "done", `Plain English · ${P[provId].label}`);
+  return { plain, disagreement: plainDisagree };
+}
+
 /* =====================================================================
    Orchestrator — combines techniques 3 + 4 + 5 per the chosen mode.
    ===================================================================== */
 let history = [];   // [{role, content}] recent turns, verbatim
 let mode = "balanced";
+
+/* Plain-language mode (default on). Remembered per browser when storage allows. */
+const PLAIN_KEY = "aicouncil-plain-v1";
+let plainMode = true;
+try { if (localStorage.getItem(PLAIN_KEY) === "off") plainMode = false; } catch (_) {}
 let busy = false;
 
 /* =====================================================================
@@ -1148,7 +1317,7 @@ async function updateMemory(question, finalAnswer, ui) {
   /* 2) rolling summary of overflow turns */
   if (history.length > CONFIG.historyLimit) {
     const overflow = history.slice(0, history.length - CONFIG.historyLimit);
-    const transcript = overflow.map(m => (m.role === "user" ? "User: " : "Assistant: ") + m.content).join("\n\n");
+    const transcript = overflow.map(m => (m.role === "user" ? "User: " : "Assistant: ") + forModel(m.content)).join("\n\n");
     try {
       memory.summary = await callModel(provId, P[provId].fast, [
         { role: "system", content:
@@ -1307,7 +1476,10 @@ function renderChatList() {
 }
 
 async function answer(question, ui) {
-  const trimmedHistory = [...history.slice(-CONFIG.historyLimit), { role: "user", content: question }];
+  /* Past answers are sent to the models in their technical form only. */
+  const trimmedHistory = [...history.slice(-CONFIG.historyLimit).map(m => ({ role: m.role, content: forModel(m.content) })), { role: "user", content: question }];
+  const usePlain = plainMode;
+  if (usePlain) ui.setStream("drafting");   // hold back the technical draft; the plain answer streams instead
 
   /* 5 — SPECIALIST ROUTING (all modes) */
   const category = await routeQuestion(question, ui);
@@ -1336,18 +1508,38 @@ async function answer(question, ui) {
 
   /* Re-attach the council's disagreement note (captured before critique/revise
      so neither stage could touch it) as its own clearly marked section. */
+  const body = final;   // answer text before the disagreement callout is appended
   if (disagreement) {
     ui.stage("disagree", "warn", "Disagreement · flagged");
     // :::disagreement ... ::: is recognized by renderMarkdown() and rendered
     // as a distinct styled callout, not just another paragraph of prose.
     final = final.trimEnd() + "\n\n:::disagreement\n" + disagreement + "\n:::";
   }
+  const technical = final;   // the full, detailed answer
+
+  /* PLAIN ENGLISH — lead with a short, jargon-free version; keep the detail underneath. */
+  ui.setStream("raw");
+  if (usePlain) {
+    try {
+      ui.setStream("plain");
+      const pl = await plainify(question, body, disagreement, category, ui);
+      let plainMd = pl.plain;
+      if (pl.disagreement) plainMd += "\n\n:::disagreement\n" + pl.disagreement + "\n:::";
+      else if (disagreement) plainMd += "\n\n:::disagreement\n" + disagreement + "\n:::";
+      // Code answers keep the technical section open — the code is usually the point.
+      final = plainMd + "\n\n:::technical" + (category === "code" ? "-open" : "") + "\n" + technical + "\n:::end-technical";
+    } catch (e) {
+      ui.stage("plain", "warn", "Plain-English rewrite unavailable — showing full answer");
+      ui.working("Plain-English rewrite", String(e.message || e));
+    }
+    ui.setStream("raw");
+  }
 
   history.push({ role: "user", content: question });
   history.push({ role: "assistant", content: final });
 
   /* fire-and-forget: memory updates in the background after the answer shows */
-  updateMemory(question, final, ui).catch(() => {});
+  updateMemory(question, technical, ui).catch(() => {});
   return final;
 }
 
@@ -1357,7 +1549,59 @@ async function answer(question, ui) {
 function escapeHtml(s) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
+/* Tiny diagram format the plain-language stage may emit inside a ```diagram fence:
+     flow: Step one -> Step two -> Step three
+     cycle: Heat water -> Steam spins turbine -> Power made -> Water cools -> (repeats)
+     bars:
+     Solar: 40 %
+     Wind: 25 %
+   Returns HTML, or null if it can't be parsed (caller then shows it as plain text). */
+function renderDiagram(src) {
+  const lines = src.split("\n").map(l => l.trim()).filter(Boolean);
+  const head = lines[0] && lines[0].match(/^(flow|cycle|bars)\s*:\s*(.*)$/i);
+  if (!head) return null;
+  const kind = head[1].toLowerCase();
+  const rest = [head[2], ...lines.slice(1)];
+  if (kind === "bars") {
+    const rows = [];
+    for (const l of rest) {
+      const m = l.match(/^(.+?)\s*:\s*(-?[\d][\d,]*\.?\d*)\s*(.*)$/);
+      if (m) rows.push({ label: m[1], val: parseFloat(m[2].replace(/,/g, "")), shown: m[2] + (m[3] ? " " + m[3] : "") });
+    }
+    if (rows.length < 2 || rows.some(r => !isFinite(r.val))) return null;
+    const max = Math.max(...rows.map(r => Math.abs(r.val))) || 1;
+    return `<div class="diagram bars">` + rows.slice(0, 8).map(r =>
+      `<div class="brow"><span>${escapeHtml(r.label)}</span><span class="btrack"><span class="bfill" style="width:${Math.max(3, Math.abs(r.val) / max * 100).toFixed(1)}%"></span></span><span class="bval">${escapeHtml(r.shown)}</span></div>`
+    ).join("") + `</div>`;
+  }
+  const steps = rest.join(" ").split(/\s*(?:->|→|=>)\s*/).map(s => s.trim()).filter(Boolean)
+    .filter(s => !/^\(?\s*(repeats?|loops? back|back to start)\s*\)?$/i.test(s)).slice(0, 8);
+  if (steps.length < 2) return null;
+  const html = steps.map((s, i) =>
+    `<span class="dgroup">${i ? '<span class="darrow">→</span>' : ""}<span class="dstep"><span class="dnum">${i + 1}</span>${escapeHtml(s)}</span></span>`).join("");
+  return `<div class="diagram ${kind}">${html}${kind === "cycle" ? '<span class="dloop">↺ then it goes round again</span>' : ""}</div>`;
+}
+
+/* Drops a half-streamed ``` fence so a diagram doesn't flash up as raw text. */
+function stripOpenFence(s) {
+  return ((s.match(/```/g) || []).length % 2 === 1) ? s.slice(0, s.lastIndexOf("```")) : s;
+}
+
+/* The plain-language stage saves "<plain answer> :::technical … :::end-technical".
+   Models should only ever see the technical part. */
+const TECH_RE = /\n*:::technical(-open)?\n([\s\S]*?)\n:::end-technical\s*$/;
+function forModel(content) {
+  const m = String(content).match(TECH_RE);
+  return m ? m[2] : content;
+}
+
 function renderMarkdown(md) {
+  const techM = md.match(TECH_RE);
+  if (techM) {
+    return `<div class="plain-body">${renderMarkdown(md.slice(0, techM.index))}</div>` +
+      `<details class="tech"${techM[1] ? " open" : ""}><summary>Show the full technical answer</summary>` +
+      `<div class="tech-body">${renderMarkdown(techM[2])}</div></details>`;
+  }
   const disagreementBlocks = [];
   md = md.replace(/:::disagreement\n([\s\S]*?)\n:::/g, (_, inner) => {
     disagreementBlocks.push(
@@ -1368,7 +1612,8 @@ function renderMarkdown(md) {
 
   const codeBlocks = [];
   md = md.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
-    codeBlocks.push(`<pre><code>${escapeHtml(code.replace(/\n$/, ""))}</code></pre>`);
+    const diagram = lang.toLowerCase() === "diagram" ? renderDiagram(code) : null;
+    codeBlocks.push(diagram || `<pre><code>${escapeHtml(code.replace(/\n$/, ""))}</code></pre>`);
     return "\u0000CB" + (codeBlocks.length - 1) + "\u0000";
   });
   let html = escapeHtml(md);
@@ -1448,15 +1693,28 @@ function addAiBubble() {
   const wblocksEl = div.querySelector(".wblocks");
   const stages = {};
   let lastStreamPaint = 0;
+  /* "raw": show streamed text as-is · "drafting": hold the technical draft back
+     (just a progress line) · "plain": stream the plain-English rewrite */
+  let streamMode = "raw";
 
   return {
+    setStream(m) {
+      streamMode = m;
+      if (m === "drafting") answerEl.innerHTML = '<span style="color:var(--text-dim)">The council is working on the detailed answer…</span>';
+    },
     /* live token stream — throttled re-render so long answers stay smooth */
     stream(accumulated) {
       const now = performance.now();
       if (now - lastStreamPaint < 80) return;
       lastStreamPaint = now;
       const nearBottom = chatEl.scrollHeight - chatEl.scrollTop - chatEl.clientHeight < 120;
-      answerEl.innerHTML = renderMarkdown(accumulated) + '<span class="cursor-blink"></span>';
+      if (streamMode === "drafting") {
+        const words = accumulated.trim().split(/\s+/).length;
+        answerEl.innerHTML = `<span style="color:var(--text-dim)">The council is working on the detailed answer… (${words} words so far)</span>`;
+        return;
+      }
+      const text = streamMode === "plain" ? stripOpenFence(accumulated.split("%%%DISAGREE%%%")[0]) : accumulated;
+      answerEl.innerHTML = (streamMode === "plain" ? '<div class="plain-body">' + renderMarkdown(text) + '</div>' : renderMarkdown(text)) + '<span class="cursor-blink"></span>';
       if (nearBottom) chatEl.scrollTop = chatEl.scrollHeight;
     },
     stage(id, state, label) {
@@ -1563,6 +1821,19 @@ function autoGrow() {
 }
 inputEl.addEventListener("input", autoGrow);
 
+/* ---------- plain-language toggle ---------- */
+const plainToggleEl = document.getElementById("plainToggle");
+function refreshPlainToggle() {
+  plainToggleEl.classList.toggle("active", plainMode);
+  plainToggleEl.textContent = "🗣 Plain: " + (plainMode ? "on" : "off");
+}
+plainToggleEl.addEventListener("click", () => {
+  plainMode = !plainMode;
+  try { localStorage.setItem(PLAIN_KEY, plainMode ? "on" : "off"); } catch (_) {}
+  refreshPlainToggle();
+});
+refreshPlainToggle();
+
 /* ---------- tools toggle ---------- */
 const toolsToggleEl = document.getElementById("toolsToggle");
 function refreshToolsToggle() {
@@ -1606,6 +1877,7 @@ function closeDrawers() {
   memoryEl.classList.remove("open");
   overlayEl.classList.remove("open");
   refreshDots();
+  verifyProviders();   // test anything newly configured
 }
 function openSettings() { closeDrawers(); settingsEl.classList.add("open"); overlayEl.classList.add("open"); }
 function openMemory() { closeDrawers(); renderMemoryPanel(); memoryEl.classList.add("open"); overlayEl.classList.add("open"); }
@@ -1656,15 +1928,19 @@ document.getElementById("forgetAll").addEventListener("click", () => {
 function refreshDots() {
   const el = document.getElementById("provDots");
   el.innerHTML = "";
+  el.title = "Green = connected · Amber = checking / not tested yet · Red = not connected. Click to re-check.";
   for (const id of Object.keys(P)) {
+    const st = providerStatus(id);
     const s = document.createElement("span");
     const dot = document.createElement("span");
-    dot.className = "pdot" + ((proxyOn() && P[id].proxyable) || P[id].key.trim() ? " on" : "");
+    dot.className = "pdot " + (st.state === "ok" ? "on" : st.state);
+    s.title = st.msg;
     s.appendChild(dot);
     s.appendChild(document.createTextNode(P[id].label));
     el.appendChild(s);
   }
 }
+document.getElementById("provDots").addEventListener("click", () => verifyProviders(true));
 
 function buildSettings() {
   const body = document.getElementById("settingsBody");
@@ -1888,6 +2164,7 @@ loadMemory();
 loadChats();
 buildSettings();
 refreshDots();
+verifyProviders();   // dots go green only once a provider has actually answered
 renderMemoryPanel();
 renderChatList();
 inputEl.focus();
