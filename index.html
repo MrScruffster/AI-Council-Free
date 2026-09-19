@@ -1,0 +1,1903 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Council — multi-model orchestrator</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --panel: #171a23;
+    --panel-2: #1e222e;
+    --border: #2a2f3d;
+    --text: #e8eaf0;
+    --text-dim: #9aa1b2;
+    --accent: #6c8cff;
+    --accent-2: #8b6cff;
+    --ok: #4cc38a;
+    --warn: #e5b567;
+    --err: #e5735f;
+    --radius: 12px;
+    font-size: 15px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ---------- Header ---------- */
+  header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 16px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.05rem; font-weight: 650; letter-spacing: .2px; }
+  header h1 span { color: var(--accent); }
+  .spacer { flex: 1; }
+  .mode-picker { display: flex; background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .mode-picker button {
+    background: none; border: none; color: var(--text-dim);
+    padding: 6px 14px; cursor: pointer; font-size: .85rem; font-family: inherit;
+  }
+  .mode-picker button.active { background: var(--accent); color: #fff; }
+  .icon-btn {
+    background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+    border-radius: 8px; padding: 6px 12px; cursor: pointer; font-size: .85rem; font-family: inherit;
+  }
+  .icon-btn:hover { border-color: var(--accent); }
+  .icon-btn.active { border-color: var(--accent); color: var(--accent); }
+  .icon-btn:disabled { opacity: .4; cursor: not-allowed; }
+  .icon-btn:disabled:hover { border-color: var(--border); }
+  .provider-dots { display: flex; gap: 6px; align-items: center; font-size: .78rem; color: var(--text-dim); }
+  .pdot { width: 8px; height: 8px; border-radius: 50%; background: #555; display: inline-block; margin-right: 3px; }
+  .pdot.on { background: var(--ok); }
+
+  /* ---------- Layout: sidebar + main ---------- */
+  #layout { flex: 1; display: flex; overflow: hidden; position: relative; }
+  #maincol { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  #sidebar {
+    width: 230px; flex: none; background: var(--panel);
+    border-right: 1px solid var(--border); display: flex; flex-direction: column;
+  }
+  #newChat {
+    margin: 12px; padding: 9px 12px; background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px; cursor: pointer;
+    font-family: inherit; font-size: .85rem; text-align: left;
+  }
+  #newChat:hover { border-color: var(--accent); }
+  #chatList { flex: 1; overflow-y: auto; padding: 0 8px 12px; }
+  .chat-item {
+    display: flex; align-items: center; gap: 6px;
+    padding: 8px 10px; border-radius: 8px; cursor: pointer;
+    font-size: .82rem; color: var(--text-dim); margin-bottom: 2px;
+  }
+  .chat-item:hover { background: var(--panel-2); }
+  .chat-item.active { background: var(--panel-2); color: var(--text); }
+  .chat-item .ct { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chat-item .cx { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: .85rem; padding: 0 2px; visibility: hidden; flex: none; }
+  .chat-item:hover .cx { visibility: visible; }
+  .chat-item .cx:hover { color: var(--err); }
+  .sidebar-note { font-size: .7rem; color: var(--text-dim); padding: 8px 14px; border-top: 1px solid var(--border); }
+  @media (max-width: 760px) {
+    #sidebar {
+      position: absolute; left: 0; top: 0; bottom: 0; z-index: 6;
+      transform: translateX(-100%); transition: transform .2s ease;
+      box-shadow: 4px 0 18px rgba(0,0,0,.4);
+    }
+    #sidebar.open { transform: none; }
+  }
+
+  /* ---------- Chat ---------- */
+  #chat {
+    flex: 1; overflow-y: auto; padding: 20px clamp(12px, 5vw, 90px);
+    display: flex; flex-direction: column; gap: 18px;
+  }
+  .cursor-blink { display: inline-block; width: 8px; height: 1em; background: var(--accent); vertical-align: text-bottom; animation: pulse .8s infinite; border-radius: 2px; }
+  .msg { max-width: 100%; }
+  .msg.user { align-self: flex-end; max-width: 80%; }
+  .msg.user .bubble {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff; padding: 10px 14px; border-radius: var(--radius);
+    border-bottom-right-radius: 4px; white-space: pre-wrap; word-wrap: break-word;
+  }
+  .msg.ai .bubble {
+    background: var(--panel); border: 1px solid var(--border);
+    padding: 14px 16px; border-radius: var(--radius); border-bottom-left-radius: 4px;
+  }
+  .answer { line-height: 1.55; word-wrap: break-word; }
+  .answer p { margin: 0 0 10px; } .answer p:last-child { margin-bottom: 0; }
+  .answer h1,.answer h2,.answer h3 { margin: 14px 0 8px; font-size: 1.05em; }
+  .answer ul,.answer ol { margin: 0 0 10px 22px; }
+  .answer li { margin-bottom: 4px; }
+  .answer code { background: #10131a; border: 1px solid var(--border); padding: 1px 5px; border-radius: 5px; font-size: .88em; font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospace; }
+  .answer pre { background: #10131a; border: 1px solid var(--border); border-radius: 8px; padding: 12px; overflow-x: auto; margin: 0 0 10px; }
+  .answer pre code { background: none; border: none; padding: 0; }
+  .answer a { color: var(--accent); }
+
+  /* ---------- Pipeline timeline ---------- */
+  .pipeline { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  .stage {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: .74rem; color: var(--text-dim);
+    background: var(--panel-2); border: 1px solid var(--border);
+    padding: 4px 10px; border-radius: 999px;
+  }
+  .stage .sdot { width: 7px; height: 7px; border-radius: 50%; background: #555; flex: none; }
+  .stage.running .sdot { background: var(--warn); animation: pulse 1s infinite; }
+  .stage.done .sdot { background: var(--ok); }
+  .stage.warn .sdot { background: var(--warn); }
+  .stage.error .sdot { background: var(--err); }
+  .stage.skipped { opacity: .45; }
+  .disagreement-box {
+    margin-top: 14px; padding: 10px 14px; border-radius: var(--radius);
+    background: rgba(229, 181, 103, .08); border: 1px solid rgba(229, 181, 103, .35);
+  }
+  .disagreement-box > .db-head { color: var(--warn); font-weight: 600; font-size: .85rem; margin-bottom: 6px; }
+  .disagreement-box p:first-child { margin-top: 0; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+
+  details.workings { margin-top: 12px; border-top: 1px dashed var(--border); padding-top: 8px; }
+  details.workings summary { cursor: pointer; font-size: .78rem; color: var(--text-dim); user-select: none; }
+  details.workings summary:hover { color: var(--accent); }
+  .working-block { margin-top: 10px; font-size: .82rem; }
+  .working-block h4 { font-size: .74rem; text-transform: uppercase; letter-spacing: .6px; color: var(--accent); margin-bottom: 4px; }
+  .working-block .wb-body { background: #10131a; border: 1px solid var(--border); border-radius: 8px; padding: 10px; color: var(--text-dim); white-space: pre-wrap; word-wrap: break-word; max-height: 260px; overflow-y: auto; line-height: 1.45; }
+  .wb-actions { margin-top: 8px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .wb-actions .xexamine-btn { background: var(--panel-2); border: 1px solid var(--border); color: var(--accent); border-radius: 6px; padding: 5px 9px; font-size: .76rem; cursor: pointer; font-family: inherit; }
+  .wb-actions .xexamine-btn:hover { border-color: var(--accent); }
+  .xexamine-form { margin-top: 8px; display: none; gap: 6px; }
+  .xexamine-form.open { display: flex; flex-wrap: wrap; }
+  .xexamine-form input { flex: 1; min-width: 140px; background: #10131a; border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; color: var(--text); font-size: .8rem; font-family: inherit; }
+  .xexamine-form button { background: var(--accent); border: none; color: #fff; border-radius: 6px; padding: 6px 12px; font-size: .78rem; cursor: pointer; font-family: inherit; }
+  .xexamine-reply { margin-top: 8px; background: #10131a; border: 1px dashed var(--border); border-radius: 8px; padding: 8px 10px; font-size: .82rem; color: var(--text); white-space: pre-wrap; display: none; }
+
+  .sysnote { text-align: center; font-size: .8rem; color: var(--text-dim); padding: 4px; }
+  .errnote { color: var(--err); }
+
+  /* ---------- Composer ---------- */
+  #composer {
+    display: flex; gap: 10px; padding: 12px 16px 16px;
+    background: var(--panel); border-top: 1px solid var(--border);
+  }
+  #input {
+    flex: 1; resize: none; background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 11px 14px; font-family: inherit; font-size: .95rem; line-height: 1.4;
+    max-height: 160px; outline: none;
+  }
+  #input:focus { border-color: var(--accent); }
+  #send {
+    background: var(--accent); color: #fff; border: none; border-radius: var(--radius);
+    padding: 0 22px; font-size: .95rem; cursor: pointer; font-family: inherit; font-weight: 600;
+  }
+  #send:disabled { opacity: .5; cursor: not-allowed; }
+
+  /* ---------- Settings drawer ---------- */
+  #overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.55);
+    display: none; z-index: 10;
+  }
+  #overlay.open { display: block; }
+  .drawer {
+    position: fixed; top: 0; right: 0; height: 100%; width: min(420px, 100%);
+    background: var(--panel); border-left: 1px solid var(--border);
+    transform: translateX(100%); transition: transform .25s ease; z-index: 11;
+    display: flex; flex-direction: column;
+  }
+  .drawer.open { transform: translateX(0); }
+  .drawer .s-head { display: flex; align-items: center; justify-content: space-between; padding: 16px; border-bottom: 1px solid var(--border); }
+  .drawer .s-head h2 { font-size: 1rem; }
+  .drawer .s-body { padding: 16px; overflow-y: auto; flex: 1; }
+
+  /* ---------- Memory panel ---------- */
+  .mem-section { margin-bottom: 18px; }
+  .mem-section h3 { font-size: .8rem; text-transform: uppercase; letter-spacing: .6px; color: var(--accent); margin-bottom: 8px; }
+  .mem-summary { background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; font-size: .84rem; color: var(--text-dim); line-height: 1.5; white-space: pre-wrap; }
+  .fact { display: flex; align-items: flex-start; gap: 8px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; margin-bottom: 6px; font-size: .84rem; line-height: 1.4; }
+  .fact span { flex: 1; }
+  .fact button { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: .9rem; padding: 0 2px; flex: none; }
+  .fact button:hover { color: var(--err); }
+  .mem-empty { font-size: .82rem; color: var(--text-dim); font-style: italic; }
+  .danger-btn { background: none; border: 1px solid var(--border); color: var(--err); border-radius: 8px; padding: 7px 12px; cursor: pointer; font-size: .8rem; font-family: inherit; }
+  .danger-btn:hover { border-color: var(--err); }
+  .prov-card { background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 14px; }
+  .prov-card h3 { font-size: .9rem; display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .prov-card .hint { font-size: .76rem; color: var(--text-dim); margin-bottom: 10px; }
+  .prov-card .hint a { color: var(--accent); }
+  .keyrow { display: flex; gap: 8px; }
+  .keyrow input {
+    flex: 1; background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    border-radius: 8px; padding: 8px 10px; font-family: ui-monospace, monospace; font-size: .8rem; outline: none;
+  }
+  .keyrow input:focus { border-color: var(--accent); }
+  .keyrow button {
+    background: var(--panel); border: 1px solid var(--border); color: var(--text);
+    border-radius: 8px; padding: 8px 12px; cursor: pointer; font-size: .78rem; font-family: inherit; flex: none;
+  }
+  .keyrow button:hover { border-color: var(--accent); }
+  .teststatus { font-size: .76rem; margin-top: 8px; min-height: 1em; }
+  .teststatus.ok { color: var(--ok); }
+  .teststatus.err { color: var(--err); }
+  .s-note { font-size: .76rem; color: var(--text-dim); line-height: 1.5; margin-top: 6px; }
+  .correction-note {
+    background: var(--panel-2); border: 1px solid var(--border); border-left: 3px solid var(--warn);
+    border-radius: 8px; padding: 10px 12px; font-size: .78rem; color: var(--text-dim); line-height: 1.5; margin-bottom: 16px;
+  }
+  .correction-note b { color: var(--text); }
+  .signin-badge {
+    display: inline-block; font-size: .7rem; color: var(--text-dim);
+    background: var(--bg); border: 1px solid var(--border); border-radius: 999px;
+    padding: 2px 9px; margin-top: 6px;
+  }
+  .remember-row { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: .76rem; color: var(--text-dim); }
+  .remember-row input { accent-color: var(--accent); }
+  .section-label { font-size: .8rem; text-transform: uppercase; letter-spacing: .6px; color: var(--accent); margin: 18px 0 8px; }
+  .add-provider-btn {
+    width: 100%; background: var(--panel-2); border: 1px dashed var(--border); color: var(--text-dim);
+    border-radius: var(--radius); padding: 10px; cursor: pointer; font-family: inherit; font-size: .84rem; margin-top: 4px;
+  }
+  .add-provider-btn:hover { border-color: var(--accent); color: var(--text); }
+  .custom-form { background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; margin-top: 8px; }
+  .custom-form label { display: block; font-size: .74rem; color: var(--text-dim); margin: 8px 0 3px; }
+  .custom-form label:first-child { margin-top: 0; }
+  .custom-form input {
+    width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    border-radius: 8px; padding: 7px 9px; font-family: ui-monospace, monospace; font-size: .78rem; outline: none;
+  }
+  .custom-form input:focus { border-color: var(--accent); }
+  .custom-form .cf-actions { display: flex; gap: 8px; margin-top: 12px; }
+  .custom-form .cf-save { background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 7px 14px; cursor: pointer; font-family: inherit; font-size: .8rem; }
+  .custom-form .cf-cancel { background: none; border: 1px solid var(--border); color: var(--text-dim); border-radius: 8px; padding: 7px 14px; cursor: pointer; font-family: inherit; font-size: .8rem; }
+  .custom-card .cf-remove { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: .8rem; float: right; }
+  .custom-card .cf-remove:hover { color: var(--err); }
+  .s-note code { background: var(--bg); padding: 1px 4px; border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<header>
+  <button class="icon-btn" id="sidebarBtn" title="Chats">☰</button>
+  <h1>AI <span>Council</span></h1>
+  <div class="provider-dots" id="provDots"></div>
+  <div class="spacer"></div>
+  <div class="mode-picker" id="modePicker">
+    <button data-mode="fast" title="Route to a specialist, answer directly. 2 calls.">Fast</button>
+    <button data-mode="balanced" class="active" title="Route → generate → critique → revise. 3–4 calls.">Balanced</button>
+    <button data-mode="council" title="All models answer in parallel, one synthesizes, another critiques, then a final revision. 6–7 calls.">Council</button>
+  </div>
+  <button class="icon-btn" id="toolsToggle" title="Let a model use a small built-in toolset (calculator, current date/time) while drafting — Fast/Balanced modes only.">🔧 Tools: off</button>
+  <button class="icon-btn" id="memoryBtn">🧠 Memory</button>
+  <button class="icon-btn" id="settingsBtn">⚙ Keys</button>
+</header>
+
+<div id="layout">
+  <nav id="sidebar">
+    <button id="newChat">＋ New chat</button>
+    <div id="chatList"></div>
+    <div class="sidebar-note">Chats &amp; memory are saved in this browser when the file is opened locally.</div>
+  </nav>
+  <div id="maincol">
+    <main id="chat">
+      <div class="sysnote">Pick a mode, add your API keys under <b>⚙ Keys</b>, and ask something.<br>
+      <b>Fast</b> = routing only · <b>Balanced</b> = routing + critique loop · <b>Council</b> = everything: ensemble + synthesis + critique.</div>
+    </main>
+    <div id="composer">
+      <textarea id="input" rows="1" placeholder="Ask the council anything…"></textarea>
+      <button id="send">Send</button>
+    </div>
+  </div>
+</div>
+
+<div id="overlay"></div>
+
+<aside id="memory" class="drawer">
+  <div class="s-head">
+    <h2>🧠 Working memory</h2>
+    <button class="icon-btn" id="closeMemory">✕</button>
+  </div>
+  <div class="s-body">
+    <p class="s-note" style="margin-bottom:16px">
+      After each exchange, a fast model quietly extracts lasting facts and keeps a rolling
+      summary of older conversation. Both are fed to every model on every question.
+      Facts are saved in your browser (when opened as a local file), so they survive closing the page.
+    </p>
+    <div class="mem-section">
+      <h3>Conversation summary</h3>
+      <div class="mem-summary" id="memSummary">Nothing summarized yet — kicks in once the conversation gets long.</div>
+    </div>
+    <div class="mem-section">
+      <h3>Remembered facts</h3>
+      <div id="memFacts"><div class="mem-empty">Nothing remembered yet.</div></div>
+    </div>
+    <button class="danger-btn" id="forgetAll">Forget everything</button>
+  </div>
+</aside>
+
+<aside id="settings" class="drawer">
+  <div class="s-head">
+    <h2>Provider API keys</h2>
+    <button class="icon-btn" id="closeSettings">✕</button>
+  </div>
+  <div class="s-body" id="settingsBody">
+    <div class="correction-note">
+      <b>This is the hosted, "deploy your own copy" build.</b> Your API keys never touch this
+      page at all — they live as secrets on the Cloudflare Worker you deployed, and every
+      built-in provider below already routes through it automatically. The provider cards below
+      are mainly useful for checking which ones you've configured (Test button) and for adding
+      any extra custom provider with your own key.
+      <br><br>
+      <b>No "Sign in with Google / Apple / Microsoft" here on purpose:</b> none of these AI
+      providers let a third-party app like this one obtain your API access that way — it isn't
+      a limitation of this page, it's just not a thing any of them offer. Each provider's own
+      sign-up page has its own login options instead (shown on each card below — mostly Google
+      and email; Apple/Microsoft aren't offered by any provider in this free lineup). Clicking
+      "Get key" takes you to that real page.
+      <br><br>
+      <b>Copilot isn't here at all</b> — GitHub Copilot doesn't expose a public API a third-party
+      page can call with a pasted key. Its "custom model" feature runs the opposite direction (you
+      put your <i>own</i> OpenAI/Anthropic key <i>into</i> Copilot, inside VS Code or GitHub — not
+      the reverse), and the only ways to pull Copilot's own completions programmatically involve
+      GitHub's Copilot Extensions SDK (a full GitHub App + OAuth integration, not a paste-a-key
+      flow) or unofficial reverse-engineered proxies that risk your GitHub account — neither of
+      which belongs in this app.
+      <br><br>
+      <b>Every built-in provider below is free, no card required.</b> Claude and ChatGPT were
+      removed on request — both are paid-only APIs with no free tier. If you want them back,
+      add them as a custom provider below with your own paid key.
+    </div>
+    <p class="s-note" style="margin-bottom:14px">
+      If you set a <code>PROXY_TOKEN</code> secret when you deployed your Worker, paste that
+      same value into the 🔒 proxy card below once per browser — otherwise leave it blank. Any
+      key you type directly into a provider card below is used instead of the built-in proxy for
+      that provider, and stays in this browser only if you tick "Remember this key".
+    </p>
+    <!-- provider cards injected here -->
+    <div class="section-label" id="customSectionLabel">Custom providers</div>
+    <div id="customProviderList"></div>
+    <button class="add-provider-btn" id="addProviderBtn">＋ Add a custom OpenAI-compatible provider</button>
+    <div id="customProviderForm"></div>
+    <p class="s-note" style="margin-top:16px">
+      Model names change over time. If a Test fails with a "model not found" style error,
+      open this file in a text editor and update the model IDs in the <code>CONFIG</code> block —
+      each provider's console lists its current models.
+    </p>
+  </div>
+</aside>
+
+<script>
+"use strict";
+
+/* =====================================================================
+   CONFIG — the only part you need to touch.
+   1) Paste your API keys into the key: "" fields below (or use ⚙ Keys).
+   2) If a model is ever retired, swap its ID here.
+   ===================================================================== */
+const CONFIG = {
+  /* This copy of the page is served BY the same Worker that runs the proxy
+     (see /src/index.js in this repo), so the proxy is already wired up —
+     it just points at its own origin's /api/* routes. Nothing to paste here.
+     If you set a PROXY_TOKEN secret when you deployed, paste that one value
+     into ⚙ Keys once per browser (see README.md). */
+  proxy: {
+    url: (typeof location !== "undefined" ? location.origin : ""),
+    token: ""
+  },
+
+  /* Built-in free providers. None of these can be "signed in with Google /
+     Apple / Microsoft" from inside this app — that's not something any of
+     them offer to third-party apps (see the note in ⚙ Keys). "signIn" below
+     just tells you, honestly, what that provider's OWN sign-up page supports,
+     so you know what to expect when the "Get key" link opens it. */
+  providers: {
+    groq: {
+      label: "Groq",
+      url: "https://api.groq.com/openai/v1/chat/completions",
+      key: "",                                   // <-- PASTE GROQ KEY HERE (console.groq.com)
+      workhorse: "openai/gpt-oss-120b",          // main model used for this provider
+      fast: "openai/gpt-oss-20b",                // quick/cheap model (used for routing)
+      keyUrl: "https://console.groq.com",
+      signIn: "Google · GitHub · email",
+      proxyable: true
+    },
+    gemini: {
+      label: "Gemini",
+      url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+      key: "",                                   // <-- PASTE GEMINI KEY HERE (ai.google.dev)
+      workhorse: "gemini-flash-latest",
+      fast: "gemini-flash-lite-latest",
+      keyUrl: "https://ai.google.dev",
+      signIn: "Google account (required — it's a Google product)",
+      proxyable: true
+    },
+    openrouter: {
+      label: "OpenRouter",
+      url: "https://openrouter.ai/api/v1/chat/completions",
+      key: "",                                   // <-- PASTE OPENROUTER KEY HERE (openrouter.ai)
+      workhorse: "z-ai/glm-5.2:free",
+      fast: "nvidia/nemotron-3.5-lightning:free",
+      keyUrl: "https://openrouter.ai/settings/keys",
+      signIn: "Google · GitHub · Discord · email",
+      proxyable: true
+    },
+    cerebras: {
+      label: "Cerebras",
+      url: "https://api.cerebras.ai/v1/chat/completions",
+      key: "",                                   // <-- PASTE CEREBRAS KEY HERE (cloud.cerebras.ai)
+      workhorse: "gpt-oss-120b",
+      fast: "qwen-3.8-27b",
+      keyUrl: "https://cloud.cerebras.ai",
+      signIn: "email (fastest inference here — 1M free tokens/day)",
+      proxyable: true
+    },
+    cohere: {
+      label: "Cohere",
+      url: "https://api.cohere.ai/compatibility/v1/chat/completions",
+      key: "",                                   // <-- PASTE COHERE KEY HERE (dashboard.cohere.com/api-keys)
+      workhorse: "command-a-plus-05-2026",
+      fast: "command-r7b-12-2024",
+      keyUrl: "https://dashboard.cohere.com/api-keys",
+      signIn: "email (smaller limit — 1,000 calls/month, ~33/day)",
+      proxyable: true
+    },
+    sambanova: {
+      label: "SambaNova",
+      url: "https://api.sambanova.ai/v1/chat/completions",
+      key: "",                                   // <-- PASTE SAMBANOVA KEY HERE (cloud.sambanova.ai/apis)
+      workhorse: "Meta-Llama-3.3-70B-Instruct",
+      fast: "Meta-Llama-3.1-8B-Instruct",
+      keyUrl: "https://cloud.sambanova.ai/apis",
+      signIn: "email",
+      proxyable: true
+    },
+    mistral: {
+      label: "Mistral",
+      url: "https://api.mistral.ai/v1/chat/completions",
+      key: "",                                   // <-- PASTE MISTRAL KEY HERE (console.mistral.ai) — Free mode, no card
+      workhorse: "mistral-large-latest",
+      fast: "mistral-small-latest",
+      keyUrl: "https://console.mistral.ai",
+      signIn: "email (rate limits lowest on Free mode — fine for this app)",
+      proxyable: true
+    }
+  },
+
+  /* User-added providers: any OpenAI-compatible chat/completions endpoint
+     (Azure OpenAI, Mistral, HuggingFace Inference Providers, Together,
+     a local Ollama server, etc). Added and edited from ⚙ Keys — this array
+     is just the seed; the running list lives in `customProviders` below.
+     These always call directly with their own key, never through the proxy,
+     since the Worker doesn't know about them. */
+  customProviderSeeds: [],
+
+  /* Specialist routing (technique 5): which provider handles which kind of
+     question. If that provider has no key, the app falls back to any
+     provider that does. */
+  specialists: {
+    code:      "groq",        // programming, debugging, scripts
+    creative:  "openrouter",  // stories, poems, brainstorming, copywriting
+    factual:   "gemini",      // facts, explanations, summaries, general chat
+    reasoning: "gemini"       // maths, logic, multi-step planning
+  },
+
+  historyLimit: 8,      // how many past messages are sent for context
+  timeoutMs: 90000,
+
+  /* Council mode races every available provider in parallel — one hanging-but-not-
+     erroring provider shouldn't stall the whole fanout. See withCouncilTimeout(). */
+  councilTimeoutMs: 30000
+};
+
+/* =====================================================================
+   Provider plumbing — P is the live registry: built-ins + custom providers
+   the user has added. It's rebuilt (not just mutated) whenever a custom
+   provider is added or removed, and everything downstream reads from it.
+   ===================================================================== */
+let customProviders = [];   // [{id, label, url, key, workhorse, fast, keyUrl, remember}]
+let P = {};
+
+function rebuildRegistry() {
+  P = { ...CONFIG.providers };
+  for (const cp of customProviders) {
+    P[cp.id] = { ...cp, proxyable: false };   // custom providers always call direct
+  }
+}
+rebuildRegistry();
+
+function proxyOn() { return CONFIG.proxy.url.trim() !== ""; }
+
+function availableProviders() {
+  return Object.keys(P).filter(id => {
+    if (proxyOn() && P[id].proxyable) return true;   // the Worker holds this one's key
+    return P[id].key.trim() !== "";
+  });
+}
+
+/* Pick the provider for a role; fall back to whatever is available. */
+function pickProvider(preferredId) {
+  const avail = availableProviders();
+  if (avail.length === 0) return null;
+  return avail.includes(preferredId) ? preferredId : avail[0];
+}
+
+/* A provider different from `notThisOne`, for independent critique. */
+function pickOtherProvider(notThisOne) {
+  const avail = availableProviders();
+  const others = avail.filter(id => id !== notThisOne);
+  return others.length ? others[0] : (avail[0] || null);
+}
+
+/* onDelta (optional): called with the accumulated text as tokens stream in.
+   When provided, the request uses Server-Sent Events (stream: true). */
+/* Anthropic's Messages API is not OpenAI-shaped: different auth header,
+   the system prompt is a top-level field (not a "system"-role message),
+   max_tokens is required, and both the plain and streamed response shapes
+   are different. Every other built-in and every custom provider uses the
+   OpenAI chat-completions shape. */
+function isAnthropic(prov) { return prov.family === "anthropic"; }
+
+function splitSystemMessage(messages) {
+  if (messages.length && messages[0].role === "system") {
+    return { system: messages[0].content, rest: messages.slice(1) };
+  }
+  return { system: undefined, rest: messages };
+}
+
+async function callModel(providerId, model, messages, maxTokens, onDelta) {
+  const prov = P[providerId];
+  if (!prov) throw new Error(`Unknown provider ${providerId}`);
+  const viaProxy = proxyOn() && prov.proxyable;
+  if (!viaProxy && !prov.key.trim()) throw new Error(`No API key for ${providerId}`);
+  const anthropic = isAnthropic(prov);
+  const endpoint = viaProxy
+    ? CONFIG.proxy.url.trim().replace(/\/+$/, "") + "/api/" + providerId
+    : prov.url;
+  const headers = { "Content-Type": "application/json" };
+  if (viaProxy) {
+    if (CONFIG.proxy.token.trim()) headers["X-Proxy-Token"] = CONFIG.proxy.token.trim();
+  } else if (anthropic) {
+    headers["x-api-key"] = prov.key.trim();
+    headers["anthropic-version"] = "2023-06-01";
+    headers["anthropic-dangerous-direct-browser-access"] = "true";   // required for direct browser calls
+  } else {
+    headers["Authorization"] = "Bearer " + prov.key.trim();
+  }
+
+  const streaming = typeof onDelta === "function";
+  let bodyObj;
+  if (anthropic) {
+    const { system, rest } = splitSystemMessage(messages);
+    bodyObj = { model, max_tokens: maxTokens || 2048, messages: rest, stream: streaming };
+    if (system) bodyObj.system = system;
+  } else {
+    bodyObj = { model, messages, max_tokens: maxTokens || 2048, temperature: 0.7, stream: streaming };
+  }
+
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), CONFIG.timeoutMs);
+  let res;
+  try {
+    res = await fetch(endpoint, { method: "POST", signal: ctrl.signal, headers: headers, body: JSON.stringify(bodyObj) });
+  } catch (e) {
+    clearTimeout(timer);
+    if (e.name === "AbortError") throw new Error(`${prov.label} timed out`);
+    if (!viaProxy && prov.corsBlocked) {
+      throw new Error(`${prov.label}: request blocked — this provider generally refuses direct calls from a browser (CORS). Use the 🔒 proxy in ⚙ Keys instead (add its key as a Worker secret).`);
+    }
+    throw new Error(`${prov.label}: network error (are you online? is the endpoint URL right?)`);
+  }
+  if (!res.ok) {
+    clearTimeout(timer);
+    let detail = "";
+    try { const j = await res.json(); detail = j.error?.message || JSON.stringify(j).slice(0, 200); }
+    catch (_) { detail = await res.text().then(t => t.slice(0, 200)).catch(() => ""); }
+    if (res.status === 401 || res.status === 403) throw new Error(viaProxy
+      ? `${prov.label} via proxy: rejected — check the proxy access token in ⚙ Keys. ${detail}`
+      : `${prov.label}: key rejected (check it in ⚙ Keys). ${detail}`);
+    if (res.status === 429) throw new Error(`${prov.label}: rate limit hit. ${detail}`);
+    throw new Error(`${prov.label} HTTP ${res.status}: ${detail}`);
+  }
+
+  if (streaming && res.body && res.body.getReader) {
+    /* Parse the SSE stream. OpenAI-shaped: data: {choices:[{delta:{content}}]}, ends with
+       data: [DONE]. Anthropic-shaped: named events, text arrives as
+       data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"..."}} */
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "", full = "";
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop();                       // keep the trailing partial line
+        for (const line of lines) {
+          const t = line.trim();
+          if (!t.startsWith("data:")) continue;
+          const payload = t.slice(5).trim();
+          if (payload === "[DONE]") continue;
+          try {
+            const parsed = JSON.parse(payload);
+            let delta = null;
+            if (anthropic) {
+              if (parsed.type === "content_block_delta" && parsed.delta?.type === "text_delta") delta = parsed.delta.text;
+            } else {
+              delta = parsed.choices?.[0]?.delta?.content;
+            }
+            if (delta) { full += delta; onDelta(full); }
+          } catch (_) { /* ignore malformed keep-alive chunks */ }
+        }
+      }
+    } finally { clearTimeout(timer); }
+    if (full.trim() === "") throw new Error(`${prov.label}: empty streamed response (model may be unavailable — try updating its ID in CONFIG)`);
+    return full.trim();
+  }
+
+  clearTimeout(timer);
+  const data = await res.json();
+  let content;
+  if (anthropic) {
+    content = Array.isArray(data.content) ? data.content.filter(b => b.type === "text").map(b => b.text).join("") : "";
+  } else {
+    content = data.choices?.[0]?.message?.content;
+  }
+  if (typeof content !== "string" || content.trim() === "") {
+    throw new Error(`${prov.label}: empty response (model may be unavailable — try updating its ID in CONFIG)`);
+  }
+  return content.trim();
+}
+
+/* =====================================================================
+   Tool use — a small, honest built-in toolset, not a plugin marketplace.
+   Deliberately scoped: Fast/Balanced modes only (never Council — mixing a
+   multi-turn tool loop into the parallel fanout + synthesis would make
+   failures much harder to reason about for little benefit here),
+   non-streaming (a tool round-trip doesn't fit the token-stream contract
+   callModel() has with the UI), and only two tools to start: arithmetic
+   and the current date/time. No code execution, no browsing, no
+   third-party plugin registry.
+
+   Unlike the hosted/paid build (which restricts this to Claude/ChatGPT,
+   the only two providers it has a guaranteed tool-calling contract with),
+   this free template tries whichever provider the normal routing would
+   have picked, since every built-in here already speaks the same
+   OpenAI-compatible chat-completions shape callModelWithTools() understands
+   for non-Anthropic providers. Some free providers/models don't actually
+   support function calling — if one doesn't, it typically just answers
+   without ever requesting a tool, which is harmless; if it errors outright,
+   generate() falls back to the next available provider, same as elsewhere
+   in this app. This is best-effort, not a guarantee every provider here
+   supports tool calling. */
+const TOOLS = {
+  calculate: {
+    description: "Evaluate a basic arithmetic expression. Only digits, + - * / ( ) and decimals — no variables or functions.",
+    parameters: {
+      type: "object",
+      properties: { expression: { type: "string", description: "e.g. (18 + 4) * 2.5" } },
+      required: ["expression"]
+    },
+    run(args) {
+      const expr = String(args?.expression ?? "");
+      if (!expr.trim()) return { error: "No expression given." };
+      if (!/^[\d\s+\-*/().]+$/.test(expr)) return { error: "Expression contains characters outside digits and + - * / ( ) ." };
+      try {
+        const value = Function('"use strict"; return (' + expr + ");")();
+        if (typeof value !== "number" || !isFinite(value)) return { error: "Did not evaluate to a finite number." };
+        return { result: value };
+      } catch (e) {
+        return { error: "Could not evaluate: " + e.message };
+      }
+    }
+  },
+  current_datetime: {
+    description: "Get the current date and time (server/browser clock).",
+    parameters: { type: "object", properties: {} },
+    run() {
+      const now = new Date();
+      return { iso: now.toISOString(), readable: now.toString() };
+    }
+  }
+};
+
+let toolsEnabled = false;
+
+/** Like callModel(), but drives a multi-turn tool-call loop instead of a single
+ * request — non-streaming (see the comment above this section). */
+async function callModelWithTools(providerId, model, messages) {
+  const prov = P[providerId];
+  if (!prov) throw new Error(`Unknown provider ${providerId}`);
+  const anthropic = isAnthropic(prov);
+  const viaProxy = proxyOn() && prov.proxyable;
+  if (!viaProxy && !prov.key.trim()) throw new Error(`No API key for ${providerId}`);
+  const endpoint = viaProxy
+    ? CONFIG.proxy.url.trim().replace(/\/+$/, "") + "/api/" + providerId
+    : prov.url;
+  const headers = { "Content-Type": "application/json" };
+  if (viaProxy) {
+    if (CONFIG.proxy.token.trim()) headers["X-Proxy-Token"] = CONFIG.proxy.token.trim();
+  } else if (anthropic) {
+    headers["x-api-key"] = prov.key.trim();
+    headers["anthropic-version"] = "2023-06-01";
+    headers["anthropic-dangerous-direct-browser-access"] = "true";
+  } else {
+    headers["Authorization"] = "Bearer " + prov.key.trim();
+  }
+
+  const toolNames = Object.keys(TOOLS);
+  const anthropicTools = toolNames.map(n => ({ name: n, description: TOOLS[n].description, input_schema: TOOLS[n].parameters }));
+  const openaiTools = toolNames.map(n => ({ type: "function", function: { name: n, description: TOOLS[n].description, parameters: TOOLS[n].parameters } }));
+
+  let convo = [...messages];
+  const toolCallsUsed = [];
+
+  /* If a later round fails after an earlier round already produced real tool
+     results, throwing outright would silently discard something useful. Any
+     mid-loop failure degrades to a partial-results answer instead of an error,
+     as long as there's something to show; a failure on the very first round
+     (nothing gained yet) still just throws, since there's nothing to fall
+     back to — the caller (generate()) then tries the next provider. */
+  const failOrFallBack = (err) => {
+    if (toolCallsUsed.length > 0) {
+      const summary = toolCallsUsed.map(t => `${t.name}(${JSON.stringify(t.args || {})}) → ${JSON.stringify(t.result)}`).join("\n");
+      return {
+        text: `_${err.message} — here's what the tool calls found before that happened, which may still answer your question:_\n\n${summary}`,
+        toolCallsUsed,
+        gaveUp: true
+      };
+    }
+    throw err;
+  };
+
+  for (let round = 0; round < 4; round++) {
+    let bodyObj;
+    if (anthropic) {
+      const { system, rest } = splitSystemMessage(convo);
+      bodyObj = { model, max_tokens: 1024, messages: rest, tools: anthropicTools };
+      if (system) bodyObj.system = system;
+    } else {
+      bodyObj = { model, messages: convo, max_tokens: 1024, temperature: 0.7, tools: openaiTools };
+    }
+
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), CONFIG.timeoutMs);
+    let res;
+    try {
+      res = await fetch(endpoint, { method: "POST", signal: ctrl.signal, headers, body: JSON.stringify(bodyObj) });
+    } catch (e) {
+      clearTimeout(timer);
+      return failOrFallBack(e.name === "AbortError" ? new Error(`${prov.label} timed out`) : new Error(`${prov.label}: network error (are you online?)`));
+    }
+    clearTimeout(timer);
+    if (!res.ok) {
+      let detail = "";
+      try { const j = await res.json(); detail = j.error?.message || JSON.stringify(j).slice(0, 200); }
+      catch (_) { detail = await res.text().then(t => t.slice(0, 200)).catch(() => ""); }
+      if (res.status === 401 || res.status === 403) return failOrFallBack(new Error(viaProxy
+        ? `${prov.label} via proxy: rejected — check the proxy access token in ⚙ Keys. ${detail}`
+        : `${prov.label}: key rejected (check it in ⚙ Keys). ${detail}`));
+      if (res.status === 429) return failOrFallBack(new Error(`${prov.label}: rate limit hit. ${detail}`));
+      return failOrFallBack(new Error(`${prov.label} HTTP ${res.status}: ${detail}`));
+    }
+    const data = await res.json();
+
+    if (anthropic) {
+      const blocks = Array.isArray(data.content) ? data.content : [];
+      const toolUses = blocks.filter(b => b.type === "tool_use");
+      const text = blocks.filter(b => b.type === "text").map(b => b.text).join("");
+      if (toolUses.length === 0) return { text: text.trim(), toolCallsUsed };
+      convo.push({ role: "assistant", content: blocks });
+      const results = toolUses.map(tu => {
+        const tool = TOOLS[tu.name];
+        const result = tool ? tool.run(tu.input || {}) : { error: `Unknown tool ${tu.name}` };
+        toolCallsUsed.push({ name: tu.name, args: tu.input, result });
+        return { type: "tool_result", tool_use_id: tu.id, content: JSON.stringify(result) };
+      });
+      convo.push({ role: "user", content: results });
+    } else {
+      const msg = data.choices?.[0]?.message || {};
+      const calls = msg.tool_calls || [];
+      if (calls.length === 0) return { text: (msg.content || "").trim(), toolCallsUsed };
+      convo.push({ role: "assistant", content: msg.content || null, tool_calls: calls });
+      for (const c of calls) {
+        let args = {};
+        try { args = JSON.parse(c.function?.arguments || "{}"); } catch (_) { /* leave empty */ }
+        const tool = TOOLS[c.function?.name];
+        const result = tool ? tool.run(args) : { error: `Unknown tool ${c.function?.name}` };
+        toolCallsUsed.push({ name: c.function?.name, args, result });
+        convo.push({ role: "tool", tool_call_id: c.id, content: JSON.stringify(result) });
+      }
+    }
+  }
+  return failOrFallBack(new Error(`${prov.label} gave up after repeated tool calls without a final answer`));
+}
+
+/* =====================================================================
+   Automatic provider fallback: try the preferred provider first; if it
+   fails (rate limit, outage, bad model), silently move to the next one.
+   Returns { text, provId } so callers know who actually answered.
+   ===================================================================== */
+async function callWithFallback(preferredId, messages, maxTokens, onDelta, ui, note) {
+  const order = [preferredId, ...availableProviders().filter(id => id !== preferredId)];
+  let lastErr = null;
+  for (const id of order) {
+    try {
+      const text = await callModel(id, P[id].workhorse, messages, maxTokens, onDelta);
+      return { text, provId: id };
+    } catch (e) {
+      lastErr = e;
+      if (ui && order.length > 1 && id !== order[order.length - 1]) {
+        ui.working("Fallback" + (note ? " — " + note : ""), `${P[id].label} failed (${e.message}). Trying the next provider…`);
+      }
+    }
+  }
+  throw lastErr || new Error("No providers available");
+}
+
+/* =====================================================================
+   Pipeline stages
+   ===================================================================== */
+
+/* Stage: ROUTE (technique 5) — a fast model classifies the question. */
+async function routeQuestion(question, ui) {
+  const provId = pickProvider("groq");
+  if (!provId) throw new Error("no providers");
+  ui.stage("route", "running", `Routing · ${P[provId].label}`);
+  let category = "factual";
+  try {
+    const raw = await callModel(provId, P[provId].fast, [
+      { role: "system", content:
+        "Classify the user's request into exactly one category. Reply with ONE WORD only, chosen from: " +
+        "CODE (programming, debugging, scripts, technical how-to), " +
+        "CREATIVE (stories, poems, brainstorming, copywriting, names), " +
+        "REASONING (maths, logic puzzles, step-by-step planning, analysis), " +
+        "FACTUAL (everything else: facts, explanations, summaries, chat)." },
+      { role: "user", content: question.slice(0, 2000) }
+    ], 10);
+    const word = raw.toUpperCase().match(/CODE|CREATIVE|REASONING|FACTUAL/);
+    if (word) category = word[0].toLowerCase();
+    ui.stage("route", "done", `Routed: ${category} · ${P[provId].label}`);
+  } catch (e) {
+    ui.stage("route", "error", "Routing failed → factual");
+    ui.working("Routing note", String(e.message));
+  }
+  return category;
+}
+
+/* Stage: GENERATE — the routed specialist answers. */
+function specialistFor(category) {
+  const provId = pickProvider(CONFIG.specialists[category] || "gemini");
+  return { provId, model: P[provId].workhorse };
+}
+
+function systemPromptFor(category) {
+  const base = "You are a capable, concise assistant. Use markdown. ";
+  let p;
+  if (category === "code") p = base + "You are in CODE mode: give working, complete code with brief explanations.";
+  else if (category === "creative") p = base + "You are in CREATIVE mode: be vivid, original and engaging.";
+  else if (category === "reasoning") p = base + "You are in REASONING mode: think step by step and show your working before the final answer.";
+  else p = base + "Answer accurately; say so plainly if you are unsure of a fact.";
+  return p + memoryPreamble();
+}
+
+async function generate(spec, category, history, ui) {
+  if (toolsEnabled) {
+    const order = [spec.provId, ...availableProviders().filter(id => id !== spec.provId)];
+    if (order.length === 0) throw new Error("no providers");
+    ui.stage("gen", "running", `Generating (with tools) · ${P[order[0]].label}`);
+    const msgs = [
+      { role: "system", content: systemPromptFor(category) +
+        " You have a calculator and a current-date/time tool available — use them when precision matters (arithmetic, \"what's today's date\"), otherwise just answer directly." },
+      ...history
+    ];
+    let lastErr = null;
+    for (const provId of order) {
+      try {
+        const { text, toolCallsUsed, gaveUp } = await callModelWithTools(provId, P[provId].workhorse, msgs);
+        if (toolCallsUsed.length > 0) {
+          ui.working(`🔧 Tool calls — ${P[provId].label}`,
+            toolCallsUsed.map(t => `${t.name}(${JSON.stringify(t.args || {})}) → ${JSON.stringify(t.result)}`).join("\n"));
+        }
+        ui.stage("gen", gaveUp ? "warn" : "done",
+          `Generated · ${P[provId].label} (${P[provId].workhorse})${toolCallsUsed.length ? ` · 🔧 ${toolCallsUsed.length} tool call${toolCallsUsed.length > 1 ? "s" : ""}` : ""}${gaveUp ? " · gave up, showing raw tool results" : ""}`);
+        return { text, provId };
+      } catch (e) {
+        lastErr = e;
+        if (order.length > 1 && provId !== order[order.length - 1]) {
+          ui.working("Fallback — tools", `${P[provId].label} failed (${e.message}). Trying the next provider…`);
+        }
+      }
+    }
+    throw lastErr || new Error("No providers available");
+  }
+  ui.stage("gen", "running", `Generating · ${P[spec.provId].label}`);
+  const msgs = [{ role: "system", content: systemPromptFor(category) }, ...history];
+  const { text, provId } = await callWithFallback(spec.provId, msgs, null, ui.stream, ui, "generation");
+  ui.stage("gen", "done", `Generated · ${P[provId].label} (${P[provId].workhorse})`);
+  return { text, provId };
+}
+
+/* Stage: CRITIQUE (technique 4) — a *different* provider reviews the draft. */
+async function critique(draft, question, generatorProv, ui) {
+  const critProv = pickOtherProvider(generatorProv);
+  if (!critProv) return { approved: true, text: "", provId: null };
+  ui.stage("crit", "running", `Critiquing · ${P[critProv].label}`);
+  try {
+    const text = await callModel(critProv, P[critProv].workhorse, [
+      { role: "system", content:
+        "You are a strict, fair reviewer. You will be shown a QUESTION and a DRAFT ANSWER written by another AI. " +
+        "If the draft is accurate, complete and well written, reply with exactly: APPROVED. " +
+        "Otherwise list the specific problems (errors, omissions, unclear parts) as short bullet points. " +
+        "Do NOT rewrite the answer yourself." },
+      { role: "user", content: "QUESTION:\n" + question + "\n\nDRAFT ANSWER:\n" + draft }
+    ], 800);
+    const approved = /^\s*APPROVED\b/i.test(text);
+    ui.stage("crit", "done", approved ? `Critique · approved (${P[critProv].label})` : `Critique · issues found (${P[critProv].label})`);
+    return { approved, text, provId: critProv };
+  } catch (e) {
+    ui.stage("crit", "error", "Critique unavailable");
+    ui.working("Critique note", String(e.message));
+    return { approved: true, text: "", provId: null };
+  }
+}
+
+/* Stage: REVISE — the original specialist fixes what the critic found. */
+async function revise(genProvId, category, question, draft, critiqueText, ui) {
+  ui.stage("rev", "running", `Revising · ${P[genProvId].label}`);
+  const { text, provId } = await callWithFallback(genProvId, [
+    { role: "system", content: systemPromptFor(category) +
+      " You previously wrote a draft answer. A reviewer found problems with it. " +
+      "Produce an improved final answer that fixes every valid point. Output ONLY the improved answer." },
+    { role: "user", content:
+      "QUESTION:\n" + question +
+      "\n\nYOUR DRAFT:\n" + draft +
+      "\n\nREVIEWER'S FEEDBACK:\n" + critiqueText }
+  ], null, ui.stream, ui, "revision");
+  ui.stage("rev", "done", `Revised · ${P[provId].label}`);
+  return text;
+}
+
+/* Stage: COUNCIL (technique 3) — every provider answers in parallel,
+   then one model synthesizes the best combined answer. */
+/* Races a call against councilTimeoutMs so one hanging-but-not-erroring
+   provider can't stall the whole Council fanout. This only stops *waiting*
+   on the slow call: the underlying fetch inside callModel() isn't aborted,
+   so the request still finishes in the background and its response is
+   simply ignored. */
+function withCouncilTimeout(promise, label) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label}: no response within ${CONFIG.councilTimeoutMs / 1000}s (council mode cutoff — slower than the group)`)), CONFIG.councilTimeoutMs);
+    promise.then(v => { clearTimeout(timer); resolve(v); }, e => { clearTimeout(timer); reject(e); });
+  });
+}
+
+async function councilGenerate(category, history, question, ui) {
+  const avail = availableProviders();
+  ui.stage("gen", "running", `Council · ${avail.length} models answering`);
+  const results = await Promise.all(avail.map(async provId => {
+    try {
+      const msgs = [{ role: "system", content: systemPromptFor(category) }, ...history];
+      const answer = await withCouncilTimeout(callModel(provId, P[provId].workhorse, msgs), P[provId].label);
+      return { provId, answer, error: null };
+    } catch (e) {
+      return { provId, answer: null, error: String(e.message) };
+    }
+  }));
+  const good = results.filter(r => r.answer);
+  results.forEach(r => {
+    if (r.answer) {
+      /* Audit-the-synthesis: every contributing model's raw, pre-synthesis answer is
+         shown here (not just the merged result) so it can be checked directly — and,
+         via crossExamine, followed up with that one model specifically. See the
+         "Show the council's workings" panel this feeds (addAiBubble's `working()`). */
+      ui.working(`Council answer — ${P[r.provId].label} (${P[r.provId].workhorse})`, r.answer, {
+        label: `Cross-examine ${P[r.provId].label}`,
+        ask: async (followUp) => {
+          const msgs = [
+            { role: "system", content: systemPromptFor(category) },
+            ...history,
+            { role: "assistant", content: r.answer },
+            { role: "user", content: followUp }
+          ];
+          return callModel(r.provId, P[r.provId].workhorse, msgs);
+        }
+      });
+    } else {
+      ui.working(`Council answer — ${P[r.provId].label}`, "FAILED: " + r.error);
+    }
+  });
+  if (good.length === 0) throw new Error("Every council member failed: " + results.map(r => r.error).join(" | "));
+  ui.stage("gen", good.length === avail.length ? "done" : "warn", `Consensus · ${good.length}/${avail.length} models answered`);
+
+  if (good.length === 1) return { genProvId: good[0].provId, draft: good[0].answer };
+
+  /* Synthesis: routed specialist's provider merges the answers (streams live). */
+  const spec = specialistFor(category);
+  ui.stage("synth", "running", `Synthesizing · ${P[spec.provId].label}`);
+  const labelled = good.map((r, i) => `--- ANSWER ${i + 1} (from ${P[r.provId].label}) ---\n${r.answer}`).join("\n\n");
+  const DISAGREEMENT_MARKER = "%%%DISAGREEMENT%%%";
+  const { text: rawDraft, provId } = await callWithFallback(spec.provId, [
+    { role: "system", content:
+      "Several AI models independently answered the same question. Merge them into ONE best answer: " +
+      "keep what they agree on, resolve contradictions in favour of the most plausible claim, include the " +
+      "strongest unique points, drop filler. " +
+      "Output only the final merged answer in markdown — do not mention the merging process or the sources. " +
+      "Then, on a new line by itself, write exactly " + DISAGREEMENT_MARKER + " followed by a short markdown " +
+      "bullet list of any point where the source models gave genuinely conflicting factual claims (not just " +
+      "different wording or emphasis) — name which model made which claim when useful. " +
+      "If the models didn't meaningfully disagree on anything, write " + DISAGREEMENT_MARKER + " followed by " +
+      "the single word None." },
+    { role: "user", content: "QUESTION:\n" + question + "\n\n" + labelled }
+  ], null, ui.stream, ui, "synthesis");
+  ui.stage("synth", "done", `Synthesized · ${P[provId].label}`);
+
+  /* Split the merged answer from the disagreement note *before* critique/revise
+     ever sees it, so neither stage can rewrite or drop it — it's re-attached
+     verbatim to whatever the pipeline finally produces (see answer()). */
+  let draft = rawDraft, disagreement = "";
+  const idx = rawDraft.indexOf(DISAGREEMENT_MARKER);
+  if (idx !== -1) {
+    draft = rawDraft.slice(0, idx).trim();
+    const rest = rawDraft.slice(idx + DISAGREEMENT_MARKER.length).trim();
+    if (rest && !/^none\.?$/i.test(rest)) disagreement = rest;
+  }
+
+  return { genProvId: provId, draft, disagreement };
+}
+
+/* =====================================================================
+   Orchestrator — combines techniques 3 + 4 + 5 per the chosen mode.
+   ===================================================================== */
+let history = [];   // [{role, content}] recent turns, verbatim
+let mode = "balanced";
+let busy = false;
+
+/* =====================================================================
+   Working memory — two layers:
+   1) memory.summary : rolling compression of turns older than historyLimit
+   2) memory.facts   : durable facts extracted in the background,
+                       persisted to localStorage when the browser allows it
+   ===================================================================== */
+const MEMORY_KEY = "aicouncil-memory-v1";
+const FACT_TTL_DAYS = 90;   // durable facts quietly expire instead of accumulating forever — see pruneExpiredFacts()
+let memory = { summary: "", facts: [] };   // facts: [{text, addedAt}] — addedAt is unix seconds
+
+/* Drops facts older than FACT_TTL_DAYS. An unreferenced fact from months
+   ago is more likely to be stale or was only ever situational (a one-off
+   plan, an old deadline) — expiring it is a cheap hedge against the model's
+   memory drifting out of sync with reality, since nothing here re-verifies
+   a fact once it's extracted. */
+function pruneExpiredFacts() {
+  const cutoff = Math.floor(Date.now() / 1000) - FACT_TTL_DAYS * 86400;
+  const before = memory.facts.length;
+  memory.facts = memory.facts.filter(f => (f.addedAt || 0) >= cutoff);
+  return before !== memory.facts.length;
+}
+
+function loadMemory() {
+  try {
+    const raw = localStorage.getItem(MEMORY_KEY);
+    if (raw) {
+      const m = JSON.parse(raw);
+      if (m && Array.isArray(m.facts)) {
+        const now = Math.floor(Date.now() / 1000);
+        // Migrate the old plain-string format (pre-expiry) — treat those as
+        // freshly added rather than instantly expiring a whole history.
+        memory = {
+          summary: String(m.summary || ""),
+          facts: m.facts.map(f => typeof f === "string" ? { text: f, addedAt: now } : { text: String(f.text || ""), addedAt: Number(f.addedAt) || now }),
+        };
+        if (pruneExpiredFacts()) saveMemory();
+      }
+    }
+  } catch (_) { /* storage unavailable (e.g. sandboxed preview) — memory stays in-page only */ }
+}
+function saveMemory() {
+  try { localStorage.setItem(MEMORY_KEY, JSON.stringify(memory)); } catch (_) {}
+}
+
+/* Injected into every model's system prompt. */
+function memoryPreamble() {
+  let s = "";
+  if (memory.facts.length) s += "\n\nThings you know about this user from earlier conversations:\n- " + memory.facts.map(f => f.text).join("\n- ");
+  if (memory.summary) s += "\n\nSummary of the earlier part of this conversation:\n" + memory.summary;
+  if (s) s += "\n\nUse this knowledge naturally when relevant; never recite it back unprompted.";
+  return s;
+}
+
+function addFacts(newFacts) {
+  pruneExpiredFacts();
+  const now = Math.floor(Date.now() / 1000);
+  const seen = new Set(memory.facts.map(f => f.text.toLowerCase().trim()));
+  for (const f of newFacts) {
+    const clean = String(f).trim();
+    if (clean && clean.length <= 200 && !seen.has(clean.toLowerCase())) {
+      memory.facts.push({ text: clean, addedAt: now });
+      seen.add(clean.toLowerCase());
+    }
+  }
+  if (memory.facts.length > 40) memory.facts = memory.facts.slice(-40); // keep the newest 40
+  saveMemory();
+  renderMemoryPanel();
+}
+
+/* Background pass after each exchange: extract facts, and if history has
+   outgrown historyLimit, fold the overflow into the rolling summary. */
+async function updateMemory(question, finalAnswer, ui) {
+  const provId = pickProvider("groq");
+  if (!provId) return;
+  ui.stage("mem", "running", "Memorizing…");
+  let failed = false;
+
+  /* 1) fact extraction */
+  try {
+    const raw = await callModel(provId, P[provId].fast, [
+      { role: "system", content:
+        "You maintain an AI assistant's long-term memory about its user. From the exchange below, extract " +
+        "durable facts worth remembering across future conversations: the user's name, preferences, projects, " +
+        "goals, constraints, tools they use. Ignore one-off details and anything about this specific answer. " +
+        "Reply with ONLY a JSON array of short strings, e.g. [\"prefers Python\"]. If nothing is worth keeping, reply []." },
+      { role: "user", content: "USER SAID:\n" + question.slice(0, 3000) + "\n\nASSISTANT REPLIED:\n" + finalAnswer.slice(0, 2000) }
+    ], 300);
+    const jsonMatch = raw.match(/\[[\s\S]*\]/);
+    if (jsonMatch) {
+      const arr = JSON.parse(jsonMatch[0]);
+      if (Array.isArray(arr)) addFacts(arr);
+    }
+  } catch (_) { failed = true; }
+
+  /* 2) rolling summary of overflow turns */
+  if (history.length > CONFIG.historyLimit) {
+    const overflow = history.slice(0, history.length - CONFIG.historyLimit);
+    const transcript = overflow.map(m => (m.role === "user" ? "User: " : "Assistant: ") + m.content).join("\n\n");
+    try {
+      memory.summary = await callModel(provId, P[provId].fast, [
+        { role: "system", content:
+          "Maintain a running summary of a conversation. Merge the EXISTING SUMMARY with the NEW TURNS into one " +
+          "updated summary under 150 words. Keep decisions, facts, open questions and the user's goals. " +
+          "Output only the summary text." },
+        { role: "user", content:
+          "EXISTING SUMMARY:\n" + (memory.summary || "(none)") + "\n\nNEW TURNS:\n" + transcript.slice(0, 8000) }
+      ], 400);
+      history = history.slice(-CONFIG.historyLimit);   // folded into summary, safe to drop
+      saveMemory();
+      renderMemoryPanel();
+    } catch (_) { failed = true; }
+  }
+
+  ui.stage("mem", failed ? "error" : "done",
+    failed ? "Memory · update skipped" : `Memory · ${memory.facts.length} fact${memory.facts.length === 1 ? "" : "s"}`);
+}
+
+/* =====================================================================
+   Saved conversations — a sidebar of past chats, persisted like memory.
+   ===================================================================== */
+/* =====================================================================
+   Provider keys & custom providers — optional persistence.
+   Off by default: reload the page and a built-in's key field is empty
+   again unless you ticked "Remember this key in this browser" for it.
+   Custom providers you add are always remembered (you'd have to redefine
+   the endpoint from scratch otherwise), but each still has its own
+   remember-the-key toggle, same as the built-ins.
+   ===================================================================== */
+const PROVKEYS_KEY = "aicouncil-providers-v1";
+let rememberedKeyIds = new Set();   // built-in provider ids whose key should persist
+
+function loadProviderKeys() {
+  try {
+    const raw = localStorage.getItem(PROVKEYS_KEY);
+    if (!raw) return;
+    const saved = JSON.parse(raw);
+    if (Array.isArray(saved.customProviders)) customProviders = saved.customProviders;
+    if (saved.rememberedKeys && typeof saved.rememberedKeys === "object") {
+      for (const id of Object.keys(saved.rememberedKeys)) {
+        if (CONFIG.providers[id]) {
+          CONFIG.providers[id].key = saved.rememberedKeys[id];
+          rememberedKeyIds.add(id);
+        }
+      }
+    }
+    rebuildRegistry();
+  } catch (_) { /* storage unavailable — everything just starts empty */ }
+}
+
+function saveProviderKeys() {
+  try {
+    const rememberedKeys = {};
+    for (const id of rememberedKeyIds) if (CONFIG.providers[id]) rememberedKeys[id] = CONFIG.providers[id].key;
+    localStorage.setItem(PROVKEYS_KEY, JSON.stringify({ rememberedKeys, customProviders }));
+  } catch (_) {}
+}
+
+function addCustomProvider(def) {
+  customProviders.push(def);
+  rebuildRegistry();
+  saveProviderKeys();
+}
+
+function removeCustomProvider(id) {
+  customProviders = customProviders.filter(c => c.id !== id);
+  rebuildRegistry();
+  saveProviderKeys();
+}
+
+const CHATS_KEY = "aicouncil-chats-v1";
+let chats = [];              // [{id, title, history, updatedAt}]
+let currentChatId = null;
+
+function loadChats() {
+  try {
+    const raw = localStorage.getItem(CHATS_KEY);
+    if (raw) { const c = JSON.parse(raw); if (Array.isArray(c)) chats = c; }
+  } catch (_) {}
+}
+function saveChats() {
+  try {
+    localStorage.setItem(CHATS_KEY, JSON.stringify(chats));
+  } catch (_) {
+    /* storage full or unavailable: drop the oldest chats and retry once */
+    try { chats = chats.slice(-10); localStorage.setItem(CHATS_KEY, JSON.stringify(chats)); } catch (_) {}
+  }
+}
+
+function persistCurrentChat(firstQuestion) {
+  if (currentChatId === null) {
+    currentChatId = String(Date.now());
+    chats.push({ id: currentChatId, title: firstQuestion.slice(0, 60), history: [], updatedAt: Date.now() });
+  }
+  const chat = chats.find(c => c.id === currentChatId);
+  if (!chat) return;
+  chat.history = history.slice();
+  chat.updatedAt = Date.now();
+  saveChats();
+  renderChatList();
+}
+
+function startNewChat() {
+  if (busy) return;
+  currentChatId = null;
+  history = [];
+  chatEl.innerHTML = `<div class="sysnote">New chat. Long-term memory (🧠) carries over; the conversation itself starts fresh.</div>`;
+  renderChatList();
+  closeSidebarOnMobile();
+  inputEl.focus();
+}
+
+function loadChat(id) {
+  if (busy) return;
+  const chat = chats.find(c => c.id === id);
+  if (!chat) return;
+  currentChatId = id;
+  history = chat.history.slice();
+  chatEl.innerHTML = "";
+  for (const m of history) {
+    if (m.role === "user") addUserBubble(m.content);
+    else addStaticAiBubble(m.content);
+  }
+  renderChatList();
+  closeSidebarOnMobile();
+  chatEl.scrollTop = chatEl.scrollHeight;
+}
+
+function deleteChat(id) {
+  chats = chats.filter(c => c.id !== id);
+  saveChats();
+  if (id === currentChatId) startNewChat();
+  else renderChatList();
+}
+
+function renderChatList() {
+  const list = document.getElementById("chatList");
+  list.innerHTML = "";
+  [...chats].sort((a, b) => b.updatedAt - a.updatedAt).forEach(chat => {
+    const item = document.createElement("div");
+    item.className = "chat-item" + (chat.id === currentChatId ? " active" : "");
+    const title = document.createElement("span");
+    title.className = "ct";
+    title.textContent = chat.title || "Untitled";
+    const del = document.createElement("button");
+    del.className = "cx";
+    del.textContent = "✕";
+    del.title = "Delete chat";
+    del.addEventListener("click", e => { e.stopPropagation(); deleteChat(chat.id); });
+    item.appendChild(title);
+    item.appendChild(del);
+    item.addEventListener("click", () => loadChat(chat.id));
+    list.appendChild(item);
+  });
+}
+
+async function answer(question, ui) {
+  const trimmedHistory = [...history.slice(-CONFIG.historyLimit), { role: "user", content: question }];
+
+  /* 5 — SPECIALIST ROUTING (all modes) */
+  const category = await routeQuestion(question, ui);
+
+  let genProvId, draft, disagreement = "";
+  if (mode === "council") {
+    /* 3 — ENSEMBLE + synthesis */
+    ({ genProvId, draft, disagreement } = await councilGenerate(category, trimmedHistory, question, ui));
+  } else {
+    const spec = specialistFor(category);
+    ({ text: draft, provId: genProvId } = await generate(spec, category, trimmedHistory, ui));
+  }
+
+  let final = draft;
+  if (mode !== "fast") {
+    /* 4 — PIPELINE: independent critique, then revision if needed */
+    ui.working("Draft", draft);
+    const crit = await critique(draft, question, genProvId, ui);
+    if (!crit.approved && crit.text) {
+      ui.working(`Critique — ${P[crit.provId].label}`, crit.text);
+      final = await revise(genProvId, category, question, draft, crit.text, ui);
+    } else {
+      ui.stage("rev", "skipped", "Revision · not needed");
+    }
+  }
+
+  /* Re-attach the council's disagreement note (captured before critique/revise
+     so neither stage could touch it) as its own clearly marked section. */
+  if (disagreement) {
+    ui.stage("disagree", "warn", "Disagreement · flagged");
+    // :::disagreement ... ::: is recognized by renderMarkdown() and rendered
+    // as a distinct styled callout, not just another paragraph of prose.
+    final = final.trimEnd() + "\n\n:::disagreement\n" + disagreement + "\n:::";
+  }
+
+  history.push({ role: "user", content: question });
+  history.push({ role: "assistant", content: final });
+
+  /* fire-and-forget: memory updates in the background after the answer shows */
+  updateMemory(question, final, ui).catch(() => {});
+  return final;
+}
+
+/* =====================================================================
+   Minimal safe markdown renderer
+   ===================================================================== */
+function escapeHtml(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+function renderMarkdown(md) {
+  const disagreementBlocks = [];
+  md = md.replace(/:::disagreement\n([\s\S]*?)\n:::/g, (_, inner) => {
+    disagreementBlocks.push(
+      `<div class="disagreement-box"><div class="db-head">⚠️ Where the models disagreed</div>${renderMarkdown(inner.trim())}</div>`
+    );
+    return "\u0000DB" + (disagreementBlocks.length - 1) + "\u0000";
+  });
+
+  const codeBlocks = [];
+  md = md.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
+    codeBlocks.push(`<pre><code>${escapeHtml(code.replace(/\n$/, ""))}</code></pre>`);
+    return "\u0000CB" + (codeBlocks.length - 1) + "\u0000";
+  });
+  let html = escapeHtml(md);
+  html = html.replace(/`([^`\n]+)`/g, (_, c) => `<code>${c}</code>`);
+  html = html.replace(/^###\s+(.+)$/gm, "<h3>$1</h3>");
+  html = html.replace(/^##\s+(.+)$/gm, "<h2>$1</h2>");
+  html = html.replace(/^#\s+(.+)$/gm, "<h1>$1</h1>");
+  html = html.replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
+  html = html.replace(/(^|[\s(])\*([^*\n]+)\*/g, "$1<em>$2</em>");
+  html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  // lists
+  html = html.replace(/((?:^[ \t]*[-*]\s+.+(?:\n|$))+)/gm, m => {
+    const items = m.trim().split(/\n/).map(l => `<li>${l.replace(/^[ \t]*[-*]\s+/, "")}</li>`).join("");
+    return `<ul>${items}</ul>\n`;
+  });
+  html = html.replace(/((?:^[ \t]*\d+[.)]\s+.+(?:\n|$))+)/gm, m => {
+    const items = m.trim().split(/\n/).map(l => `<li>${l.replace(/^[ \t]*\d+[.)]\s+/, "")}</li>`).join("");
+    return `<ol>${items}</ol>\n`;
+  });
+  // paragraphs
+  html = html.split(/\n{2,}/).map(chunk => {
+    if (/^\s*<(h\d|ul|ol|pre)/.test(chunk)) return chunk;
+    if (/^[\s\u0000]*(\u0000CB\d+\u0000[\s\u0000]*)*$/.test(chunk) && chunk.includes("\u0000CB")) return chunk;
+    if (/^[\s\u0000]*(\u0000DB\d+\u0000[\s\u0000]*)*$/.test(chunk) && chunk.includes("\u0000DB")) return chunk;
+    return `<p>${chunk.replace(/\n/g, "<br>")}</p>`;
+  }).join("\n");
+  html = html.replace(/\u0000CB(\d+)\u0000/g, (_, i) => codeBlocks[+i]);
+  html = html.replace(/\u0000DB(\d+)\u0000/g, (_, i) => disagreementBlocks[+i]);
+  return html;
+}
+
+/* =====================================================================
+   UI
+   ===================================================================== */
+const chatEl = document.getElementById("chat");
+const inputEl = document.getElementById("input");
+const sendEl = document.getElementById("send");
+
+function addUserBubble(text) {
+  const div = document.createElement("div");
+  div.className = "msg user";
+  div.innerHTML = `<div class="bubble"></div>`;
+  div.querySelector(".bubble").textContent = text;
+  chatEl.appendChild(div);
+  chatEl.scrollTop = chatEl.scrollHeight;
+}
+
+/* A finished AI bubble with no pipeline chrome — used when reloading a saved chat. */
+function addStaticAiBubble(markdown) {
+  const div = document.createElement("div");
+  div.className = "msg ai";
+  div.innerHTML = `<div class="bubble"><div class="answer"></div></div>`;
+  div.querySelector(".answer").innerHTML = renderMarkdown(markdown);
+  chatEl.appendChild(div);
+}
+
+/* Builds the AI message bubble and returns a small controller
+   the pipeline uses to report progress. */
+function addAiBubble() {
+  const div = document.createElement("div");
+  div.className = "msg ai";
+  div.innerHTML = `
+    <div class="bubble">
+      <div class="pipeline"></div>
+      <div class="answer"><span style="color:var(--text-dim)">Working…</span></div>
+      <details class="workings" style="display:none">
+        <summary>Show the council's workings</summary>
+        <div class="wblocks"></div>
+      </details>
+    </div>`;
+  chatEl.appendChild(div);
+  chatEl.scrollTop = chatEl.scrollHeight;
+
+  const pipelineEl = div.querySelector(".pipeline");
+  const answerEl = div.querySelector(".answer");
+  const workingsEl = div.querySelector(".workings");
+  const wblocksEl = div.querySelector(".wblocks");
+  const stages = {};
+  let lastStreamPaint = 0;
+
+  return {
+    /* live token stream — throttled re-render so long answers stay smooth */
+    stream(accumulated) {
+      const now = performance.now();
+      if (now - lastStreamPaint < 80) return;
+      lastStreamPaint = now;
+      const nearBottom = chatEl.scrollHeight - chatEl.scrollTop - chatEl.clientHeight < 120;
+      answerEl.innerHTML = renderMarkdown(accumulated) + '<span class="cursor-blink"></span>';
+      if (nearBottom) chatEl.scrollTop = chatEl.scrollHeight;
+    },
+    stage(id, state, label) {
+      if (!stages[id]) {
+        const s = document.createElement("span");
+        s.className = "stage";
+        s.innerHTML = `<span class="sdot"></span><span class="slabel"></span>`;
+        pipelineEl.appendChild(s);
+        stages[id] = s;
+      }
+      stages[id].className = "stage " + state;
+      stages[id].querySelector(".slabel").textContent = label;
+      chatEl.scrollTop = chatEl.scrollHeight;
+    },
+    /* `crossExamine`, when given, is { label, ask(followUpText) -> Promise<string> } —
+       renders a small "ask just this model" form under the raw answer so the user can
+       audit or interrogate one contributing model directly, without re-running the
+       whole pipeline. Used by Council mode's per-provider answers (see councilGenerate). */
+    working(title, body, crossExamine) {
+      workingsEl.style.display = "";
+      const b = document.createElement("div");
+      b.className = "working-block";
+      b.innerHTML = `<h4></h4><div class="wb-body"></div>`;
+      b.querySelector("h4").textContent = title;
+      b.querySelector(".wb-body").textContent = body;
+
+      if (crossExamine) {
+        const actions = document.createElement("div");
+        actions.className = "wb-actions";
+        actions.innerHTML = `<button class="xexamine-btn" type="button"></button>`;
+        actions.querySelector(".xexamine-btn").textContent = "🔍 " + crossExamine.label;
+        const form = document.createElement("div");
+        form.className = "xexamine-form";
+        form.innerHTML = `<input type="text" placeholder="Ask this model a follow-up…"><button type="button">Ask</button>`;
+        const reply = document.createElement("div");
+        reply.className = "xexamine-reply";
+        const input = form.querySelector("input");
+        const askBtn = form.querySelector("button");
+        actions.querySelector(".xexamine-btn").addEventListener("click", () => {
+          form.classList.toggle("open");
+          if (form.classList.contains("open")) input.focus();
+        });
+        const submit = async () => {
+          const q = input.value.trim();
+          if (!q) return;
+          askBtn.disabled = true; askBtn.textContent = "Asking…";
+          reply.style.display = "";
+          reply.textContent = "…";
+          try {
+            const text = await crossExamine.ask(q);
+            reply.textContent = text;
+          } catch (e) {
+            reply.textContent = "⚠ " + String(e.message || e);
+          }
+          askBtn.disabled = false; askBtn.textContent = "Ask";
+          input.value = "";
+        };
+        askBtn.addEventListener("click", submit);
+        input.addEventListener("keydown", e => { if (e.key === "Enter") submit(); });
+        b.appendChild(actions);
+        b.appendChild(form);
+        b.appendChild(reply);
+      }
+      wblocksEl.appendChild(b);
+    },
+    finish(markdown) {
+      answerEl.innerHTML = renderMarkdown(markdown);
+      chatEl.scrollTop = chatEl.scrollHeight;
+    },
+    fail(message) {
+      answerEl.innerHTML = `<span class="errnote"></span>`;
+      answerEl.querySelector(".errnote").textContent = "⚠ " + message;
+      chatEl.scrollTop = chatEl.scrollHeight;
+    }
+  };
+}
+
+async function onSend() {
+  const q = inputEl.value.trim();
+  if (!q || busy) return;
+  if (availableProviders().length === 0) { openSettings(); return; }
+  inputEl.value = ""; autoGrow();
+  busy = true; sendEl.disabled = true;
+  addUserBubble(q);
+  const ui = addAiBubble();
+  try {
+    const final = await answer(q, ui);
+    ui.finish(final);
+    persistCurrentChat(q);
+  } catch (e) {
+    ui.fail(String(e.message || e));
+  }
+  busy = false; sendEl.disabled = false;
+  inputEl.focus();
+}
+
+sendEl.addEventListener("click", onSend);
+inputEl.addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onSend(); }
+});
+function autoGrow() {
+  inputEl.style.height = "auto";
+  inputEl.style.height = Math.min(inputEl.scrollHeight, 160) + "px";
+}
+inputEl.addEventListener("input", autoGrow);
+
+/* ---------- tools toggle ---------- */
+const toolsToggleEl = document.getElementById("toolsToggle");
+function refreshToolsToggle() {
+  const disabledByCouncil = mode === "council";
+  toolsToggleEl.disabled = disabledByCouncil;
+  toolsToggleEl.title = disabledByCouncil
+    ? "Not available in Council mode. Switch to Fast or Balanced to use tools."
+    : "Let a model use a small built-in toolset (calculator, current date/time) while drafting — Fast/Balanced modes only.";
+  toolsToggleEl.classList.toggle("active", toolsEnabled && !disabledByCouncil);
+  toolsToggleEl.textContent = "🔧 Tools: " + (toolsEnabled && !disabledByCouncil ? "on" : "off");
+}
+toolsToggleEl.addEventListener("click", () => {
+  if (toolsToggleEl.disabled) return;
+  toolsEnabled = !toolsEnabled;
+  refreshToolsToggle();
+});
+refreshToolsToggle();
+
+/* ---------- mode picker ---------- */
+document.getElementById("modePicker").addEventListener("click", e => {
+  const btn = e.target.closest("button[data-mode]");
+  if (!btn) return;
+  mode = btn.dataset.mode;
+  document.querySelectorAll("#modePicker button").forEach(b => b.classList.toggle("active", b === btn));
+  refreshToolsToggle();
+});
+
+/* ---------- sidebar ---------- */
+const sidebarEl = document.getElementById("sidebar");
+document.getElementById("sidebarBtn").addEventListener("click", () => sidebarEl.classList.toggle("open"));
+document.getElementById("newChat").addEventListener("click", startNewChat);
+function closeSidebarOnMobile() { sidebarEl.classList.remove("open"); }
+chatEl.addEventListener("click", closeSidebarOnMobile);
+
+/* ---------- drawers (settings + memory) ---------- */
+const settingsEl = document.getElementById("settings");
+const memoryEl = document.getElementById("memory");
+const overlayEl = document.getElementById("overlay");
+function closeDrawers() {
+  settingsEl.classList.remove("open");
+  memoryEl.classList.remove("open");
+  overlayEl.classList.remove("open");
+  refreshDots();
+}
+function openSettings() { closeDrawers(); settingsEl.classList.add("open"); overlayEl.classList.add("open"); }
+function openMemory() { closeDrawers(); renderMemoryPanel(); memoryEl.classList.add("open"); overlayEl.classList.add("open"); }
+const closeSettings = closeDrawers;
+document.getElementById("settingsBtn").addEventListener("click", openSettings);
+document.getElementById("closeSettings").addEventListener("click", closeDrawers);
+document.getElementById("memoryBtn").addEventListener("click", openMemory);
+document.getElementById("closeMemory").addEventListener("click", closeDrawers);
+overlayEl.addEventListener("click", closeDrawers);
+
+/* ---------- memory panel ---------- */
+function renderMemoryPanel() {
+  const sumEl = document.getElementById("memSummary");
+  sumEl.textContent = memory.summary || "Nothing summarized yet — kicks in once the conversation gets long.";
+  const factsEl = document.getElementById("memFacts");
+  factsEl.innerHTML = "";
+  if (memory.facts.length === 0) {
+    factsEl.innerHTML = `<div class="mem-empty">Nothing remembered yet.</div>`;
+    return;
+  }
+  memory.facts.forEach((fact, i) => {
+    const row = document.createElement("div");
+    row.className = "fact";
+    const span = document.createElement("span");
+    const ageDays = Math.floor((Date.now() / 1000 - (fact.addedAt || 0)) / 86400);
+    const ageLabel = ageDays <= 0 ? "today" : ageDays === 1 ? "1 day ago" : `${ageDays} days ago`;
+    span.textContent = fact.text;
+    span.title = `Added ${ageLabel} · expires after ${FACT_TTL_DAYS} days if never refreshed`;
+    const del = document.createElement("button");
+    del.textContent = "✕";
+    del.title = "Forget this";
+    del.addEventListener("click", () => {
+      memory.facts.splice(i, 1);
+      saveMemory();
+      renderMemoryPanel();
+    });
+    row.appendChild(span);
+    row.appendChild(del);
+    factsEl.appendChild(row);
+  });
+}
+document.getElementById("forgetAll").addEventListener("click", () => {
+  memory = { summary: "", facts: [] };
+  saveMemory();
+  renderMemoryPanel();
+});
+
+function refreshDots() {
+  const el = document.getElementById("provDots");
+  el.innerHTML = "";
+  for (const id of Object.keys(P)) {
+    const s = document.createElement("span");
+    const dot = document.createElement("span");
+    dot.className = "pdot" + (proxyOn() || P[id].key.trim() ? " on" : "");
+    s.appendChild(dot);
+    s.appendChild(document.createTextNode(P[id].label));
+    el.appendChild(s);
+  }
+}
+
+function buildSettings() {
+  const body = document.getElementById("settingsBody");
+  const anchor = document.getElementById("customSectionLabel");
+
+  /* --- proxy card (keyless mode) --- */
+  const proxyCard = document.createElement("div");
+  proxyCard.className = "prov-card";
+  proxyCard.innerHTML = `
+    <h3>🔒 Key-holding proxy — built in</h3>
+    <div class="hint">This page is served by your own Worker, so it already talks to its own
+      /api/* routes for every provider whose secret you set at deploy time — nothing to paste
+      here for that. Only add a token below if you also set a PROXY_TOKEN secret.</div>
+    <div class="keyrow" style="margin-bottom:8px">
+      <input type="text" id="proxyUrl" readonly autocomplete="off">
+    </div>
+    <div class="keyrow">
+      <input type="password" id="proxyToken" placeholder="Access token (only if you set PROXY_TOKEN)" autocomplete="off">
+      <button class="testbtn" id="proxyTest">Test</button>
+    </div>
+    <div class="teststatus" id="proxyStatus"></div>`;
+  const purl = proxyCard.querySelector("#proxyUrl");
+  const ptok = proxyCard.querySelector("#proxyToken");
+  const pstat = proxyCard.querySelector("#proxyStatus");
+  purl.value = CONFIG.proxy.url;
+  ptok.value = CONFIG.proxy.token;
+  purl.addEventListener("input", () => { CONFIG.proxy.url = purl.value; refreshDots(); });
+  ptok.addEventListener("input", () => { CONFIG.proxy.token = ptok.value; });
+  proxyCard.querySelector("#proxyTest").addEventListener("click", async () => {
+    CONFIG.proxy.url = purl.value; CONFIG.proxy.token = ptok.value;
+    if (!proxyOn()) { pstat.className = "teststatus err"; pstat.textContent = "No proxy URL entered."; return; }
+    pstat.className = "teststatus"; pstat.textContent = "Testing…";
+    const results = [];
+    for (const id of Object.keys(P)) {
+      try {
+        await callModel(id, P[id].fast, [{ role: "user", content: "Reply with the single word: ready" }], 10);
+        results.push("✓ " + P[id].label);
+      } catch (e) { results.push("✗ " + P[id].label + " (" + e.message.slice(0, 80) + ")"); }
+    }
+    const allOk = results.every(r => r.startsWith("✓"));
+    pstat.className = "teststatus " + (allOk ? "ok" : "err");
+    pstat.textContent = results.join("  ·  ");
+    refreshDots();
+  });
+  body.insertBefore(proxyCard, anchor);
+
+  for (const id of Object.keys(CONFIG.providers)) {
+    const prov = CONFIG.providers[id];
+    const card = document.createElement("div");
+    card.className = "prov-card";
+    card.innerHTML = `
+      <h3>${prov.label}</h3>
+      <div class="hint">Get ${prov.paid ? "a" : "a free"} key at <a href="${prov.keyUrl}" target="_blank" rel="noopener">${prov.keyUrl.replace("https://", "")}</a> · models: ${prov.workhorse} / ${prov.fast}${prov.paid ? " · <b>paid, no free tier</b>" : ""}</div>
+      ${prov.signIn ? `<span class="signin-badge">that page's sign-in: ${prov.signIn}</span>` : ""}
+      <div class="keyrow" style="margin-top:10px">
+        <input type="password" placeholder="Paste ${prov.label} API key" autocomplete="off">
+        <button class="testbtn">Test</button>
+      </div>
+      <label class="remember-row"><input type="checkbox" class="remember-cb"> Remember this key in this browser</label>
+      <div class="teststatus"></div>`;
+    const input = card.querySelector("input[type=password]");
+    const remember = card.querySelector(".remember-cb");
+    const status = card.querySelector(".teststatus");
+    input.value = prov.key;
+    remember.checked = rememberedKeyIds.has(id);
+    input.addEventListener("input", () => {
+      prov.key = input.value;
+      P[id].key = input.value;
+      if (rememberedKeyIds.has(id)) saveProviderKeys();
+      refreshDots();
+    });
+    remember.addEventListener("change", () => {
+      if (remember.checked) rememberedKeyIds.add(id); else rememberedKeyIds.delete(id);
+      saveProviderKeys();
+    });
+    card.querySelector(".testbtn").addEventListener("click", async () => {
+      prov.key = input.value;
+      P[id].key = input.value;
+      if (!prov.key.trim() && !proxyOn()) { status.className = "teststatus err"; status.textContent = "No key entered."; return; }
+      status.className = "teststatus"; status.textContent = "Testing…";
+      try {
+        await callModel(id, prov.fast, [{ role: "user", content: "Reply with the single word: ready" }], 10);
+        status.className = "teststatus ok"; status.textContent = "✓ Key works — " + prov.fast + " responded.";
+      } catch (e) {
+        status.className = "teststatus err"; status.textContent = "✗ " + e.message;
+      }
+      refreshDots();
+    });
+    body.insertBefore(card, anchor);
+  }
+
+  renderCustomProviderList();
+  document.getElementById("addProviderBtn").addEventListener("click", showAddProviderForm);
+}
+
+/* ---------- custom / other providers ---------- */
+function renderCustomProviderList() {
+  const list = document.getElementById("customProviderList");
+  list.innerHTML = "";
+  if (customProviders.length === 0) {
+    list.innerHTML = `<p class="s-note" style="margin-bottom:8px">
+      None added yet. Good candidates: Azure OpenAI (Microsoft-account sign-in, needs an Azure
+      resource), Cloudflare Workers AI (free, but its URL bakes in your own account ID so it
+      can't be a fixed built-in), HuggingFace Inference Providers (mostly paid now), Together AI,
+      Claude or ChatGPT with your own paid key, or a local Ollama server on your own network.</p>`;
+    return;
+  }
+  for (const cp of customProviders) {
+    const card = document.createElement("div");
+    card.className = "prov-card custom-card";
+    card.innerHTML = `
+      <button class="cf-remove">Remove</button>
+      <h3>${cp.label}</h3>
+      <div class="hint">${cp.url} · models: ${cp.workhorse}${cp.fast && cp.fast !== cp.workhorse ? " / " + cp.fast : ""}</div>
+      <div class="keyrow" style="margin-top:10px">
+        <input type="password" placeholder="Paste ${cp.label} API key" autocomplete="off">
+        <button class="testbtn">Test</button>
+      </div>
+      <div class="teststatus"></div>`;
+    const input = card.querySelector("input[type=password]");
+    const status = card.querySelector(".teststatus");
+    input.value = cp.key;
+    input.addEventListener("input", () => { cp.key = input.value; P[cp.id].key = input.value; saveProviderKeys(); refreshDots(); });
+    card.querySelector(".testbtn").addEventListener("click", async () => {
+      cp.key = input.value; P[cp.id].key = input.value;
+      if (!cp.key.trim()) { status.className = "teststatus err"; status.textContent = "No key entered."; return; }
+      status.className = "teststatus"; status.textContent = "Testing…";
+      try {
+        await callModel(cp.id, cp.fast || cp.workhorse, [{ role: "user", content: "Reply with the single word: ready" }], 10);
+        status.className = "teststatus ok"; status.textContent = "✓ Key works.";
+      } catch (e) {
+        status.className = "teststatus err"; status.textContent = "✗ " + e.message;
+      }
+      refreshDots();
+    });
+    card.querySelector(".cf-remove").addEventListener("click", () => {
+      removeCustomProvider(cp.id);
+      renderCustomProviderList();
+      refreshDots();
+    });
+    document.getElementById("customProviderList").appendChild(card);
+  }
+}
+
+/* Presets so "bring your own premium key" is discoverable, not just possible
+   if you already know Anthropic's endpoint shape by heart. Picking one
+   pre-fills the form (including the request-shape selector below) — you
+   still paste your own key, and it's used directly, never through this
+   app's built-in proxy (which only knows the seven free routes). */
+const CUSTOM_PROVIDER_PRESETS = {
+  claude: { label: "Claude (my own key)", url: "https://api.anthropic.com/v1/messages", model: "claude-sonnet-5", family: "anthropic" },
+  openai: { label: "ChatGPT (my own key)", url: "https://api.openai.com/v1/chat/completions", model: "gpt-4o-mini", family: "" },
+};
+
+function showAddProviderForm() {
+  const host = document.getElementById("customProviderForm");
+  if (host.childElementCount) { host.innerHTML = ""; return; }   // toggle closed if already open
+  const form = document.createElement("div");
+  form.className = "custom-form";
+  form.innerHTML = `
+    <div class="hint" style="margin-bottom:10px">
+      Presets:
+      <button type="button" class="testbtn" id="cfPresetClaude">Claude, my own key</button>
+      <button type="button" class="testbtn" id="cfPresetOpenAI">ChatGPT, my own key</button>
+    </div>
+    <label>Name</label><input id="cfLabel" placeholder="e.g. Azure OpenAI, Mistral, my Ollama server">
+    <label>API request style</label>
+    <select id="cfFamily">
+      <option value="">OpenAI-compatible (most providers, incl. Azure OpenAI, Ollama, Mistral, etc.)</option>
+      <option value="anthropic">Anthropic Messages API (Claude-compatible)</option>
+    </select>
+    <label>Chat-completions URL</label><input id="cfUrl" placeholder="https://.../v1/chat/completions">
+    <label>Model ID</label><input id="cfModel" placeholder="e.g. gpt-4o-mini, mistral-small-latest">
+    <label>API key</label><input id="cfKey" type="password" placeholder="paste key (or leave blank if none needed)">
+    <div class="hint" style="margin-top:8px">Must be an HTTPS URL. Whatever you type here — every message, plus your
+      saved memory facts — gets sent straight to that address using the key above. Only add endpoints you trust;
+      this app has no way to verify what's actually running on the other end.</div>
+    <div class="cf-actions">
+      <button class="cf-save">Add provider</button>
+      <button class="cf-cancel" type="button">Cancel</button>
+    </div>
+    <div class="teststatus" id="cfStatus"></div>`;
+  host.appendChild(form);
+
+  const applyPreset = p => {
+    form.querySelector("#cfLabel").value = p.label;
+    form.querySelector("#cfUrl").value = p.url;
+    form.querySelector("#cfModel").value = p.model;
+    form.querySelector("#cfFamily").value = p.family;
+  };
+  form.querySelector("#cfPresetClaude").addEventListener("click", () => applyPreset(CUSTOM_PROVIDER_PRESETS.claude));
+  form.querySelector("#cfPresetOpenAI").addEventListener("click", () => applyPreset(CUSTOM_PROVIDER_PRESETS.openai));
+
+  form.querySelector(".cf-cancel").addEventListener("click", () => { host.innerHTML = ""; });
+  form.querySelector(".cf-save").addEventListener("click", () => {
+    const label = form.querySelector("#cfLabel").value.trim();
+    const url = form.querySelector("#cfUrl").value.trim();
+    const model = form.querySelector("#cfModel").value.trim();
+    const key = form.querySelector("#cfKey").value;
+    const family = form.querySelector("#cfFamily").value;
+    const statusEl = form.querySelector("#cfStatus");
+    if (!label || !url || !model) {
+      statusEl.className = "teststatus err"; statusEl.textContent = "Name, URL and model are all required.";
+      return;
+    }
+    if (!/^https:\/\//i.test(url)) {
+      statusEl.className = "teststatus err"; statusEl.textContent = "The URL must start with https:// — plain http:// endpoints are rejected so a key can't leak over an unencrypted connection.";
+      return;
+    }
+    const id = "custom-" + label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") + "-" + Date.now().toString(36).slice(-4);
+    addCustomProvider({ id, label, url, key, workhorse: model, fast: model, keyUrl: "", family: family || undefined });
+    host.innerHTML = "";
+    renderCustomProviderList();
+    refreshDots();
+  });
+}
+
+loadProviderKeys();
+loadMemory();
+loadChats();
+buildSettings();
+refreshDots();
+renderMemoryPanel();
+renderChatList();
+inputEl.focus();
+</script>
+</body>
+</html>
