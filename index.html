@@ -457,9 +457,10 @@ const CONFIG = {
       url: "https://api.sambanova.ai/v1/chat/completions",
       key: "",                                   // <-- PASTE SAMBANOVA KEY HERE (cloud.sambanova.ai/apis)
       workhorse: "Meta-Llama-3.3-70B-Instruct",
-      fast: "Meta-Llama-3.1-8B-Instruct",
+      fast: "Meta-Llama-3.3-70B-Instruct",       // 3.1-8B was retired from SambaCloud
       keyUrl: "https://cloud.sambanova.ai/apis",
-      signIn: "email",
+      signIn: "email (blocks browser calls by design — only works through a proxy)",
+      corsBlocked: true,
       proxyable: true
     },
     mistral: {
