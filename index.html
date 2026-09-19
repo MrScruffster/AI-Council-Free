@@ -387,7 +387,12 @@ const CONFIG = {
      If you set a PROXY_TOKEN secret when you deployed, paste that one value
      into ⚙ Keys once per browser (see README.md). */
   proxy: {
-    url: (typeof location !== "undefined" ? location.origin : ""),
+    /* Static hosts (GitHub Pages) have no /api/* routes, so pointing the proxy at
+       their own origin just makes every request 405. Leave it empty there and the
+       app calls each provider directly with the keys from ⚙ Keys. Paste a Worker
+       URL in ⚙ Keys if you deploy one. */
+    url: (typeof location !== "undefined" && !/\.github\.io$/i.test(location.hostname)
+          && /^https?:$/.test(location.protocol) ? location.origin : ""),
     token: ""
   },
 
@@ -513,6 +518,10 @@ rebuildRegistry();
 
 function proxyOn() { return CONFIG.proxy.url.trim() !== ""; }
 
+/* A key typed into ⚙ Keys always wins: only route through the proxy when the
+   provider is proxyable AND has no key of its own. */
+function useProxy(prov) { return proxyOn() && !!prov.proxyable && !prov.key.trim(); }
+
 function availableProviders() {
   return Object.keys(P).filter(id => {
     if (proxyOn() && P[id].proxyable) return true;   // the Worker holds this one's key
@@ -553,7 +562,7 @@ function splitSystemMessage(messages) {
 async function callModel(providerId, model, messages, maxTokens, onDelta) {
   const prov = P[providerId];
   if (!prov) throw new Error(`Unknown provider ${providerId}`);
-  const viaProxy = proxyOn() && prov.proxyable;
+  const viaProxy = useProxy(prov);
   if (!viaProxy && !prov.key.trim()) throw new Error(`No API key for ${providerId}`);
   const anthropic = isAnthropic(prov);
   const endpoint = viaProxy
@@ -715,7 +724,7 @@ async function callModelWithTools(providerId, model, messages) {
   const prov = P[providerId];
   if (!prov) throw new Error(`Unknown provider ${providerId}`);
   const anthropic = isAnthropic(prov);
-  const viaProxy = proxyOn() && prov.proxyable;
+  const viaProxy = useProxy(prov);
   if (!viaProxy && !prov.key.trim()) throw new Error(`No API key for ${providerId}`);
   const endpoint = viaProxy
     ? CONFIG.proxy.url.trim().replace(/\/+$/, "") + "/api/" + providerId
@@ -1667,7 +1676,7 @@ function refreshDots() {
   for (const id of Object.keys(P)) {
     const s = document.createElement("span");
     const dot = document.createElement("span");
-    dot.className = "pdot" + (proxyOn() || P[id].key.trim() ? " on" : "");
+    dot.className = "pdot" + ((proxyOn() && P[id].proxyable) || P[id].key.trim() ? " on" : "");
     s.appendChild(dot);
     s.appendChild(document.createTextNode(P[id].label));
     el.appendChild(s);
@@ -1682,12 +1691,13 @@ function buildSettings() {
   const proxyCard = document.createElement("div");
   proxyCard.className = "prov-card";
   proxyCard.innerHTML = `
-    <h3>🔒 Key-holding proxy — built in</h3>
-    <div class="hint">This page is served by your own Worker, so it already talks to its own
-      /api/* routes for every provider whose secret you set at deploy time — nothing to paste
-      here for that. Only add a token below if you also set a PROXY_TOKEN secret.</div>
+    <h3>🔒 Key-holding proxy — optional</h3>
+    <div class="hint">Optional. If you run a Worker that holds your keys, enter its URL here (it
+      is filled in automatically when this page is served by that Worker). On GitHub Pages
+      there is no proxy — leave this blank and paste your keys into the provider cards below.
+      Only add a token if you also set a PROXY_TOKEN secret.</div>
     <div class="keyrow" style="margin-bottom:8px">
-      <input type="text" id="proxyUrl" readonly autocomplete="off">
+      <input type="text" id="proxyUrl" placeholder="Leave blank to call providers directly with your own keys" autocomplete="off">
     </div>
     <div class="keyrow">
       <input type="password" id="proxyToken" placeholder="Access token (only if you set PROXY_TOKEN)" autocomplete="off">
