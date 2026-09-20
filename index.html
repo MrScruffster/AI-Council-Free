@@ -1127,6 +1127,27 @@ function describeError(err, tail) {
   return { summary: tail ? `${s}, ${tail}` : s, raw };
 }
 
+/* Splits "<answer> %%%DISAGREE%%% <notes>" (or the council's %%%DISAGREEMENT%%%).
+   Models don't always write the marker exactly — extra spaces, **bold**, one or more
+   % signs, any case — so this is tolerant, and with { streaming: true } it also holds
+   back a marker that is only half-arrived (e.g. "%%%DISAG"), so it never flashes on screen.
+   Returns { body, note, found }. */
+const DISAGREE_RE = /%+[\s*_]*DISAGREE(?:MENT)?[\s*_]*%+/i;
+function splitDisagree(text, opts) {
+  const m = text.match(DISAGREE_RE);
+  if (m) return { body: text.slice(0, m.index), note: text.slice(m.index + m[0].length), found: true };
+  if (opts && opts.streaming) {
+    const p = text.match(/%+[\s*_A-Za-z%]{0,20}$/);
+    if (p) {
+      const frag = p[0].replace(/[\s*_]/g, "").toUpperCase();
+      if (frag.length >= 2 && ("%%%DISAGREEMENT%%%".startsWith(frag) || "%%%DISAGREE%%%".startsWith(frag))) {
+        return { body: text.slice(0, p.index), note: "", found: false };
+      }
+    }
+  }
+  return { body: text, note: "", found: false };
+}
+
 /* The expandable "raw error" part shown under a readable error line. */
 function rawErrorDetails(raw) {
   const d = document.createElement("details");
@@ -1311,6 +1332,7 @@ async function councilGenerate(category, history, question, ui) {
          "Show the council's workings" panel this feeds (addAiBubble's `working()`). */
       ui.working(`Council answer — ${P[r.provId].label} (${P[r.provId].workhorse})`, r.answer, {
         label: `Cross-examine ${P[r.provId].label}`,
+        meta: { provId: r.provId, category },   // saved with the chat so the follow-up can be rebuilt after a reload
         ask: async (followUp) => {
           const msgs = [
             { role: "system", content: systemPromptFor(category) },
@@ -1354,10 +1376,10 @@ async function councilGenerate(category, history, question, ui) {
      ever sees it, so neither stage can rewrite or drop it — it's re-attached
      verbatim to whatever the pipeline finally produces (see answer()). */
   let draft = rawDraft, disagreement = "";
-  const idx = rawDraft.indexOf(DISAGREEMENT_MARKER);
-  if (idx !== -1) {
-    draft = rawDraft.slice(0, idx).trim();
-    const rest = rawDraft.slice(idx + DISAGREEMENT_MARKER.length).trim();
+  const split = splitDisagree(rawDraft);
+  if (split.found) {
+    draft = split.body.trim();
+    const rest = split.note.trim();
     if (rest && !/^none\.?$/i.test(rest)) disagreement = rest;
   }
 
@@ -1410,8 +1432,8 @@ async function plainify(question, technical, disagreement, category, ui) {
       (disagreement ? "\n\nPOINTS WHERE THE EXPERTS DISAGREED:\n" + disagreement : "") }
   ], null, ui.stream, ui, "plain-language rewrite");
   let plain = text, plainDisagree = "";
-  const idx = text.indexOf(DISAGREE);
-  if (idx !== -1) { plain = text.slice(0, idx).trim(); plainDisagree = text.slice(idx + DISAGREE.length).trim(); }
+  const split = splitDisagree(text);
+  if (split.found) { plain = split.body.trim(); plainDisagree = split.note.trim(); }
   if (!plain) throw new Error("empty plain-language answer");
   ui.stage("plain", "done", `Plain English · ${P[provId].label}`);
   return { plain, disagreement: plainDisagree };
@@ -1612,8 +1634,15 @@ function saveChats() {
   try {
     localStorage.setItem(CHATS_KEY, JSON.stringify(chats));
   } catch (_) {
-    /* storage full or unavailable: drop the oldest chats and retry once */
-    try { chats = chats.slice(-10); localStorage.setItem(CHATS_KEY, JSON.stringify(chats)); } catch (_) {}
+    /* Storage full or unavailable. Saved workings are the bulkiest part, so first drop them from
+       every chat except the most recent one; only then drop the oldest chats. */
+    try {
+      const newest = chats.reduce((a, b) => (!a || b.updatedAt > a.updatedAt ? b : a), null);
+      for (const c of chats) if (c !== newest) for (const m of c.history) delete m.workings;
+      localStorage.setItem(CHATS_KEY, JSON.stringify(chats));
+    } catch (_) {
+      try { chats = chats.slice(-10); localStorage.setItem(CHATS_KEY, JSON.stringify(chats)); } catch (_) {}
+    }
   }
 }
 
@@ -1647,10 +1676,15 @@ function loadChat(id) {
   currentChatId = id;
   history = chat.history.slice();
   chatEl.innerHTML = "";
-  for (const m of history) {
-    if (m.role === "user") addUserBubble(m.content);
-    else addStaticAiBubble(m.content);
-  }
+  history.forEach((m, i) => {
+    if (m.role === "user") { addUserBubble(m.content); return; }
+    /* context for a cross-examine on this answer: the last few messages before its question, plus the question */
+    const q = history[i - 1];
+    const ctx = q && q.role === "user"
+      ? [...history.slice(Math.max(0, i - 1 - CONFIG.historyLimit), i - 1), q].map(x => ({ role: x.role, content: forModel(x.content) }))
+      : null;
+    addStaticAiBubble(m.content, m.workings, ctx);
+  });
   renderChatList();
   closeSidebarOnMobile();
   chatEl.scrollTop = chatEl.scrollHeight;
@@ -1745,7 +1779,10 @@ async function answer(question, ui) {
   }
 
   history.push({ role: "user", content: question });
-  history.push({ role: "assistant", content: final });
+  /* The workings are kept with the answer so they survive saving and reloading the chat.
+     Models never see them: the history sent to a model is rebuilt from role + content only. */
+  const workings = ui.getWorkings ? ui.getWorkings() : [];
+  history.push(workings.length ? { role: "assistant", content: final, workings } : { role: "assistant", content: final });
 
   /* fire-and-forget: memory updates in the background after the answer shows */
   updateMemory(question, technical, ui).catch(() => {});
@@ -1871,11 +1908,108 @@ function addUserBubble(text) {
 }
 
 /* A finished AI bubble with no pipeline chrome — used when reloading a saved chat. */
-function addStaticAiBubble(markdown) {
+/* One "workings" block: a title, the body text (or a readable error + raw text), and —
+   for a Council answer — the cross-examine form. Used both for a live answer (addAiBubble)
+   and for a chat reloaded from storage (addStaticAiBubble), so they look and behave the same.
+   `crossExamine`, when given, is { label, ask(followUpText) -> Promise<string> }: a small
+   "ask just this model" form so one contributing model can be audited directly. */
+function makeWorkingBlock(title, body, crossExamine) {
+  const b = document.createElement("div");
+  b.className = "working-block";
+  b.innerHTML = `<h4></h4><div class="wb-body"></div>`;
+  b.querySelector("h4").textContent = title;
+  if (body && typeof body === "object") {   // { summary, raw } from describeError()
+    b.querySelector(".wb-body").textContent = body.summary;
+    b.appendChild(rawErrorDetails(body.raw));
+  } else {
+    b.querySelector(".wb-body").textContent = body;
+  }
+
+  if (crossExamine) {
+    const actions = document.createElement("div");
+    actions.className = "wb-actions";
+    actions.innerHTML = `<button class="xexamine-btn" type="button"></button>`;
+    actions.querySelector(".xexamine-btn").textContent = "🔍 " + crossExamine.label;
+    const form = document.createElement("div");
+    form.className = "xexamine-form";
+    form.innerHTML = `<input type="text" placeholder="Ask this model a follow-up…"><button type="button">Ask</button>`;
+    const reply = document.createElement("div");
+    reply.className = "xexamine-reply";
+    const input = form.querySelector("input");
+    const askBtn = form.querySelector("button");
+    actions.querySelector(".xexamine-btn").addEventListener("click", () => {
+      form.classList.toggle("open");
+      if (form.classList.contains("open")) input.focus();
+    });
+    const submit = async () => {
+      const q = input.value.trim();
+      if (!q) return;
+      askBtn.disabled = true; askBtn.textContent = "Asking…";
+      /* Show the reply via a class. (`style.display = ""` only removes an inline style,
+         so the stylesheet's `display: none` on .xexamine-reply won and it never appeared.) */
+      reply.classList.remove("err");
+      reply.classList.add("open");
+      reply.textContent = "…";
+      try {
+        const text = await crossExamine.ask(q);
+        reply.innerHTML = renderMarkdown(text);
+        input.value = "";
+      } catch (e) {
+        const d = describeError(e);   // failed: keep the question in the box so it can be retried
+        reply.classList.add("err");
+        reply.textContent = "⚠ " + d.summary;
+        reply.appendChild(rawErrorDetails(d.raw));
+      }
+      askBtn.disabled = false; askBtn.textContent = "Ask";
+    };
+    askBtn.addEventListener("click", submit);
+    input.addEventListener("keydown", e => { if (e.key === "Enter") submit(); });
+    b.appendChild(actions);
+    b.appendChild(form);
+    b.appendChild(reply);
+  }
+  return b;
+}
+
+/* The compact, storable form of one workings block (capped so a chat stays small). */
+function workingEntry(title, body, crossExamine) {
+  const e = { title: String(title) };
+  e.body = (body && typeof body === "object")
+    ? { summary: String(body.summary), raw: String(body.raw).slice(0, 2000) }
+    : String(body).slice(0, 12000);
+  if (crossExamine && crossExamine.meta) e.xe = crossExamine.meta;   // { provId, category }
+  return e;
+}
+
+/* Rebuilds a Council answer's cross-examine for a saved chat. `ctx` is the conversation up to and
+   including the question that produced it — the same context the live version had. */
+function savedCrossExamine(w, ctx) {
+  const p = w.xe && P[w.xe.provId];
+  if (!p || !ctx || typeof w.body !== "string") return null;
+  return {
+    label: `Cross-examine ${p.label}`,
+    ask: async (followUp) => callModel(w.xe.provId, p.workhorse, [
+      { role: "system", content: systemPromptFor(w.xe.category) },
+      ...ctx,
+      { role: "assistant", content: w.body },
+      { role: "user", content: followUp }
+    ])
+  };
+}
+
+function addStaticAiBubble(markdown, workings, ctx) {
   const div = document.createElement("div");
   div.className = "msg ai";
   div.innerHTML = `<div class="bubble"><div class="answer"></div></div>`;
   div.querySelector(".answer").innerHTML = renderMarkdown(markdown);
+  if (Array.isArray(workings) && workings.length) {
+    const d = document.createElement("details");
+    d.className = "workings";
+    d.innerHTML = `<summary>Show the council's workings</summary><div class="wblocks"></div>`;
+    const blocks = d.querySelector(".wblocks");
+    for (const w of workings) blocks.appendChild(makeWorkingBlock(w.title, w.body, savedCrossExamine(w, ctx)));
+    div.querySelector(".bubble").appendChild(d);
+  }
   chatEl.appendChild(div);
 }
 
@@ -1901,6 +2035,7 @@ function addAiBubble() {
   const workingsEl = div.querySelector(".workings");
   const wblocksEl = div.querySelector(".wblocks");
   const stages = {};
+  const workingsLog = [];
   let lastStreamPaint = 0;
   /* "raw": show streamed text as-is · "drafting": hold the technical draft back
      (just a progress line) · "plain": stream the plain-English rewrite */
@@ -1922,7 +2057,8 @@ function addAiBubble() {
         answerEl.innerHTML = `<span style="color:var(--text-dim)">The council is working on the detailed answer… (${words} words so far)</span>`;
         return;
       }
-      const text = streamMode === "plain" ? stripOpenFence(accumulated.split("%%%DISAGREE%%%")[0]) : accumulated;
+      const visible = splitDisagree(accumulated, { streaming: true }).body;   // never show the marker (or half of it) or the notes after it
+      const text = streamMode === "plain" ? stripOpenFence(visible) : visible;
       answerEl.innerHTML = (streamMode === "plain" ? '<div class="plain-body">' + renderMarkdown(text) + '</div>' : renderMarkdown(text)) + '<span class="cursor-blink"></span>';
       if (nearBottom) chatEl.scrollTop = chatEl.scrollHeight;
     },
@@ -1944,62 +2080,11 @@ function addAiBubble() {
        whole pipeline. Used by Council mode's per-provider answers (see councilGenerate). */
     working(title, body, crossExamine) {
       workingsEl.style.display = "";
-      const b = document.createElement("div");
-      b.className = "working-block";
-      b.innerHTML = `<h4></h4><div class="wb-body"></div>`;
-      b.querySelector("h4").textContent = title;
-      if (body && typeof body === "object") {   // { summary, raw } from describeError()
-        b.querySelector(".wb-body").textContent = body.summary;
-        b.appendChild(rawErrorDetails(body.raw));
-      } else {
-        b.querySelector(".wb-body").textContent = body;
-      }
-
-      if (crossExamine) {
-        const actions = document.createElement("div");
-        actions.className = "wb-actions";
-        actions.innerHTML = `<button class="xexamine-btn" type="button"></button>`;
-        actions.querySelector(".xexamine-btn").textContent = "🔍 " + crossExamine.label;
-        const form = document.createElement("div");
-        form.className = "xexamine-form";
-        form.innerHTML = `<input type="text" placeholder="Ask this model a follow-up…"><button type="button">Ask</button>`;
-        const reply = document.createElement("div");
-        reply.className = "xexamine-reply";
-        const input = form.querySelector("input");
-        const askBtn = form.querySelector("button");
-        actions.querySelector(".xexamine-btn").addEventListener("click", () => {
-          form.classList.toggle("open");
-          if (form.classList.contains("open")) input.focus();
-        });
-        const submit = async () => {
-          const q = input.value.trim();
-          if (!q) return;
-          askBtn.disabled = true; askBtn.textContent = "Asking…";
-          /* Show the reply via a class. (`style.display = ""` only removes an inline style,
-             so the stylesheet's `display: none` on .xexamine-reply won and it never appeared.) */
-          reply.classList.remove("err");
-          reply.classList.add("open");
-          reply.textContent = "…";
-          try {
-            const text = await crossExamine.ask(q);
-            reply.innerHTML = renderMarkdown(text);
-            input.value = "";
-          } catch (e) {
-            const d = describeError(e);   // failed: keep the question in the box so it can be retried
-            reply.classList.add("err");
-            reply.textContent = "⚠ " + d.summary;
-            reply.appendChild(rawErrorDetails(d.raw));
-          }
-          askBtn.disabled = false; askBtn.textContent = "Ask";
-        };
-        askBtn.addEventListener("click", submit);
-        input.addEventListener("keydown", e => { if (e.key === "Enter") submit(); });
-        b.appendChild(actions);
-        b.appendChild(form);
-        b.appendChild(reply);
-      }
-      wblocksEl.appendChild(b);
+      workingsLog.push(workingEntry(title, body, crossExamine));
+      wblocksEl.appendChild(makeWorkingBlock(title, body, crossExamine));
     },
+    /* the workings shown so far, in a compact form that is saved with the chat (see answer()) */
+    getWorkings() { return workingsLog; },
     finish(markdown) {
       answerEl.innerHTML = renderMarkdown(markdown);
       chatEl.scrollTop = chatEl.scrollHeight;
