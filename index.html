@@ -207,6 +207,9 @@
   .council-decision strong { color: var(--text); }
   .council-decision ul { margin: 5px 0 0 18px; padding: 0; }
   .council-decision .decision-muted { color: var(--text-dim); }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
+  }
   #stopAgent { display: none; border-color: rgba(229,115,95,.65); color: #f0b3a8; }
   #stopAgent.visible { display: inline-flex; }
   .disagreement-box {
@@ -1020,10 +1023,10 @@ pip install requests oss2 pyspark</code></pre>
   </div>
 </div>
 
-<aside id="memory" class="drawer" aria-label="Memory">
+<aside id="memory" class="drawer" aria-label="Memory" role="dialog" aria-modal="true" aria-labelledby="memoryTitle">
   <div class="s-head">
-    <h2>🧠 Working memory</h2>
-    <button class="icon-btn" id="closeMemory">✕</button>
+    <h2 id="memoryTitle">🧠 Working memory</h2>
+    <button class="icon-btn" id="closeMemory" aria-label="Close memory">✕</button>
   </div>
   <div class="s-body">
     <p class="s-note" style="margin-bottom:16px">
@@ -1049,10 +1052,10 @@ pip install requests oss2 pyspark</code></pre>
   </div>
 </aside>
 
-<aside id="settings" class="drawer" aria-label="Provider API keys">
+<aside id="settings" class="drawer" aria-label="Provider API keys" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
   <div class="s-head">
-    <h2>Provider API keys</h2>
-    <button class="icon-btn" id="closeSettings">✕</button>
+    <h2 id="settingsTitle">Provider API keys</h2>
+    <button class="icon-btn" id="closeSettings" aria-label="Close provider settings">✕</button>
   </div>
   <div class="s-body" id="settingsBody">
     <p class="s-note" style="margin-bottom:14px">
@@ -5276,6 +5279,15 @@ let drawerOpener = null;   // what had focus when a panel opened, so Escape can 
 function openSettings() { const from = document.activeElement; closeDrawers(); drawerOpener = from; renderTokenPanel(); settingsEl.classList.add("open"); overlayEl.classList.add("open"); }
 function openMemory() { const from = document.activeElement; closeDrawers(); drawerOpener = from; renderMemoryPanel(); memoryEl.classList.add("open"); overlayEl.classList.add("open"); }
 document.addEventListener("keydown", e => {
+  const drawer = settingsEl.classList.contains("open") ? settingsEl : memoryEl.classList.contains("open") ? memoryEl : null;
+  if (drawer && e.key === "Tab") {
+    const focusable = [...drawer.querySelectorAll('button, input, textarea, select, [href], [tabindex]:not([tabindex="-1"])')].filter(el => !el.disabled && el.offsetParent !== null);
+    if (focusable.length) {
+      const first = focusable[0], last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+  }
   if (e.key !== "Escape") return;
   if (document.getElementById("welcome").classList.contains("open")) return;   // the How to start pop-up has its own handler
   if (!settingsEl.classList.contains("open") && !memoryEl.classList.contains("open")) return;
@@ -5289,6 +5301,12 @@ document.getElementById("closeSettings").addEventListener("click", closeDrawers)
 document.getElementById("memoryBtn").addEventListener("click", openMemory);
 document.getElementById("closeMemory").addEventListener("click", closeDrawers);
 overlayEl.addEventListener("click", closeDrawers);
+function focusDrawer(panel) {
+  const first = panel.querySelector('input, button, textarea, select, [href], [tabindex]:not([tabindex="-1"])');
+  if (first) first.focus();
+}
+document.getElementById("settingsBtn").addEventListener("click", () => focusDrawer(settingsEl));
+document.getElementById("memoryBtn").addEventListener("click", () => focusDrawer(memoryEl));
 
 /* ---------- memory panel ---------- */
 function renderMemoryPanel() {
@@ -5298,9 +5316,7 @@ function renderMemoryPanel() {
   factsEl.innerHTML = "";
   if (memory.facts.length === 0) {
     factsEl.innerHTML = `<div class="mem-empty">Nothing remembered yet.</div>`;
-    return;
-  }
-  memory.facts.forEach((fact, i) => {
+  } else memory.facts.forEach((fact, i) => {
     const row = document.createElement("div");
     row.className = "fact";
     const span = document.createElement("span");
