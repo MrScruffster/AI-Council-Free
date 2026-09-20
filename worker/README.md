@@ -25,9 +25,13 @@ Secret names: `GROQ_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`,
 `COHERE_API_KEY`, `SAMBANOVA_API_KEY`, `MISTRAL_API_KEY`, `TAVILY_API_KEY`.
 
 - **Voice input reuses `GROQ_API_KEY`.** There is no new secret for it.
-- **Web search needs `TAVILY_API_KEY`, a new one.** Get it free at [tavily.com](https://tavily.com) (no credit card,
-  1,000 searches a month): `npx wrangler secret put TAVILY_API_KEY`. That allowance is **shared by everyone who
-  uses your deployment**, not per visitor, the same caveat as the free AI provider keys above.
+- **Web search needs a Tavily key, and there are two ways to supply one.** Either way it's free at
+  [tavily.com](https://tavily.com) (no credit card, 1,000 searches a month).
+  - **A visitor's own key:** pasted in **⚙ Keys → 🔎 Web search key**, like the AI provider keys. The browser calls Tavily
+    directly (Tavily allows browser calls) and it uses that visitor's own 1,000 a month. No Worker needed.
+  - **The Worker's key (optional):** `npx wrangler secret put TAVILY_API_KEY`. That allowance is **shared by everyone who
+    uses your deployment**, not per visitor, the same caveat as the free AI provider keys above.
+  - If both exist, the visitor's own key wins, exactly as with the AI providers.
 
 ## What the Worker offers besides chat
 
@@ -36,6 +40,7 @@ Secret names: `GROQ_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`,
 | `POST /api/<provider>` | forwards a chat request to that provider | that provider's key |
 | `POST /api/transcribe` | 🎙️ voice input: forwards a recording to Groq's Whisper (`whisper-large-v3-turbo`, fixed on the server) and returns `{ "text": "…" }` | `GROQ_API_KEY` |
 | `POST /api/websearch` | 🔧 web search tool: sends `{ "query": "…" }` to Tavily and returns `{ "results": [{ title, url, content }] }`. With `"trusted": true` it searches only the trusted-source list and adds a `kind` to each result (see below) | `TAVILY_API_KEY` |
+| `GET /trusted-domains` | the website (allowed origin, no token): the merged trusted list as `[host, kind]` pairs, so visitors using their own Tavily key get the IFCN/CISA parts too. Domain names only | optional KV `TRUSTED_KV` |
 | `GET` / `POST /trusted` | **you only** (`X-Proxy-Token`): report the trusted list's size and last refresh / refresh it now | optional KV `TRUSTED_KV` |
 
 All three sit behind the same origin check and `PROXY_TOKEN`. The two extra routes also have a per-IP limit of
@@ -51,11 +56,10 @@ but is not a hard cap; the providers' own quotas are the real ceiling.
   copied here). The app calls Groq directly if the visitor pasted a Groq key in ⚙ Keys, and otherwise goes through
   this Worker's `/api/transcribe`. It needs one of the two, and the browser only offers the microphone on
   `https://` (or `localhost`). The text is added to the question box and never sent automatically.
-- **Web search needs the `TAVILY_API_KEY` secret *and* the Worker proxy set up in ⚙ Keys.** There is no
-  paste-your-own-key route: it is a shared capability of your deployment, not a per-visitor AI key. It is
-  a tool, so it is used only when 🔧 Tools is on, in Fast or Balanced mode (never Council). When the key is
-  missing, the proxy isn't configured, or the monthly quota is used up, the search returns a plain message to the
-  model, which then answers without it. The answer isn't broken, and no error is shown.
+- **Web search needs a Tavily key**: the visitor's own (⚙ Keys) or the Worker's `TAVILY_API_KEY` secret with the proxy set
+  up. It is a tool, so it is used only when 🔧 Tools is on, in Fast or Balanced mode (never Council). When there is no key,
+  or the monthly allowance is used up, the search returns a plain message to the model, which then answers without it.
+  The answer isn't broken, and no error is shown.
 
 ## Connect the app
 
@@ -70,11 +74,17 @@ paid billing. (The Worker still knows the `sambanova` route if you have a paid k
 
 ## Trusted-source check (Council mode)
 
-When Council models **disagree** and a proxy is configured, the app searches **only** a fixed list of trusted sites
-(`POST /api/websearch` with `"trusted": true`) and shows a green **Source check** box: a short model-written summary of
-what those sources say, and under it a list of the real sources found, each labelled with its kind. It runs only after a
-disagreement, because every search spends the shared monthly Tavily quota, and it never changes the answer. It needs
-`TAVILY_API_KEY` and the proxy, like web search.
+When Council models **disagree** and a Tavily key is available, the app searches **only** a fixed list of trusted sites and
+shows a green **Source check** box: a short model-written summary of what those sources say, and under it a list of the real
+sources found, each labelled with its kind. It runs only after a disagreement, because every search spends a monthly free
+allowance, and it never changes the answer. It needs a Tavily key, like web search: a visitor's own (⚙ Keys) or the Worker's.
+
+Which list is searched depends on the key. With **the Worker's key**, the Worker builds the full list (static groups + IFCN +
+CISA) and sends it to Tavily (`POST /api/websearch` with `"trusted": true`). With **a visitor's own key**, the browser calls
+Tavily itself using a copy of the four static groups built into the page (`TRUSTED_STATIC`, which must be kept in step with the
+Worker's lists; the tests compare them), plus the IFCN and CISA parts fetched from the Worker's public `GET /trusted-domains`.
+If that Worker is unreachable, or has no KV set up, the direct search just uses the static groups, so a visitor loses
+the IFCN fact-checkers but keeps the legislative, historical, scientific and general sources.
 
 ### What each group is, and what it does and doesn't tell you
 

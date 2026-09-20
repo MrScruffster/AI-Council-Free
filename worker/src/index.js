@@ -27,6 +27,7 @@
  *   POST /api/websearch   { query } → { results: [{ title, url, content }] }   Tavily, using TAVILY_API_KEY
  *                         { query, trusted: true } searches only the trusted-source list (see "trusted sources"
  *                         below) and adds a "kind" to each result. That is what the Council source check uses.
+ *   GET /trusted-domains  the merged trusted list as [host, kind] pairs, for the website (allowed origin, no token)
  *   GET|POST /trusted     OWNER ONLY (X-Proxy-Token): GET reports the merged list's size and last refresh, POST refreshes now
  * Optional KV binding TRUSTED_KV + a weekly cron keep the IFCN and CISA lists fresh; without them only the static lists are used.
  *
@@ -371,6 +372,16 @@ function trustedKindOf(url, trusted) {
   return "";
 }
 
+/* GET /trusted-domains: the merged list as [host, kind] pairs, for the website (allowed origin, no token). Visitors who use
+   their OWN Tavily key search straight from their browser, so the page needs the list itself; this hands it the IFCN and
+   CISA parts it can't have built in. It is public data (domain names only) and is cached for ten minutes. */
+async function handleTrustedDomains(request, env, cors) {
+  if (request.method !== "GET") return json(405, { error: { message: "GET only." } }, cors);
+  if (!cors["Access-Control-Allow-Origin"]) return json(403, { error: { message: "Origin not allowed." } }, cors);
+  const t = await loadTrusted(env);
+  return json(200, { domains: t.domains.map(d => [d, t.kinds.get(d)]), cap: TRUSTED_CAP }, { ...cors, "Cache-Control": "public, max-age=600" });
+}
+
 /* Owner only (X-Proxy-Token): GET /trusted reports the merged list's size and last refresh; POST /trusted refreshes now. */
 async function handleTrusted(request, env, cors) {
   if (!env.PROXY_TOKEN || request.headers.get("X-Proxy-Token") !== env.PROXY_TOKEN) return json(401, { error: { message: "Owner token required." } }, cors);
@@ -484,6 +495,7 @@ export default {
 
     if (/^\/count\/?$/.test(url.pathname)) return handleCount(request, env, cors);
     if (/^\/trusted\/?$/.test(url.pathname)) return handleTrusted(request, env, cors);
+    if (/^\/trusted-domains\/?$/.test(url.pathname)) return handleTrustedDomains(request, env, cors);
 
     const m = url.pathname.match(/^\/api\/([a-z0-9_-]+)\/?$/i);
     if (!m) return json(404, { error: { message: "Not found. Use POST /api/<provider>." } }, cors);
