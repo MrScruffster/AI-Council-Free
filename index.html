@@ -737,6 +737,7 @@
     <button data-mode="fast" title="Route to a specialist, answer directly. 2 calls.">Fast</button>
     <button data-mode="balanced" class="active" title="Route → generate → critique → revise. 3–4 calls.">Balanced</button>
     <button data-mode="council" title="All models answer in parallel, one synthesizes, another critiques, then a final revision. 6–7 calls.">Council</button>
+    <button data-mode="evidence" title="Answer normally, then attach independent web evidence and disclose what remains unverified.">Evidence</button>
     <button data-mode="agent" title="Create a checked task plan, approve each step, and run only safe built-in tools.">Agent</button>
   </div>
   <button class="icon-btn active" id="plainToggle" title="Explain answers in plain, everyday language (with a simple diagram where it helps). The full technical answer stays one click away.">🗣 Plain: on</button>
@@ -3570,7 +3571,10 @@ function evidenceSummary(results) {
   return `${results.length} source${results.length === 1 ? "" : "s"} from ${domains.size} domain${domains.size === 1 ? "" : "s"} · ${trusted} trusted, ${results.length - trusted} unverified`;
 }
 async function sourceCheck(question, disagreement, ui) {
-  if (!searchAvailable()) { ui.stage("src", "skipped", "Source check · needs your Tavily key"); return ""; }
+  if (!searchAvailable()) {
+    ui.stage("src", "skipped", "Evidence unavailable · needs your Tavily key");
+    return "\n\n:::sources\n**Evidence unavailable.** Add your own Tavily key in ⚙ Keys to retrieve independent sources. The model answer above has not been independently verified.\n:::";
+  }
   ui.stage("src", "running", "Checking sources");
   const [tr, open] = await Promise.all([webSearch(question, true), webSearch(question, false)]);
   if (tr.error && open.error) {
@@ -3596,15 +3600,15 @@ async function sourceCheck(question, disagreement, ui) {
   try {
     const { text } = await callWithFallback(pickProvider(CONFIG.specialists.factual), [
       { role: "system", content:
-        "You are checking a disagreement between AI models against SOURCES found on the web. Each source is marked either trusted (with its kind) " +
-        "or NOT on the trusted-source list (unverified). For each point of disagreement, say in one or two plain sentences which claim, if either, " +
+        "You are checking model claims against SOURCES found on the web. Each source is marked either trusted (with its kind) " +
+        "or NOT on the trusted-source list (unverified). For each claim or point of disagreement, say in one or two plain sentences which claim, if either, " +
         "the sources support, citing the source as [n]. Prefer trusted sources. If a point rests only on an unverified source, say so plainly. " +
         "Use ONLY what the source excerpts actually say. If they do not address a point, write \"The sources found don't settle this.\" " +
         "Never add facts from your own knowledge and never invent quotes, section numbers or dates. " +
         "A source shows what that document says, not that a claim is true in general, and a fact-checker's verdict is that organisation's assessment. " +
         "At most 120 words, as markdown bullets, no headings." + todayLine() },
       { role: "user", content:
-        "QUESTION:\n" + question.slice(0, 1500) + "\n\nPOINTS WHERE THE MODELS DISAGREED:\n" + disagreement.slice(0, 2500) +
+        "QUESTION:\n" + question.slice(0, 1500) + "\n\nCLAIMS TO CHECK:\n" + (disagreement || "Identify the important factual claims in the question and answer, then report which are supported, unsupported, or unresolved.") .slice(0, 2500) +
         "\n\nSOURCES:\n" + results.map((r, i) => `[${i + 1}] ${sourceTrustNote(r.kind)}\n${r.title}\n${r.url}\n${r.content}`).join("\n\n") }
     ], 500, undefined, ui, "source check", { temperature: CONFIG.temperatures.judge });
     summary = text.replace(/^:::.*$/gm, "").replace(/\[\[/g, "[ [").trim();   // no block markers, and no forged [[badge:...]] tokens
@@ -3677,9 +3681,9 @@ async function answer(question, ui) {
   }
   const technical = final;   // the full, detailed answer
   if (structured) final = await structuredEnvelope(final, sc, ui, genProvId);   // validated and packed for the JSON viewer; never throws
-  /* Council only, and only when the models disagreed: check the disagreement against trusted sources (kept out of the technical section) */
+  /* Council disagreement and Evidence mode: keep retrieved evidence out of model prose. */
   let sourceMd = "";
-  if (mode === "council" && disagreement) {
+  if ((mode === "council" && disagreement) || mode === "evidence") {
     try { sourceMd = await sourceCheck(question, disagreement, ui); }
     catch (e) { ui.stage("src", "warn", "Source check unavailable"); ui.working("Source check", describeError(e)); }
   }
@@ -5070,7 +5074,7 @@ function checkStructInput() {
   else setStructStatus("✓ Example recognised: its keys become required properties, and their types are inferred from your values.", "ok");
 }
 function refreshStructToggle() {
-  const council = mode === "council", agent = mode === "agent", blockedByTools = toolsEnabled && !council;
+  const council = mode === "council", agent = mode === "agent", evidence = mode === "evidence", blockedByTools = toolsEnabled && !council;
   structToggleEl.disabled = council || agent || blockedByTools;
   structToggleEl.title = council ? "Not available in Council mode. Switch to Fast or Balanced to use structured output."
     : agent ? "Agent plans use a fixed safety schema and the optional approved local browser runner."
@@ -5081,6 +5085,7 @@ function refreshStructToggle() {
   structPanelEl.hidden = !structActive();
   toggleNoteEl.textContent = council ? "🔧 Tools and 🧩 Structured output work with a single model: switch to Fast or Balanced to use them."
     : agent ? "Agent mode creates a validated plan and requires approval before each permitted read-only step. Browser actions require the optional local runner and approved domains."
+    : evidence ? "Evidence mode keeps the model answer separate from independent web evidence. Add a Tavily key to verify claims; without one, the answer is explicitly marked unverified."
     : structActive() ? "🔧 Tools is unavailable while 🧩 Structured output is on: the reply has to be JSON only, and tool calls need the model to answer in steps."
     : blockedByTools ? "🧩 Structured output is unavailable while 🔧 Tools is on: tool calls need the model to answer in steps, which a JSON-only reply can't do. Turn Tools off to use it."
     : "";
