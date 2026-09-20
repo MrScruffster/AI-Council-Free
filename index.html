@@ -181,6 +181,30 @@
   .stage.warn .sdot { background: var(--warn); }
   .stage.error .sdot { background: var(--err); }
   .stage.skipped { opacity: .45; }
+  .agent-panel { margin-top: 12px; padding: 12px; background: rgba(108, 140, 255, .07); border: 1px solid rgba(108, 140, 255, .35); border-radius: var(--radius); }
+  .agent-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  .agent-title { font-weight: 650; }
+  .agent-state { font-size: .72rem; border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px; color: var(--text-dim); }
+  .agent-state.running { color: var(--warn); border-color: rgba(229,181,103,.5); }
+  .agent-state.done { color: var(--ok); border-color: rgba(76,195,138,.5); }
+  .agent-state.stopped, .agent-state.failed { color: var(--err); border-color: rgba(229,115,95,.5); }
+  .agent-plan { margin: 8px 0 0 20px; }
+  .agent-step { margin: 8px 0; padding: 8px 10px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; }
+  .agent-step-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .agent-step-title { font-weight: 600; }
+  .agent-step-meta { color: var(--text-dim); font-size: .74rem; }
+  .agent-step-desc { margin-top: 4px; font-size: .86rem; }
+  .agent-step-risk { color: var(--warn); font-size: .74rem; }
+  .agent-step-status { margin-top: 5px; color: var(--text-dim); font-size: .78rem; }
+  .agent-step-actions { display: flex; gap: 6px; margin-top: 7px; flex-wrap: wrap; }
+  .agent-action { background: var(--accent-strong); color: #fff; border: 0; border-radius: 6px; padding: 4px 10px; cursor: pointer; font: inherit; font-size: .76rem; }
+  .agent-action.secondary { background: var(--panel); border: 1px solid var(--border); color: var(--text); }
+  .agent-action:disabled { opacity: .45; cursor: not-allowed; }
+  .agent-history { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 8px; }
+  .agent-history summary { cursor: pointer; color: var(--text-dim); font-size: .78rem; }
+  .agent-history-row { margin-top: 5px; font-size: .75rem; color: var(--text-dim); }
+  #stopAgent { display: none; border-color: rgba(229,115,95,.65); color: #f0b3a8; }
+  #stopAgent.visible { display: inline-flex; }
   .disagreement-box {
     margin-top: 14px; padding: 10px 14px; border-radius: var(--radius);
     background: rgba(229, 181, 103, .08); border: 1px solid rgba(229, 181, 103, .35);
@@ -704,11 +728,13 @@
     <button data-mode="fast" title="Route to a specialist, answer directly. 2 calls.">Fast</button>
     <button data-mode="balanced" class="active" title="Route → generate → critique → revise. 3–4 calls.">Balanced</button>
     <button data-mode="council" title="All models answer in parallel, one synthesizes, another critiques, then a final revision. 6–7 calls.">Council</button>
+    <button data-mode="agent" title="Create a checked task plan, approve each step, and run only safe built-in tools.">Agent</button>
   </div>
   <button class="icon-btn active" id="plainToggle" title="Explain answers in plain, everyday language (with a simple diagram where it helps). The full technical answer stays one click away.">🗣 Plain: on</button>
   <button class="icon-btn" id="toolsToggle" title="Let a model use a small built-in toolset (calculator, current date/time, web search when you add your own Tavily key, and page-reading tools when you add a TinyFish or Bright Data key in ⚙ Keys) while drafting — Fast/Balanced modes only.">🔧 Tools: off</button>
   <button class="icon-btn" id="structToggle" title="Get the answer as JSON in a shape you choose. Paste a JSON Schema or an example object; the reply is checked against it. Best-effort: how strictly it is enforced depends on the provider. Fast/Balanced only.">🧩 JSON: off</button>
   <button class="icon-btn" id="compressToggle" title="Shorten your question with one extra model call before the council sees it. It costs one extra call per question, so it mostly pays off in Council mode (several models each read the shorter question) and rarely in Fast mode. It can drop something you meant: both versions are shown in the workings.">🗜️ Compress: off</button>
+  <button class="icon-btn" id="stopAgent" type="button" title="Stop the running agent task">⏹ Stop agent</button>
   <button class="icon-btn" id="imageBtn" title="Generate an image with Pollinations. Results are cached in this browser.">🎨 Image</button>
   <button class="icon-btn" id="memoryBtn" title="Working memory: what the council remembers about you" aria-label="Memory">🧠<span class="hb-opt"> Memory</span></button>
   <button class="icon-btn" id="aboutBtn" title="How AI Council works, and how it reduces incorrect answers" aria-label="About AI Council"><span id="abIco">ℹ️</span><span class="hb-text hb-opt" id="abTxt"> About</span></button>
@@ -1635,6 +1661,123 @@ const TOOLS = {
     run: args => runFetchBlockedPage(args)
   }
 };
+
+const AGENT_PLAN_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["goal", "steps", "risks", "needs_confirmation", "confidence"],
+  properties: {
+    goal: { type: "string", minLength: 1, maxLength: 500 },
+    steps: {
+      type: "array", minItems: 1, maxItems: 8,
+      items: {
+        type: "object", additionalProperties: false,
+        required: ["id", "description", "tool", "risk", "requires_confirmation", "expected_result"],
+        properties: {
+          id: { type: "string", minLength: 1, maxLength: 40 },
+          description: { type: "string", minLength: 1, maxLength: 300 },
+          tool: { type: "string", enum: ["calculate", "current_datetime", "web_search"] },
+          input: { type: "object" },
+          risk: { type: "string", enum: ["low", "medium", "high"] },
+          requires_confirmation: { type: "boolean" },
+          expected_result: { type: "string", minLength: 1, maxLength: 240 }
+        }
+      }
+    },
+    risks: { type: "array", maxItems: 8, items: { type: "string", maxLength: 240 } },
+    needs_confirmation: { type: "boolean" },
+    confidence: { type: "number", minimum: 0, maximum: 1 }
+  }
+};
+const AGENT_MAX_HISTORY = 40;
+let agentRun = null;
+const stopAgentEl = document.getElementById("stopAgent");
+
+function agentPlanFromText(raw, goal) {
+  let parsed;
+  try {
+    const match = String(raw || "").match(/\{[\s\S]*\}/);
+    parsed = JSON.parse(match ? match[0] : raw);
+  } catch (_) { throw new Error("The planning model returned invalid JSON."); }
+  if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.steps) || !parsed.steps.length || parsed.steps.length > 8) {
+    throw new Error("The planning model returned an invalid or empty task plan.");
+  }
+  const steps = parsed.steps.map((s, i) => {
+    if (!s || typeof s !== "object") throw new Error(`Task step ${i + 1} is invalid.`);
+    const tool = String(s.tool || "");
+    if (!Object.prototype.hasOwnProperty.call(TOOLS, tool) || !["calculate", "current_datetime", "web_search"].includes(tool)) {
+      throw new Error(`Task step ${i + 1} requested an unsupported tool.`);
+    }
+    const risk = ["low", "medium", "high"].includes(s.risk) ? s.risk : "high";
+    return {
+      id: String(s.id || `step-${i + 1}`).slice(0, 40),
+      description: String(s.description || "").trim().slice(0, 300),
+      tool,
+      input: s.input && typeof s.input === "object" && !Array.isArray(s.input) ? s.input : {},
+      risk,
+      requires_confirmation: risk !== "low" || s.requires_confirmation !== false,
+      expected_result: String(s.expected_result || "").trim().slice(0, 240),
+      status: "awaiting approval"
+    };
+  });
+  if (steps.some(s => !s.description || !s.expected_result)) throw new Error("The task plan contains a step without a description or expected result.");
+  return {
+    goal: String(parsed.goal || goal).trim().slice(0, 500) || goal.slice(0, 500),
+    steps,
+    risks: Array.isArray(parsed.risks) ? parsed.risks.map(x => String(x).slice(0, 240)).filter(Boolean).slice(0, 8) : [],
+    needs_confirmation: true,
+    confidence: Math.max(0, Math.min(1, Number(parsed.confidence) || 0))
+  };
+}
+
+function agentInputForStep(step) {
+  const input = { ...(step.input || {}) };
+  if (step.tool === "web_search" && !String(input.query || "").trim()) input.query = step.description;
+  if (step.tool === "calculate" && !String(input.expression || "").trim()) input.expression = step.description;
+  return input;
+}
+
+function agentHistoryLine(entry) {
+  const stamp = new Date(entry.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return `${stamp} · ${entry.action} · ${entry.result}`;
+}
+
+async function createAgentPlan(goal, ui) {
+  const order = routeCandidates();
+  if (!order.length) throw new Error("No connected provider is available to create an agent plan.");
+  ui.stage("plan", "running", `Planning · ${P[order[0]].label}`);
+  const messages = [
+    { role: "system", content:
+      "You create safe, read-only task plans for an AI assistant. Return ONLY JSON matching the supplied schema. " +
+      "The only executable tools are calculate, current_datetime and web_search. Never request browser control, form submission, messaging, purchases, deletion, file access or side effects. " +
+      "Use low risk only for harmless local calculation/date steps; web search is medium risk and always requires confirmation. " +
+      "Keep steps short, concrete and ordered. Include input values for tools when known." },
+    { role: "user", content: `Create a safe task plan for this goal:\n${goal.slice(0, 3000)}` }
+  ];
+  let lastErr = null;
+  for (const id of order.slice(0, CONFIG.routeMaxAttempts)) {
+    try {
+      const raw = await callModel(id, P[id].fast || P[id].workhorse, messages, 1200, undefined, { json: { schema: AGENT_PLAN_SCHEMA }, temperature: 0.1 });
+      const plan = agentPlanFromText(raw, goal);
+      ui.stage("plan", "done", `Plan ready · ${P[id].label}`);
+      return plan;
+    } catch (e) {
+      lastErr = e;
+      ui.working("Planning fallback", describeError(e, "trying another provider"));
+    }
+  }
+  ui.stage("plan", "error", "Planning failed");
+  throw lastErr || new Error("No provider could create a task plan.");
+}
+
+async function runAgentStep(step, task, ui) {
+  if (task.stopped) throw new Error("Agent stopped.");
+  const tool = TOOLS[step.tool];
+  if (!tool || (tool.available && !tool.available())) throw new Error(`The ${step.tool} tool is not available.`);
+  const result = await tool.run(agentInputForStep(step));
+  if (task.stopped) throw new Error("Agent stopped.");
+  return result;
+}
 
 /* ---------- web search: everyone uses their OWN Tavily key ----------
    There is no shared key and no proxy route for search: a key pasted in ⚙ Keys is called directly from the browser
@@ -4335,6 +4478,7 @@ function addAiBubble() {
     <div class="bubble">
       <div class="pipeline"></div>
       <div class="answer"><span style="color:var(--text-dim)">Working…</span></div>
+      <div class="agent-panel" hidden></div>
       <details class="workings" style="display:none">
         <summary>Show the council's workings</summary>
         <div class="wblocks"></div>
@@ -4345,6 +4489,7 @@ function addAiBubble() {
 
   const pipelineEl = div.querySelector(".pipeline");
   const answerEl = div.querySelector(".answer");
+  const agentPanelEl = div.querySelector(".agent-panel");
   const workingsEl = div.querySelector(".workings");
   const wblocksEl = div.querySelector(".wblocks");
   const stages = {};
@@ -4358,6 +4503,47 @@ function addAiBubble() {
     setStream(m) {
       streamMode = m;
       if (m === "drafting") answerEl.innerHTML = '<span style="color:var(--text-dim)">The council is working on the detailed answer…</span>';
+    },
+    showAgentPlan(plan, task, onStep) {
+      agentPanelEl.hidden = false;
+      const render = () => {
+        agentPanelEl.innerHTML = "";
+        const head = document.createElement("div"); head.className = "agent-head";
+        const title = document.createElement("span"); title.className = "agent-title"; title.textContent = "Agent task plan";
+        const state = document.createElement("span"); state.className = "agent-state " + (task.stopped ? "stopped" : task.done ? "done" : "running");
+        state.textContent = task.stopped ? "Stopped" : task.done ? "Completed" : "Awaiting approval";
+        head.append(title, state); agentPanelEl.appendChild(head);
+        const goal = document.createElement("div"); goal.textContent = "Goal: " + plan.goal; agentPanelEl.appendChild(goal);
+        if (plan.risks.length) {
+          const risks = document.createElement("div"); risks.className = "agent-step-risk"; risks.textContent = "Risks: " + plan.risks.join(" · "); agentPanelEl.appendChild(risks);
+        }
+        const list = document.createElement("ol"); list.className = "agent-plan";
+        plan.steps.forEach((step, i) => {
+          const li = document.createElement("li"); li.className = "agent-step";
+          const h = document.createElement("div"); h.className = "agent-step-head";
+          const st = document.createElement("span"); st.className = "agent-step-title"; st.textContent = `${i + 1}. ${step.description}`;
+          const meta = document.createElement("span"); meta.className = "agent-step-meta"; meta.textContent = `${step.tool} · ${step.risk} risk`;
+          h.append(st, meta); li.appendChild(h);
+          const expected = document.createElement("div"); expected.className = "agent-step-meta"; expected.textContent = "Expected: " + step.expected_result; li.appendChild(expected);
+          const status = document.createElement("div"); status.className = "agent-step-status"; status.textContent = step.status; li.appendChild(status);
+          const actions = document.createElement("div"); actions.className = "agent-step-actions";
+          const approve = document.createElement("button"); approve.type = "button"; approve.className = "agent-action"; approve.textContent = step.status === "awaiting approval" ? "Approve and run" : "Run again";
+          approve.disabled = task.stopped || ["running", "completed"].includes(step.status);
+          approve.addEventListener("click", () => onStep(step, render));
+          const reject = document.createElement("button"); reject.type = "button"; reject.className = "agent-action secondary"; reject.textContent = "Reject";
+          reject.disabled = task.stopped || !["awaiting approval", "failed"].includes(step.status);
+          reject.addEventListener("click", () => { step.status = "rejected"; task.history.push({ at: Date.now(), action: `${step.tool}: rejected`, result: "User rejected this step." }); render(); });
+          actions.append(approve, reject); li.appendChild(actions);
+          list.appendChild(li);
+        });
+        agentPanelEl.appendChild(list);
+        const details = document.createElement("details"); details.className = "agent-history";
+        const summary = document.createElement("summary"); summary.textContent = `Action history (${task.history.length})`; details.appendChild(summary);
+        task.history.forEach(entry => { const row = document.createElement("div"); row.className = "agent-history-row"; row.textContent = agentHistoryLine(entry); details.appendChild(row); });
+        agentPanelEl.appendChild(details);
+      };
+      task.render = render;
+      render();
     },
     /* live token stream — throttled re-render so long answers stay smooth */
     stream(accumulated) {
@@ -4414,9 +4600,59 @@ function addAiBubble() {
   };
 }
 
+async function runAgentTask(goal, ui) {
+  const task = { stopped: false, done: false, history: [], render: null };
+  agentRun = task;
+  stopAgentEl.classList.add("visible");
+  stopAgentEl.disabled = false;
+  try {
+    const plan = await createAgentPlan(goal, ui);
+    if (task.stopped) throw new Error("Agent stopped before the plan was ready.");
+    ui.showAgentPlan(plan, task, async (step, render) => {
+      if (task.stopped || agentRun !== task) return;
+      step.status = "running";
+      render();
+      try {
+        const result = await runAgentStep(step, task, ui);
+        step.status = result && result.error ? "failed" : "completed";
+        task.history.push({ at: Date.now(), action: `${step.tool}: ${step.status}`, result: result && result.error ? String(result.error).slice(0, 500) : "Completed with a result." });
+      } catch (e) {
+        step.status = task.stopped ? "stopped" : "failed";
+        task.history.push({ at: Date.now(), action: `${step.tool}: ${step.status}`, result: String(e.message || e).slice(0, 500) });
+      }
+      if (plan.steps.every(s => ["completed", "rejected", "failed", "stopped"].includes(s.status))) {
+        task.done = true;
+        stopAgentEl.classList.remove("visible");
+        agentRun = null;
+      }
+      if (task.render) task.render();
+    });
+    ui.working("Agent plan", plan.steps.map((s, i) => `${i + 1}. ${s.description} [${s.tool}, ${s.risk} risk]`).join("\n"));
+    return "The agent created a plan above. Approve each step to run the permitted read-only tools. Browser actions are not available yet.";
+  } catch (e) {
+    if (task.stopped) {
+      agentRun = null;
+      stopAgentEl.classList.remove("visible");
+      return "The agent was stopped before it could create a plan.";
+    }
+    agentRun = null;
+    stopAgentEl.classList.remove("visible");
+    throw e;
+  }
+}
+
+stopAgentEl.addEventListener("click", () => {
+  if (!agentRun) return;
+  const task = agentRun;
+  task.stopped = true;
+  if (task.render) task.render();
+  agentRun = null;
+  stopAgentEl.classList.remove("visible");
+});
+
 async function onSend() {
   const q = inputEl.value.trim();
-  if (!q || busy) return;
+  if (!q || busy || agentRun) return;
   if (availableProviders().length === 0) { openSettings(); return; }
   if (structActive()) {   // 🧩 needs a usable schema or example before anything is sent
     const chk = parseStructInput(structSchemaEl.value);
@@ -4428,7 +4664,11 @@ async function onSend() {
   tickGlobalCount();   // one anonymous +1 to the global counter (no question text is sent)
   const ui = addAiBubble();
   try {
-    const final = await answer(q, ui);
+    const final = mode === "agent" ? await runAgentTask(q, ui) : await answer(q, ui);
+    if (mode === "agent") {
+      history.push({ role: "user", content: q });
+      history.push({ role: "assistant", content: final, meta: { mode: "agent", category: "agent", plain: false, structured: true } });
+    }
     ui.finish(final);
     persistCurrentChat(q);
   } catch (e) {
@@ -4601,11 +4841,11 @@ refreshPlainToggle();
 /* ---------- tools toggle ---------- */
 const toolsToggleEl = document.getElementById("toolsToggle");
 function refreshToolsToggle() {
-  const disabledByCouncil = mode === "council";
+  const disabledByCouncil = mode === "council" || mode === "agent";
   const disabledByStruct = structEnabled && !disabledByCouncil;   // 🧩 Structured output and 🔧 Tools can't be combined
   toolsToggleEl.disabled = disabledByCouncil || disabledByStruct;
   toolsToggleEl.title = disabledByCouncil
-    ? "Not available in Council mode. Switch to Fast or Balanced to use tools."
+    ? mode === "agent" ? "Agent mode controls its own read-only tools and permissions." : "Not available in Council mode. Switch to Fast or Balanced to use tools."
     : disabledByStruct ? "Turn off 🧩 Structured output first: it needs the reply to be JSON only, and tool calls need the model to answer in steps."
     : "Let a model use a small built-in toolset (calculator, current date/time, web search when you add your own Tavily key, and page-reading tools when you add a TinyFish or Bright Data key in ⚙ Keys) while drafting — Fast/Balanced modes only.";
   toolsToggleEl.classList.toggle("active", toolsEnabled && !disabledByCouncil);
@@ -4638,15 +4878,17 @@ function checkStructInput() {
   else setStructStatus("✓ Example recognised: its keys become required properties, and their types are inferred from your values.", "ok");
 }
 function refreshStructToggle() {
-  const council = mode === "council", blockedByTools = toolsEnabled && !council;
-  structToggleEl.disabled = council || blockedByTools;
+  const council = mode === "council", agent = mode === "agent", blockedByTools = toolsEnabled && !council;
+  structToggleEl.disabled = council || agent || blockedByTools;
   structToggleEl.title = council ? "Not available in Council mode. Switch to Fast or Balanced to use structured output."
+    : agent ? "Agent plans use a fixed safety schema."
     : blockedByTools ? "Turn off 🔧 Tools first: tool calls need the model to answer in steps, which a JSON-only reply can't do."
     : "Get the answer as JSON in a shape you choose. Paste a JSON Schema or an example object; the reply is checked against it. Best-effort: how strictly it is enforced depends on the provider. Fast/Balanced only. In Balanced the plain-English rewrite is skipped.";
   structToggleEl.classList.toggle("active", structEnabled && !council);
   structToggleEl.textContent = "🧩 JSON: " + (structEnabled && !council ? "on" : "off");
   structPanelEl.hidden = !structActive();
   toggleNoteEl.textContent = council ? "🔧 Tools and 🧩 Structured output work with a single model: switch to Fast or Balanced to use them."
+    : agent ? "Agent mode creates a validated plan and requires approval before each permitted read-only step. Browser automation is not connected yet."
     : structActive() ? "🔧 Tools is unavailable while 🧩 Structured output is on: the reply has to be JSON only, and tool calls need the model to answer in steps."
     : blockedByTools ? "🧩 Structured output is unavailable while 🔧 Tools is on: tool calls need the model to answer in steps, which a JSON-only reply can't do. Turn Tools off to use it."
     : "";
@@ -4735,6 +4977,10 @@ document.getElementById("modePicker").addEventListener("click", e => {
   if (!btn) return;
   mode = btn.dataset.mode;
   document.querySelectorAll("#modePicker button").forEach(b => b.classList.toggle("active", b === btn));
+  if (mode === "agent") {
+    toolsEnabled = false;
+    structEnabled = false;
+  }
   refreshToolsToggle();
   refreshStructToggle();
   syncEmptyModes();
@@ -4777,7 +5023,8 @@ function renderEmptyState(first) {
   for (const [id, name, what, calls] of [
     ["fast", "Fast", "Routing only", "2 calls"],
     ["balanced", "Balanced", "Routing + critique loop", "3–4 calls"],
-    ["council", "Council", "Ensemble + synthesis + critique", "6–7 calls"]
+    ["council", "Council", "Ensemble + synthesis + critique", "6–7 calls"],
+    ["agent", "Agent", "Plan + approval + safe tools", "as needed"]
   ]) {
     const b = document.createElement("button");
     b.type = "button"; b.className = "es-mode"; b.dataset.emode = id;
