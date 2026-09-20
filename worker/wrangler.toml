@@ -18,19 +18,19 @@ new_sqlite_classes = ["Counter"]
 #   PROXY_TOKEN     shared token the app must send; set it
 # For local `wrangler dev`, put the same names in a .dev.vars file (never commit it).
 
-# Trusted-source check, optional. Without it the app still uses the static source lists; with it, the IFCN
-# fact-checker list and a slice of CISA's .gov registry are also refreshed weekly. Deliberately commented out:
-# a KV binding needs YOUR namespace id, and a placeholder would make `wrangler deploy` fail.
-#   1. npx wrangler kv namespace create TRUSTED_KV     (prints an id)
-#   2. uncomment both blocks below and paste the id
-#   3. npx wrangler deploy, then fill it once instead of waiting for Monday:
-#        curl -X POST https://ai-council-proxy.<you>.workers.dev/trusted -H "X-Proxy-Token: <your PROXY_TOKEN>"
-# [[kv_namespaces]]
-# binding = "TRUSTED_KV"
-# id = "<paste the id here>"
-#
-# [triggers]
-# crons = ["0 4 * * 1"]   # 04:00 UTC every Monday
+# Trusted-source lists: the IFCN fact-checker list and a slice of CISA's .gov registry are stored in this KV
+# namespace and refreshed by the weekly cron below (the static source lists are built into the code).
+# The namespace id belongs to the site owner's Cloudflare account; anyone deploying their own copy should run
+#   npx wrangler kv namespace create TRUSTED_KV
+# and replace the id, or delete both blocks (the app then just uses the static lists).
+# To refresh right now instead of waiting for Monday (needs your PROXY_TOKEN):
+#   curl -X POST https://ai-council-proxy.<you>.workers.dev/trusted -H "X-Proxy-Token: <your PROXY_TOKEN>"
+[[kv_namespaces]]
+binding = "TRUSTED_KV"
+id = "b8da1cc6b1784093b96a84b12ef5cee7"
+
+[triggers]
+crons = ["0 4 * * 1"]   # 04:00 UTC every Monday
 
 [vars]
 # The exact origin(s) of the page that calls this Worker (no trailing slash, no path),

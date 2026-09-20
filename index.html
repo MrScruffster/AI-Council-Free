@@ -81,15 +81,14 @@
   .provider-dots { display: flex; gap: 6px; align-items: center; font-size: .78rem; color: var(--text-dim); }
   .provider-dots { cursor: pointer; flex-wrap: wrap; }
   .provider-dots > span { display: inline-flex; align-items: center; }
-  /* Status dots: green = verified working, red = not connected / failing,
-     amber = configured but not verified yet (or rate-limited). */
-  /* Shape as well as colour, so the state doesn't rely on colour alone:
-     filled circle = working · hollow ring = not tested / rate-limited · diamond = not connected or failing. */
-  .pdot { width: 8px; height: 8px; border-radius: 50%; background: var(--err); display: inline-block; margin-right: 3px; box-sizing: border-box; }
+  /* Status dots, one plain circle each: green = verified working, red = not connected / failing,
+     amber = configured but not verified yet, or rate-limited (pulsing while a check is running).
+     The words are always in each dot's tooltip and aria-label, so colour is never the only channel. */
+  .pdot { width: 8px; height: 8px; border-radius: 50%; background: var(--err); display: inline-block; margin-right: 4px; box-sizing: border-box; }
   .pdot.on { background: var(--ok); }
-  .pdot.off, .pdot.fail { background: var(--err); border-radius: 1px; transform: rotate(45deg) scale(.9); }
-  .pdot.limited, .pdot.unverified { background: transparent; border: 2px solid var(--warn); }
-  .pdot.checking { background: transparent; border: 2px solid var(--warn); animation: pulse 1s infinite; }
+  .pdot.off, .pdot.fail { background: var(--err); }
+  .pdot.limited, .pdot.unverified { background: var(--warn); }
+  .pdot.checking { background: var(--warn); animation: pulse 1s infinite; }
 
   /* ---------- Layout: sidebar + main ---------- */
   #layout { flex: 1; display: flex; overflow: hidden; position: relative; }
@@ -3462,22 +3461,18 @@ function renderTokenPanel() {
 function refreshDots() {
   const el = document.getElementById("provDots");
   el.innerHTML = "";
-  el.title = "Filled green circle = connected · Hollow amber ring = not tested yet or rate-limited · Red diamond = not connected. Click to re-check.";
-  {   // 🔎 Search (Tavily) first: same red / amber / green scheme as the AI providers
+  el.title = "Green = connected · Amber = not tested yet or rate-limited · Red = not connected. Click to re-check.";
+  {   // Tavily (web search) first: the same red / amber / green dot as the AI providers
     const st = searchStatus();
     const s = document.createElement("span");
     s.id = "searchDot";
     const dot = document.createElement("span");
     dot.className = "pdot " + (st.state === "ok" ? "on" : st.state);
-    s.title = "Web search (Tavily): " + st.msg;
+    s.title = "Tavily (web search): " + st.msg;
     s.setAttribute("role", "img");
-    s.setAttribute("aria-label", "Web search, Tavily: " + st.msg);
+    s.setAttribute("aria-label", "Tavily web search: " + st.msg);
     s.appendChild(dot);
-    s.appendChild(document.createTextNode("🔎"));
-    const lab = document.createElement("span");
-    lab.className = "hb-opt";   // hidden on mid-width desktops (see the min-width:761px and max-width:1180px block); the tooltip still names it
-    lab.textContent = " Search";
-    s.appendChild(lab);
+    s.appendChild(document.createTextNode("Tavily"));
     el.appendChild(s);
   }
   for (const id of Object.keys(P)) {
@@ -3549,7 +3544,7 @@ function buildSettings() {
   searchCard.className = "prov-card";
   searchCard.id = "searchCard";
   searchCard.innerHTML = `
-    <h3>🔎 Web search key (Tavily)</h3>
+    <h3>Tavily web search key</h3>
     <div class="hint">Free at <a href="https://app.tavily.com" target="_blank" rel="noopener">app.tavily.com</a> · no card ·
       1,000 searches a month. <b>You use your own key</b> (there is no shared one): it lets a model search the web when
       🔧 Tools is on, and powers the Council <b>source check</b> when the models disagree (that uses 2 searches). Sent only to Tavily.

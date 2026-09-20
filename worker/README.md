@@ -26,7 +26,7 @@ Secret names: `GROQ_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`,
 
 - **Voice input reuses `GROQ_API_KEY`.** There is no new secret for it.
 - **Web search has no Worker secret at all: everyone uses their own free Tavily key.** A visitor pastes it in
-  **⚙ Keys → 🔎 Web search key** (free at [tavily.com](https://tavily.com), no credit card, 1,000 searches a month, their own
+  **⚙ Keys → Tavily web search key** (free at [tavily.com](https://tavily.com), no credit card, 1,000 searches a month, their own
   allowance). The browser calls Tavily directly, so there is no shared key and no shared quota for anyone to use up. This was
   changed from an earlier design that put one shared key on the Worker.
 
@@ -55,7 +55,8 @@ but is not a hard cap; Groq's own quota is the real ceiling.
 - **Web search needs your own Tavily key** (⚙ Keys). It is a tool, so it is used only when 🔧 Tools is on, in Fast or Balanced
   mode (never Council). With no key, or once the monthly allowance is used up, the search returns a plain message to the
   model, which then answers without it. The answer isn't broken, and no error is shown.
-- **The header shows a 🔎 Search dot on the same red / amber / green scheme as the AI providers**: red = no key or the key was
+- **The header shows a Tavily dot on the same red / amber / green scheme as the AI providers** (three plain circles; the words
+  are in each dot's tooltip): red = no key or the key was
   rejected, amber = not checked yet or rate-limited / allowance used up, green = Tavily accepted the key. The check uses
   Tavily's own `GET /usage` endpoint, which spends no search, so it can run on every page load; the tooltip shows the plan's
   usage (for example "12 of 1,000 searches used"). The ⚙ Keys **Test** button uses the same free check.
@@ -117,9 +118,11 @@ which says nothing about that publisher's reliability.
 
 ### How the list is built and kept fresh
 
-The static groups are fixed in `worker/src/index.js` (edit and redeploy). The IFCN and CISA lists live in a KV namespace and
-are refreshed by a weekly cron; without the KV binding the app simply uses the static groups. To turn it on, follow the
-comments in `wrangler.toml` (create the namespace, uncomment two blocks, deploy), then fill it immediately with:
+The static groups are fixed in `worker/src/index.js` (edit and redeploy). The IFCN and CISA lists live in a KV namespace
+(`TRUSTED_KV`) and are refreshed by a **weekly cron (04:00 UTC every Monday)**. Both are switched on in this repo's
+`wrangler.toml`. The namespace id in it belongs to the site owner's Cloudflare account, so anyone deploying their own copy must
+run `npx wrangler kv namespace create TRUSTED_KV` and put their own id there, or delete the two blocks, in which case the app
+simply uses the static groups. To refresh right now instead of waiting for Monday, or to check the state:
 
 ```bash
 curl -X POST https://ai-council-proxy.<you>.workers.dev/trusted -H "X-Proxy-Token: <your PROXY_TOKEN>"
