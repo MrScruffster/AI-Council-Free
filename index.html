@@ -321,6 +321,12 @@
     details.tech:not([open]) > .tech-body { display: block; }
   }
 
+  /* custom-provider presets: where-to-get-a-key help, and the visible caution for less-established gateways */
+  .cf-help { font-size: .76rem; line-height: 1.5; color: var(--text-dim); background: rgba(108, 140, 255, .08); border: 1px solid rgba(108, 140, 255, .28); border-radius: 8px; padding: 8px 10px; margin: 0 0 10px; }
+  .cf-help a { color: var(--accent); }
+  .cf-help code { font-size: .72rem; word-break: break-all; }
+  .cf-caution { font-size: .8rem; line-height: 1.5; color: #f3d9a3; background: rgba(229, 181, 103, .12); border: 1px solid rgba(229, 181, 103, .55); border-left-width: 4px; border-radius: 8px; padding: 9px 12px; margin: 0 0 10px; }
+  .cf-caution[hidden], .cf-help[hidden] { display: none; }
   /* token usage table in the Keys drawer */
   .tok-table { border-collapse: collapse; width: 100%; font-size: .74rem; }
   .tok-table th, .tok-table td { text-align: right; padding: 5px 6px; border-bottom: 1px solid var(--border); white-space: nowrap; }
@@ -1143,7 +1149,7 @@ function useProxy(prov) { return proxyOn() && !!prov.proxyable && !prov.key.trim
 function availableProviders() {
   return Object.keys(P).filter(id => {
     if (proxyOn() && P[id].proxyable) return true;   // the Worker holds this one's key
-    return P[id].key.trim() !== "";
+    return P[id].key.trim() !== "" || !!P[id].keyOptional;   // keyOptional: works without a key (e.g. Pollinations, a local Ollama)
   });
 }
 
@@ -1181,7 +1187,7 @@ const health = {};   // providerId -> { state, msg, sig, at }
 
 function isConfigured(id) {
   const p = P[id];
-  return !!p && ((proxyOn() && !!p.proxyable) || p.key.trim() !== "");
+  return !!p && ((proxyOn() && !!p.proxyable) || p.key.trim() !== "" || !!p.keyOptional);
 }
 function healthSig(id) {
   const p = P[id];
@@ -1321,7 +1327,7 @@ async function callModelRaw(providerId, model, messages, maxTokens, onDelta, opt
   const prov = P[providerId];
   if (!prov) throw new Error(`Unknown provider ${providerId}`);
   const viaProxy = useProxy(prov);
-  if (!viaProxy && !prov.key.trim()) throw new Error(`No API key for ${providerId}`);
+  if (!viaProxy && !prov.key.trim() && !prov.keyOptional) throw new Error(`No API key for ${providerId}`);
   const anthropic = isAnthropic(prov);
   /* 🧩 Structured output: the shape is always spelled out in the system message; on top of that a native JSON mode is used where the
      provider has one (see the note above jsonTierFor). opts.json = { schema }. */
@@ -1338,7 +1344,7 @@ async function callModelRaw(providerId, model, messages, maxTokens, onDelta, opt
     headers["anthropic-version"] = "2023-06-01";
     headers["anthropic-dangerous-direct-browser-access"] = "true";   // required for direct browser calls
   } else {
-    headers["Authorization"] = "Bearer " + prov.key.trim();
+    if (prov.key.trim()) headers["Authorization"] = "Bearer " + prov.key.trim();   // a keyless provider gets no Authorization header at all
   }
 
   const streaming = typeof onDelta === "function";
@@ -1728,7 +1734,7 @@ async function callModelWithToolsRaw(providerId, model, messages) {
   if (!prov) throw new Error(`Unknown provider ${providerId}`);
   const anthropic = isAnthropic(prov);
   const viaProxy = useProxy(prov);
-  if (!viaProxy && !prov.key.trim()) throw new Error(`No API key for ${providerId}`);
+  if (!viaProxy && !prov.key.trim() && !prov.keyOptional) throw new Error(`No API key for ${providerId}`);
   const endpoint = viaProxy
     ? CONFIG.proxy.url.trim().replace(/\/+$/, "") + "/api/" + providerId
     : prov.url;
@@ -1740,7 +1746,7 @@ async function callModelWithToolsRaw(providerId, model, messages) {
     headers["anthropic-version"] = "2023-06-01";
     headers["anthropic-dangerous-direct-browser-access"] = "true";
   } else {
-    headers["Authorization"] = "Bearer " + prov.key.trim();
+    if (prov.key.trim()) headers["Authorization"] = "Bearer " + prov.key.trim();   // a keyless provider gets no Authorization header at all
   }
 
   const toolNames = Object.keys(TOOLS);
@@ -4625,8 +4631,9 @@ function renderCustomProviderList() {
     list.innerHTML = `<p class="s-note" style="margin-bottom:8px">
       None added yet. Good candidates: Azure OpenAI (Microsoft-account sign-in, needs an Azure
       resource), Cloudflare Workers AI (free, but its URL bakes in your own account ID so it
-      can't be a fixed built-in), HuggingFace Inference Providers (mostly paid now), Together AI,
-      Claude or ChatGPT with your own paid key, or a local Ollama server on your own network.</p>`;
+      can't be a fixed built-in), Together AI, Claude or ChatGPT with your own paid key, or a local Ollama
+      server on your own network. One-click presets exist for Alibaba Cloud (Qwen), Meta Llama API, Hugging Face,
+      Pollinations and BazaarLink: press <b>＋ Add a custom OpenAI-compatible provider</b> and pick one.</p>`;
     return;
   }
   for (const cp of customProviders) {
@@ -4637,7 +4644,7 @@ function renderCustomProviderList() {
       <h3>${cp.label}</h3>
       <div class="hint">${cp.url} · models: ${cp.workhorse}${cp.fast && cp.fast !== cp.workhorse ? " / " + cp.fast : ""}</div>
       <div class="keyrow" style="margin-top:10px">
-        <input type="password" placeholder="Paste ${cp.label} API key" autocomplete="off">
+        <input type="password" placeholder="${cp.keyOptional ? "API key (optional: blank works too)" : "Paste " + cp.label + " API key"}" autocomplete="off">
         <button class="testbtn">Test</button>
       </div>
       <div class="teststatus"></div>`;
@@ -4647,7 +4654,7 @@ function renderCustomProviderList() {
     input.addEventListener("input", () => { cp.key = input.value; P[cp.id].key = input.value; saveProviderKeys(); refreshDots(); });
     card.querySelector(".testbtn").addEventListener("click", async () => {
       cp.key = input.value; P[cp.id].key = input.value;
-      if (!cp.key.trim()) { status.className = "teststatus err"; status.textContent = "No key entered."; return; }
+      if (!cp.key.trim() && !cp.keyOptional) { status.className = "teststatus err"; status.textContent = "No key entered."; return; }
       status.className = "teststatus"; status.textContent = "Testing…";
       try {
         await callModel(cp.id, cp.fast || cp.workhorse, [{ role: "user", content: "Reply with the single word: ready" }], 10);
@@ -4674,7 +4681,45 @@ function renderCustomProviderList() {
 const CUSTOM_PROVIDER_PRESETS = {
   claude: { label: "Claude (my own key)", url: "https://api.anthropic.com/v1/messages", model: "claude-sonnet-5", family: "anthropic" },
   openai: { label: "ChatGPT (my own key)", url: "https://api.openai.com/v1/chat/completions", model: "gpt-4o-mini", family: "" },
+  /* More one-click presets. Each is client-side BYOK exactly like the two above: the user's own key, kept in this browser, sent
+     straight to the provider. Fields: button (button text), label (saved name), url + model (pre-filled, both editable), urlLabel /
+     keyLabel (form captions), keyOptional (a blank key is fine), help (HTML: where to get a key, what the free tier is; static text only),
+     caution (HTML, shown prominently). To add another, add an entry here; the form and the list of buttons pick it up. Endpoints and
+     header shapes below were checked against each provider's own docs (and a live OPTIONS/401 probe) in September 2026. */
+  alibaba: {
+    button: "Alibaba Cloud (Qwen), my own key", label: "Alibaba Cloud Qwen", family: "",
+    url: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions", model: "qwen-plus",
+    urlLabel: "Endpoint URL: default international one, or paste your own workspace URL",
+    keyLabel: "DashScope API key: a separate secret (Bearer token), NOT the URL",
+    help: 'Get a key in <a href="https://modelstudio.console.alibabacloud.com/model/settings/api-key" target="_blank" rel="noopener">Alibaba Cloud Model Studio ↗</a> (the API Key page). Two separate things: the <b>endpoint URL</b> (Alibaba issues per-workspace URLs such as <code>https://&lt;WorkspaceId&gt;.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1</code>: paste yours, or keep the default international one; the US one is <code>https://dashscope-us.aliyuncs.com/compatible-mode/v1</code>) and the <b>API key</b>, which goes in the key box and is never part of the URL. A key only works in the region it was created in. New accounts may get free trial credits, but that varies by account and region.'
+  },
+  meta: {
+    button: "Meta Llama API, my own key", label: "Meta Llama API", family: "",
+    url: "https://api.llama.com/compat/v1/chat/completions", model: "Llama-4-Maverick-17B-128E-Instruct-FP8",
+    help: 'Get a key from the <a href="https://llama.developer.meta.com/" target="_blank" rel="noopener">Llama API developer portal ↗</a> (sent as <code>Authorization: Bearer …</code>). Access may still be gated or waitlisted depending on your account and region, and the model list changes: if the model ID is rejected, check the portal for current names and edit the Model ID box.'
+  },
+  hf: {
+    button: "Hugging Face Inference, my own key", label: "Hugging Face", family: "",
+    url: "https://router.huggingface.co/v1/chat/completions", model: "openai/gpt-oss-120b",
+    keyLabel: "Hugging Face token (starts hf_…)",
+    help: 'Create a fine-grained token with the “Make calls to Inference Providers” permission on your <a href="https://huggingface.co/settings/tokens/new?tokenType=fineGrained" target="_blank" rel="noopener">Hugging Face token page ↗</a>. The free tier is a modest, rate-limited monthly allowance with no card needed; check <a href="https://huggingface.co/pricing" target="_blank" rel="noopener">huggingface.co/pricing ↗</a> for the current amount. Tip: add <code>:cheapest</code> or a provider name after the model ID (for example <code>openai/gpt-oss-120b:groq</code>) to steer routing.'
+  },
+  pollinations: {
+    button: "Pollinations, my own key (optional)", label: "Pollinations", family: "", keyOptional: true,
+    url: "https://gen.pollinations.ai/v1/chat/completions", model: "openai",
+    keyLabel: "API key: optional, leave blank to use it without one",
+    help: 'Pollinations\' current API is OpenAI-compatible, so no special handling is needed. <b>The key is optional</b>: with the box left blank it is called anonymously (free, and rate-limited), which worked when this preset was written. Their published docs now describe a key (<code>sk_…</code>, from <a href="https://enter.pollinations.ai/keys" target="_blank" rel="noopener">enter.pollinations.ai ↗</a>) for higher limits, so anonymous access could be restricted at any time. A secret key you paste here stays in this browser and goes only to Pollinations.'
+  },
+  bazaarlink: {
+    button: "BazaarLink, my own key", label: "BazaarLink", family: "",
+    url: "https://api.bazaarlink.ai/v1/chat/completions", model: "openai/gpt-4o",
+    keyLabel: "BazaarLink API key (starts sk-bl-…)",
+    help: 'Get a key on the <a href="https://bazaarlink.ai/keys" target="_blank" rel="noopener">BazaarLink keys page ↗</a>. Their docs say the request shape is the standard OpenAI one, with model IDs written <code>provider/model</code>.',
+    caution: '<b>Independent third-party service.</b> BazaarLink is not affiliated with the providers above, and it is a small, less-established gateway: you are trusting them with your traffic, the same as with any custom provider, but we can&#39;t vouch for them the way we can for the others. Worth a quick look at who is behind it before you add a key you care about.'
+  }
 };
+const EXTRA_PRESET_IDS = ["alibaba", "meta", "hf", "pollinations", "bazaarlink"];
+const DEFAULT_URL_LABEL = "Chat-completions URL", DEFAULT_KEY_LABEL = "API key";
 
 function showAddProviderForm() {
   const host = document.getElementById("customProviderForm");
@@ -4686,16 +4731,19 @@ function showAddProviderForm() {
       Presets:
       <button type="button" class="testbtn" id="cfPresetClaude">Claude, my own key</button>
       <button type="button" class="testbtn" id="cfPresetOpenAI">ChatGPT, my own key</button>
+      ${EXTRA_PRESET_IDS.map(id => '<button type="button" class="testbtn" data-preset="' + id + '">' + CUSTOM_PROVIDER_PRESETS[id].button + "</button>").join("\n      ")}
     </div>
+    <div class="cf-caution" id="cfCaution" hidden></div>
+    <div class="cf-help" id="cfHelp" hidden></div>
     <label>Name</label><input id="cfLabel" placeholder="e.g. Azure OpenAI, Mistral, my Ollama server">
     <label>API request style</label>
     <select id="cfFamily">
       <option value="">OpenAI-compatible (most providers, incl. Azure OpenAI, Ollama, Mistral, etc.)</option>
       <option value="anthropic">Anthropic Messages API (Claude-compatible)</option>
     </select>
-    <label>Chat-completions URL</label><input id="cfUrl" placeholder="https://.../v1/chat/completions">
+    <label id="cfUrlLabel">Chat-completions URL</label><input id="cfUrl" placeholder="https://.../v1/chat/completions">
     <label>Model ID</label><input id="cfModel" placeholder="e.g. gpt-4o-mini, mistral-small-latest">
-    <label>API key</label><input id="cfKey" type="password" placeholder="paste key (or leave blank if none needed)">
+    <label id="cfKeyLabel">API key</label><input id="cfKey" type="password" placeholder="paste key (or leave blank if none needed)" autocomplete="off">
     <div class="hint" style="margin-top:8px">Must be an HTTPS URL. Whatever you type here — every message, plus your
       saved memory facts — gets sent straight to that address using the key above. Only add endpoints you trust;
       this app has no way to verify what's actually running on the other end.</div>
@@ -4706,14 +4754,24 @@ function showAddProviderForm() {
     <div class="teststatus" id="cfStatus"></div>`;
   host.appendChild(form);
 
+  let activePreset = null;   // the preset last picked (null = a hand-filled form)
   const applyPreset = p => {
+    activePreset = p;
     form.querySelector("#cfLabel").value = p.label;
     form.querySelector("#cfUrl").value = p.url;
     form.querySelector("#cfModel").value = p.model;
     form.querySelector("#cfFamily").value = p.family;
+    form.querySelector("#cfUrlLabel").textContent = p.urlLabel || DEFAULT_URL_LABEL;
+    form.querySelector("#cfKeyLabel").textContent = p.keyLabel || DEFAULT_KEY_LABEL;
+    form.querySelector("#cfKey").placeholder = p.keyOptional ? "optional: leave blank to use it without a key" : "paste your own key";
+    const help = form.querySelector("#cfHelp"), caution = form.querySelector("#cfCaution");
+    help.hidden = !p.help; help.innerHTML = p.help || "";           // static text from the table above, never user input
+    caution.hidden = !p.caution; caution.innerHTML = p.caution || "";
+    form.querySelector("#cfStatus").textContent = "";
   };
   form.querySelector("#cfPresetClaude").addEventListener("click", () => applyPreset(CUSTOM_PROVIDER_PRESETS.claude));
   form.querySelector("#cfPresetOpenAI").addEventListener("click", () => applyPreset(CUSTOM_PROVIDER_PRESETS.openai));
+  form.querySelectorAll("[data-preset]").forEach(b => b.addEventListener("click", () => applyPreset(CUSTOM_PROVIDER_PRESETS[b.dataset.preset])));
 
   form.querySelector(".cf-cancel").addEventListener("click", () => { host.innerHTML = ""; });
   form.querySelector(".cf-save").addEventListener("click", () => {
@@ -4731,8 +4789,20 @@ function showAddProviderForm() {
       statusEl.className = "teststatus err"; statusEl.textContent = "The URL must start with https:// — plain http:// endpoints are rejected so a key can't leak over an unencrypted connection.";
       return;
     }
+    if (/^https?:\/\//i.test(key.trim())) {   // an endpoint pasted into the key box (easy to do with per-workspace URLs)
+      statusEl.className = "teststatus err"; statusEl.textContent = "That looks like a web address, not a key. The endpoint URL goes in the URL box above; this box is for the secret API key.";
+      return;
+    }
+    const needsKey = !!activePreset && !activePreset.keyOptional;
+    if (needsKey && !key.trim()) {
+      statusEl.className = "teststatus err"; statusEl.textContent = "This one needs your own API key. Paste it in the key box.";
+      return;
+    }
+    /* A pasted base URL such as .../compatible-mode/v1 gets the standard chat path added. */
+    const finalUrl = /\/v1\/?$/i.test(url) ? url.replace(/\/+$/, "") + "/chat/completions" : url;
     const id = "custom-" + label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") + "-" + Date.now().toString(36).slice(-4);
-    addCustomProvider({ id, label, url, key, workhorse: model, fast: model, keyUrl: "", family: family || undefined });
+    /* No key typed and none required (a preset marked optional, or a hand-filled form such as a local Ollama): keyOptional, so it still works. */
+    addCustomProvider({ id, label, url: finalUrl, key, workhorse: model, fast: model, keyUrl: "", family: family || undefined, keyOptional: !key.trim() && !needsKey ? true : undefined });
     host.innerHTML = "";
     renderCustomProviderList();
     refreshDots();
