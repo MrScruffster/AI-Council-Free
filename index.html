@@ -195,7 +195,18 @@
   .xexamine-form.open { display: flex; flex-wrap: wrap; }
   .xexamine-form input { flex: 1; min-width: 140px; background: #10131a; border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; color: var(--text); font-size: .8rem; font-family: inherit; }
   .xexamine-form button { background: var(--accent); border: none; color: #fff; border-radius: 6px; padding: 6px 12px; font-size: .78rem; cursor: pointer; font-family: inherit; }
-  .xexamine-reply { margin-top: 8px; background: #10131a; border: 1px dashed var(--border); border-radius: 8px; padding: 8px 10px; font-size: .82rem; color: var(--text); white-space: pre-wrap; display: none; }
+  /* Hidden until an answer (or error) arrives; the JS then adds .open. Rendered as markdown, so no pre-wrap. */
+  .xexamine-reply { margin-top: 8px; background: #10131a; border: 1px dashed var(--border); border-radius: 8px; padding: 8px 10px; font-size: .82rem; color: var(--text); line-height: 1.5; word-wrap: break-word; display: none; }
+  .xexamine-reply.open { display: block; }
+  .xexamine-reply.err { color: var(--err); }
+  .xexamine-reply p { margin: 0 0 8px; } .xexamine-reply p:last-child { margin-bottom: 0; }
+  .xexamine-reply ul, .xexamine-reply ol { margin: 0 0 8px 20px; } .xexamine-reply li { margin-bottom: 4px; }
+  .xexamine-reply pre { background: var(--bg); border-radius: 6px; padding: 8px; overflow-x: auto; margin: 0 0 8px; }
+  /* Short readable error line first; the raw provider text stays one click away. */
+  .wb-raw { margin-top: 6px; }
+  .wb-raw summary { cursor: pointer; font-size: .74rem; color: var(--text-dim); user-select: none; }
+  .wb-raw summary:hover { color: var(--accent); }
+  .wb-raw > div { margin-top: 4px; background: #10131a; border: 1px solid var(--border); border-radius: 8px; padding: 8px; color: var(--text-dim); font-family: ui-monospace, monospace; font-size: .74rem; white-space: pre-wrap; word-break: break-word; max-height: 160px; overflow-y: auto; }
 
   .sysnote { text-align: center; font-size: .8rem; color: var(--text-dim); padding: 4px; }
   .errnote { color: var(--err); }
@@ -211,6 +222,7 @@
     border: 1px solid var(--border); border-radius: var(--radius);
     padding: 11px 14px; font-family: inherit; font-size: .95rem; line-height: 1.4;
     max-height: 160px; outline: none;
+    overflow-y: hidden;   /* autoGrow() switches this to auto only once the text passes max-height */
   }
   #input:focus { border-color: var(--accent); }
   #send {
@@ -1090,6 +1102,40 @@ async function callModelWithToolsRaw(providerId, model, messages) {
    fails (rate limit, outage, bad model), silently move to the next one.
    Returns { text, provId } so callers know who actually answered.
    ===================================================================== */
+/* Turns a provider error ("Gemini HTTP 503: [{"error":{...}}]") into a short readable
+   line plus the untouched raw text: { summary, raw }. The workings panel shows the
+   summary first and keeps the raw text in an expandable part (see working()).
+   `tail` is an optional follow-on such as "trying the next provider". */
+function describeError(err, tail) {
+  const raw = String((err && err.message) || err || "");
+  const m = raw.match(/^([^:]+?)(?::| HTTP \d| timed out| via proxy)/);
+  const who = m ? m[1].trim() : "The provider";
+  const code = (raw.match(/HTTP (\d{3})/) || [])[1];
+  let s;
+  if (code === "402") s = `${who} needs billing or credit (402)`;
+  else if (/rate limit|HTTP 429/i.test(raw)) s = `${who} is rate-limited right now`;
+  else if (/key rejected|HTTP 40[13]|rejected/i.test(raw)) s = `${who} rejected the key`;
+  else if (code === "404") s = `${who} couldn't find that model (404)`;
+  else if (/^5(02|03|04)$/.test(code || "")) s = `${who} is busy (${code})`;
+  else if (code === "500") s = `${who} had a server error (500)`;
+  else if (/timed out|no response within/i.test(raw)) s = `${who} took too long`;
+  else if (/network error/i.test(raw)) s = `Couldn't reach ${who}`;
+  else if (/blocked|CORS/i.test(raw)) s = `${who} blocked the request from the browser`;
+  else if (/empty (streamed )?response/i.test(raw)) s = `${who} sent an empty reply`;
+  else if (code) s = `${who} returned an error (${code})`;
+  else s = `${who} had a problem`;
+  return { summary: tail ? `${s}, ${tail}` : s, raw };
+}
+
+/* The expandable "raw error" part shown under a readable error line. */
+function rawErrorDetails(raw) {
+  const d = document.createElement("details");
+  d.className = "wb-raw";
+  d.innerHTML = `<summary>Show the raw error</summary><div></div>`;
+  d.querySelector("div").textContent = raw;
+  return d;
+}
+
 async function callWithFallback(preferredId, messages, maxTokens, onDelta, ui, note) {
   const order = [preferredId, ...availableProviders().filter(id => id !== preferredId)];
   let lastErr = null;
@@ -1100,7 +1146,7 @@ async function callWithFallback(preferredId, messages, maxTokens, onDelta, ui, n
     } catch (e) {
       lastErr = e;
       if (ui && order.length > 1 && id !== order[order.length - 1]) {
-        ui.working("Fallback" + (note ? " — " + note : ""), `${P[id].label} failed (${e.message}). Trying the next provider…`);
+        ui.working("Fallback" + (note ? " — " + note : ""), describeError(e, "trying the next provider"));
       }
     }
   }
@@ -1132,7 +1178,7 @@ async function routeQuestion(question, ui) {
     ui.stage("route", "done", `Routed: ${category} · ${P[provId].label}`);
   } catch (e) {
     ui.stage("route", "error", "Routing failed → factual");
-    ui.working("Routing note", String(e.message));
+    ui.working("Routing note", describeError(e));
   }
   return category;
 }
@@ -1177,7 +1223,7 @@ async function generate(spec, category, history, ui) {
       } catch (e) {
         lastErr = e;
         if (order.length > 1 && provId !== order[order.length - 1]) {
-          ui.working("Fallback — tools", `${P[provId].label} failed (${e.message}). Trying the next provider…`);
+          ui.working("Fallback — tools", describeError(e, "trying the next provider"));
         }
       }
     }
@@ -1209,7 +1255,7 @@ async function critique(draft, question, generatorProv, ui) {
     return { approved, text, provId: critProv };
   } catch (e) {
     ui.stage("crit", "error", "Critique unavailable");
-    ui.working("Critique note", String(e.message));
+    ui.working("Critique note", describeError(e));
     return { approved: true, text: "", provId: null };
   }
 }
@@ -1276,7 +1322,7 @@ async function councilGenerate(category, history, question, ui) {
         }
       });
     } else {
-      ui.working(`Council answer — ${P[r.provId].label}`, "FAILED: " + r.error);
+      ui.working(`Council answer — ${P[r.provId].label}`, describeError(r.error));
     }
   });
   if (good.length === 0) throw new Error("Every council member failed: " + results.map(r => r.error).join(" | "));
@@ -1331,7 +1377,12 @@ async function plainify(question, technical, disagreement, category, ui) {
   const sys =
     "You are a friendly explainer. You will get a QUESTION and a detailed TECHNICAL ANSWER prepared by a panel of AI experts. " +
     "Rewrite it so a smart person with NO specialist background understands it in under a minute.\n\n" +
-    "RULES\n" +
+    "FIRST, check the QUESTION for any instruction about length or format — for example \"one short sentence\", \"two sentences\", " +
+    "\"in 20 words\", \"a single word\", \"yes or no\", \"3 bullet points\", \"a table\", \"a haiku\". If there is one, OBEY IT EXACTLY: " +
+    "write only what was asked, in plain everyday words, with NO \"The short answer:\" label, NO extra bullets, NO diagram and no extra " +
+    "commentary, however much the technical answer says. The DEFAULT RULES below apply ONLY when the question sets no length or format.\n\n" +
+    "DEFAULT RULES (used only when the question gives no length or format; the rules about never mentioning the panel, and about " +
+    "the disagreement section, always apply)\n" +
     "- Start with \"**The short answer:**\" followed by one or two plain sentences giving the bottom line.\n" +
     "- Then 3 to 6 short bullet points (\"- \") covering what matters most. One idea per bullet, one or two short sentences each.\n" +
     "- Use everyday words. No jargon, no unexplained acronyms. If a technical term is unavoidable, explain it in brackets the first time. " +
@@ -1688,7 +1739,7 @@ async function answer(question, ui) {
       final = plainMd + "\n\n:::technical" + (category === "code" ? "-open" : "") + "\n" + technical + "\n:::end-technical";
     } catch (e) {
       ui.stage("plain", "warn", "Plain-English rewrite unavailable — showing full answer");
-      ui.working("Plain-English rewrite", String(e.message || e));
+      ui.working("Plain-English rewrite", describeError(e));
     }
     ui.setStream("raw");
   }
@@ -1897,7 +1948,12 @@ function addAiBubble() {
       b.className = "working-block";
       b.innerHTML = `<h4></h4><div class="wb-body"></div>`;
       b.querySelector("h4").textContent = title;
-      b.querySelector(".wb-body").textContent = body;
+      if (body && typeof body === "object") {   // { summary, raw } from describeError()
+        b.querySelector(".wb-body").textContent = body.summary;
+        b.appendChild(rawErrorDetails(body.raw));
+      } else {
+        b.querySelector(".wb-body").textContent = body;
+      }
 
       if (crossExamine) {
         const actions = document.createElement("div");
@@ -1919,16 +1975,22 @@ function addAiBubble() {
           const q = input.value.trim();
           if (!q) return;
           askBtn.disabled = true; askBtn.textContent = "Asking…";
-          reply.style.display = "";
+          /* Show the reply via a class. (`style.display = ""` only removes an inline style,
+             so the stylesheet's `display: none` on .xexamine-reply won and it never appeared.) */
+          reply.classList.remove("err");
+          reply.classList.add("open");
           reply.textContent = "…";
           try {
             const text = await crossExamine.ask(q);
-            reply.textContent = text;
+            reply.innerHTML = renderMarkdown(text);
+            input.value = "";
           } catch (e) {
-            reply.textContent = "⚠ " + String(e.message || e);
+            const d = describeError(e);   // failed: keep the question in the box so it can be retried
+            reply.classList.add("err");
+            reply.textContent = "⚠ " + d.summary;
+            reply.appendChild(rawErrorDetails(d.raw));
           }
           askBtn.disabled = false; askBtn.textContent = "Ask";
-          input.value = "";
         };
         askBtn.addEventListener("click", submit);
         input.addEventListener("keydown", e => { if (e.key === "Enter") submit(); });
@@ -1975,7 +2037,13 @@ inputEl.addEventListener("keydown", e => {
 });
 function autoGrow() {
   inputEl.style.height = "auto";
-  inputEl.style.height = Math.min(inputEl.scrollHeight, 160) + "px";
+  /* The box is border-box but scrollHeight leaves the border out, so sizing it to scrollHeight
+     alone made the inner area 2px too short — which is what put scroll arrows on a single line.
+     Add the border back, and only allow scrolling once the text really passes the 160px cap. */
+  const cs = getComputedStyle(inputEl);
+  const wanted = inputEl.scrollHeight + parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth);
+  inputEl.style.height = Math.min(wanted, 160) + "px";
+  inputEl.style.overflowY = wanted > 160 ? "auto" : "hidden";
 }
 inputEl.addEventListener("input", autoGrow);
 
@@ -2037,8 +2105,17 @@ function closeDrawers() {
   refreshDots();
   verifyProviders();   // test anything newly configured
 }
-function openSettings() { closeDrawers(); settingsEl.classList.add("open"); overlayEl.classList.add("open"); }
-function openMemory() { closeDrawers(); renderMemoryPanel(); memoryEl.classList.add("open"); overlayEl.classList.add("open"); }
+let drawerOpener = null;   // what had focus when a panel opened, so Escape can hand focus back
+function openSettings() { const from = document.activeElement; closeDrawers(); drawerOpener = from; settingsEl.classList.add("open"); overlayEl.classList.add("open"); }
+function openMemory() { const from = document.activeElement; closeDrawers(); drawerOpener = from; renderMemoryPanel(); memoryEl.classList.add("open"); overlayEl.classList.add("open"); }
+document.addEventListener("keydown", e => {
+  if (e.key !== "Escape") return;
+  if (document.getElementById("welcome").classList.contains("open")) return;   // the How to start pop-up has its own handler
+  if (!settingsEl.classList.contains("open") && !memoryEl.classList.contains("open")) return;
+  closeDrawers();
+  if (drawerOpener && drawerOpener.isConnected) drawerOpener.focus();
+  drawerOpener = null;
+});
 const closeSettings = closeDrawers;
 document.getElementById("settingsBtn").addEventListener("click", openSettings);
 document.getElementById("closeSettings").addEventListener("click", closeDrawers);
