@@ -2236,7 +2236,8 @@ async function webSearchDirect(query, restrict) {
     const data = await res.json();
     if (searchStatus().state !== "ok") setSearchHealth("ok", "Connected — last search succeeded");
     return { results: (Array.isArray(data.results) ? data.results : []).slice(0, 5).map(r => {
-      const item = { title: String(r.title || "").slice(0, 200), url: String(r.url || "").slice(0, 500), content: String(r.content || "").slice(0, 800) };
+      const publishedDate = String(r.published_date || r.publishedDate || "").slice(0, 40);
+      const item = { title: String(r.title || "").slice(0, 200), url: String(r.url || "").slice(0, 500), content: String(r.content || "").slice(0, 800), publishedDate };
       item.category = clientKindOf(item.url, t) || null;   // matched by the result's real hostname; null when it is on no list
       item.kind = item.category || "untrusted";
       return item;
@@ -3543,9 +3544,15 @@ function mdLinkSafe(title, url) {   // keeps a hostile title or URL from breakin
 function sourceListMd(results) {
   return results.map((r, i) => {
     const link = `${i + 1}. ${mdLinkSafe(r.title, r.url)}`;
-    if (r.category && SOURCE_LABELS[r.category]) return link + ` [[badge:${r.category}]]`;   // rendered as a .source-label pill by renderMarkdown()
-    return link + ` — ${r.kind === "untrusted" || !r.kind ? "⚠ " : ""}${SOURCE_KIND_LABEL[r.kind] || SOURCE_KIND_LABEL.untrusted}`;
+    const trust = r.category && SOURCE_LABELS[r.category] ? `[[badge:${r.category}]]` : `${r.kind === "untrusted" || !r.kind ? "⚠ " : ""}${SOURCE_KIND_LABEL[r.kind] || SOURCE_KIND_LABEL.untrusted}`;
+    const age = r.publishedDate ? ` · published ${r.publishedDate}` : " · publication date not supplied";
+    return link + ` — ${trust}${age}`;
   }).join("\n");
+}
+function evidenceSummary(results) {
+  const domains = new Set(results.map(r => { try { return new URL(r.url).hostname.replace(/^www\./, ""); } catch (_) { return ""; } }).filter(Boolean));
+  const trusted = results.filter(r => r.kind !== "untrusted").length;
+  return `${results.length} source${results.length === 1 ? "" : "s"} from ${domains.size} domain${domains.size === 1 ? "" : "s"} · ${trusted} trusted, ${results.length - trusted} unverified`;
 }
 async function sourceCheck(question, disagreement, ui) {
   if (!searchAvailable()) { ui.stage("src", "skipped", "Source check · needs your Tavily key"); return ""; }
@@ -3569,7 +3576,7 @@ async function sourceCheck(question, disagreement, ui) {
     return "\n\n:::sources\nNo source turned up for this question, so the disagreement above is **unresolved**. Check it against a primary source yourself.\n:::";
   }
   const trustedN = results.filter(r => r.kind !== "untrusted").length, untrustedN = results.length - trustedN;
-  ui.working("Source check — search results", results.map((r, i) => `[${i + 1}] ${sourceTrustNote(r.kind)}\n${r.title}\n${r.url}\n${r.content}`).join("\n\n"));
+  ui.working("Source check — evidence", `${evidenceSummary(results)}\n\n` + results.map((r, i) => `[${i + 1}] ${sourceTrustNote(r.kind)}\n${r.title}\n${r.url}\n${r.publishedDate ? "Published: " + r.publishedDate + "\n" : ""}${r.content}`).join("\n\n"));
   let summary = "";
   try {
     const { text } = await callWithFallback(pickProvider(CONFIG.specialists.factual), [
@@ -3593,7 +3600,7 @@ async function sourceCheck(question, disagreement, ui) {
   return "\n\n:::sources\n" + (summary || "*The summary couldn't be written; the sources found are listed below.*") +
     (trustedN ? "" : "\n\n**No trusted source turned up. Everything below comes from the wider web and is unverified.**") +
     "\n\n**Sources checked** (trusted sites first; ⚠ marks a source that is not on the trusted list and hasn't been vetted):\n" +
-    sourceListMd(results) +
+    evidenceSummary(results) + "\n\n" + sourceListMd(results) +
     "\n\n*A source shows what that document says, not that a claim is true. Check anything important yourself.*\n:::";
 }
 
@@ -3667,7 +3674,7 @@ async function answer(question, ui) {
     const seenUrl = new Set();
     const uniq = toolSources.filter(r => r.url && !seenUrl.has(r.url) && seenUrl.add(r.url)).sort((a, b) => (a.kind === "untrusted") - (b.kind === "untrusted"));
     sourceMd += "\n\n:::sources Web search\n**Web results the model could see** (⚠ marks a source that is not on the trusted list and hasn't been vetted):\n" +
-      sourceListMd(uniq) + "\n\n*The model was told which sources are unverified. Check anything important yourself.*\n:::";
+      evidenceSummary(uniq) + "\n\n" + sourceListMd(uniq) + "\n\n*The model was told which sources are unverified. Check anything important yourself.*\n:::";
   }
   /* medical / legal / financial: a short "general information only" note, kept out of the technical section */
   const cautionMd = currentSensitive ? "\n\n:::caution\n" + CAUTION_TEXT[currentSensitive] + "\n:::" : "";
