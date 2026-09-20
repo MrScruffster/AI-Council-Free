@@ -9,11 +9,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>AI Council — multi-model orchestrator</title>
+<title>AI Council — ask several AIs, get one checked answer</title>
 <meta name="description" content="AI Council asks several AI models at once, has a second model check the answer, and flags where they disagree. Free to use with your own API keys.">
 <link rel="canonical" href="https://www.ai-council.co.uk/">
 <meta property="og:type" content="website">
-<meta property="og:title" content="AI Council — multi-model orchestrator">
+<meta property="og:title" content="AI Council — ask several AIs, get one checked answer">
 <meta property="og:description" content="Ask several AI models at once, with cross-model checking and disagreements flagged.">
 <meta property="og:url" content="https://www.ai-council.co.uk/">
 <meta name="theme-color" content="#171a23">
@@ -83,11 +83,13 @@
   .provider-dots > span { display: inline-flex; align-items: center; }
   /* Status dots: green = verified working, red = not connected / failing,
      amber = configured but not verified yet (or rate-limited). */
-  .pdot { width: 8px; height: 8px; border-radius: 50%; background: var(--err); display: inline-block; margin-right: 3px; }
+  /* Shape as well as colour, so the state doesn't rely on colour alone:
+     filled circle = working · hollow ring = not tested / rate-limited · diamond = not connected or failing. */
+  .pdot { width: 8px; height: 8px; border-radius: 50%; background: var(--err); display: inline-block; margin-right: 3px; box-sizing: border-box; }
   .pdot.on { background: var(--ok); }
-  .pdot.off, .pdot.fail { background: var(--err); }
-  .pdot.limited, .pdot.unverified { background: var(--warn); }
-  .pdot.checking { background: var(--warn); animation: pulse 1s infinite; }
+  .pdot.off, .pdot.fail { background: var(--err); border-radius: 1px; transform: rotate(45deg) scale(.9); }
+  .pdot.limited, .pdot.unverified { background: transparent; border: 2px solid var(--warn); }
+  .pdot.checking { background: transparent; border: 2px solid var(--warn); animation: pulse 1s infinite; }
 
   /* ---------- Layout: sidebar + main ---------- */
   #layout { flex: 1; display: flex; overflow: hidden; position: relative; }
@@ -180,6 +182,11 @@
   }
   .disagreement-box > .db-head { color: var(--warn); font-weight: 600; font-size: .85rem; margin-bottom: 6px; }
   .disagreement-box p:first-child { margin-top: 0; }
+  .caution-box {
+    margin-top: 12px; padding: 8px 12px; border-radius: var(--radius); font-size: .82rem; line-height: 1.45;
+    background: rgba(108, 140, 255, .08); border: 1px solid rgba(108, 140, 255, .3); color: var(--text-dim);
+  }
+  .caution-box p { margin: 0; }
   @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
 
   details.workings { margin-top: 12px; border-top: 1px dashed var(--border); padding-top: 8px; }
@@ -234,6 +241,24 @@
   .wb-raw > div { margin-top: 4px; background: #10131a; border: 1px solid var(--border); border-radius: 8px; padding: 8px; color: var(--text-dim); font-family: ui-monospace, monospace; font-size: .74rem; white-space: pre-wrap; word-break: break-word; max-height: 160px; overflow-y: auto; }
 
   .sysnote { text-align: center; font-size: .8rem; color: var(--text-dim); padding: 4px; }
+  /* empty state: three mode cards + starter questions */
+  .es { max-width: 720px; margin: 8px auto 0; text-align: center; color: var(--text-dim); font-size: .85rem; line-height: 1.5; }
+  .es p { margin: 0 0 12px; }
+  .es-modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 0 0 8px; }
+  .es-mode { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 8px; color: var(--text); cursor: pointer; font-family: inherit; text-align: center; }
+  .es-mode:hover, .es-mode.active { border-color: var(--accent); }
+  .es-mode b { display: block; font-size: .9rem; }
+  .es-mode span { display: block; font-size: .74rem; color: var(--text-dim); margin-top: 2px; }
+  .es-mode em { display: block; font-style: normal; font-size: .72rem; color: var(--accent); margin-top: 4px; }
+  .es-hint { font-size: .74rem; }
+  .es-try { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 4px; }
+  .es-chip { background: var(--panel); border: 1px solid var(--border); border-radius: 999px; padding: 7px 14px; color: var(--text); font-family: inherit; font-size: .8rem; cursor: pointer; text-align: left; max-width: 100%; }
+  .es-chip:hover { border-color: var(--accent); }
+  @media (max-width: 520px) { .es-mode span { display: none; } .es-mode { padding: 8px 4px; } .es-mode em { font-size: .68rem; } }
+  /* sidebar backup buttons */
+  .side-tools { display: flex; gap: 6px; margin: 0 12px 8px; }
+  .side-tools button { flex: 1; background: var(--panel-2); color: var(--text-dim); border: 1px solid var(--border); border-radius: 8px; padding: 6px 4px; font-family: inherit; font-size: .74rem; cursor: pointer; }
+  .side-tools button:hover { border-color: var(--accent); color: var(--text); }
   .errnote { color: var(--err); }
 
   /* ---------- Composer ---------- */
@@ -428,6 +453,16 @@
   /* the header has ~10 controls: on mid-width screens the ❓ shows as an icon only, and on the About page
      the chat-only controls (mode, Plain, Tools) are hidden since they do nothing there */
   @media (max-width: 1400px) { #helpBtn .hb-text { display: none; } }
+  /* on mid-width desktops the Memory / Keys / About buttons drop their words (they keep tooltips and aria-labels)
+     so the header stays on one row instead of wrapping into two */
+  @media (min-width: 761px) and (max-width: 1180px) {
+    .hb-opt { display: none; }
+    header { gap: 6px; padding-left: 12px; padding-right: 12px; }
+    header .icon-btn { padding: 6px 8px; }
+    .mode-picker button { padding: 6px 10px; }
+    .provider-dots { gap: 4px 8px; font-size: .72rem; }
+    .pdot { margin-right: 2px; }
+  }
   body.about-mode .mode-picker, body.about-mode #plainToggle, body.about-mode #toolsToggle { display: none; }
   #layout.about-mode #maincol { display: none; }
   #layout.about-mode #aboutView { display: block; }
@@ -451,6 +486,7 @@
   .ab-table th, .ab-table td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
   .ab-table th { background: var(--panel-2); color: var(--text-dim); font-weight: 600; font-size: .74rem; text-transform: uppercase; letter-spacing: .05em; }
   .ab-table tr:last-child td { border-bottom: none; }
+  .ab-plain { font-size: 1.02rem; line-height: 1.6; margin: 0 0 16px; padding: 12px 14px; background: var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: var(--radius); }
   .ab-steps { list-style: none; margin: 0 0 16px; counter-reset: abs; }
   .ab-steps > li { counter-increment: abs; position: relative; margin: 0 0 12px; padding: 12px 14px 12px 48px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); }
   .ab-steps > li::before { content: counter(abs); position: absolute; left: 14px; top: 12px; width: 24px; height: 24px; border-radius: 50%; background: var(--accent-strong); color: #fff; font-size: .78rem; font-weight: 650; display: flex; align-items: center; justify-content: center; }
@@ -480,10 +516,10 @@
   </div>
   <button class="icon-btn active" id="plainToggle" title="Explain answers in plain, everyday language (with a simple diagram where it helps). The full technical answer stays one click away.">🗣 Plain: on</button>
   <button class="icon-btn" id="toolsToggle" title="Let a model use a small built-in toolset (calculator, current date/time) while drafting — Fast/Balanced modes only.">🔧 Tools: off</button>
-  <button class="icon-btn" id="memoryBtn">🧠 Memory</button>
-  <button class="icon-btn" id="aboutBtn" title="How AI Council works, and how it reduces incorrect answers" aria-label="About AI Council"><span id="abIco">ℹ️</span><span class="hb-text" id="abTxt"> About</span></button>
-  <button class="icon-btn" id="helpBtn"title="How to get set up: it takes about 2 minutes and needs no credit card" aria-label="How to start">❓<span class="hb-text"> How to start</span></button>
-  <button class="icon-btn" id="settingsBtn">⚙ Keys</button>
+  <button class="icon-btn" id="memoryBtn" title="Working memory: what the council remembers about you" aria-label="Memory">🧠<span class="hb-opt"> Memory</span></button>
+  <button class="icon-btn" id="aboutBtn" title="How AI Council works, and how it reduces incorrect answers" aria-label="About AI Council"><span id="abIco">ℹ️</span><span class="hb-text hb-opt" id="abTxt"> About</span></button>
+  <button class="icon-btn" id="helpBtn" title="How to get set up: it takes about 2 minutes and needs no credit card" aria-label="How to start">❓<span class="hb-text"> How to start</span></button>
+  <button class="icon-btn" id="settingsBtn" title="Your API keys and providers" aria-label="API keys">⚙<span class="hb-opt"> Keys</span></button>
 </header>
 
 <div id="layout">
@@ -494,14 +530,15 @@
       <div class="gc-num" id="gcNum" aria-hidden="true">—</div>
       <div class="gc-label">questions asked by everyone, worldwide</div>
     </div>
-    <div class="sidebar-note">Your chats and memory stay in this browser only.</div>
+    <div class="side-tools">
+      <button id="exportChats" title="Download your chats and memory as a backup file (API keys are never included)">⬇ Export</button>
+      <button id="importChats" title="Restore chats from a backup file made with Export">⬆ Import</button>
+      <input type="file" id="importFile" accept="application/json,.json" hidden>
+    </div>
+    <div class="sidebar-note">Your chats and memory stay in this browser only. Use Export to keep a backup — clearing site data erases them.</div>
   </nav>
   <div id="maincol">
-    <main id="chat">
-      <div class="sysnote">New here? Click <b>❓ How to start</b> to get your free AI key (about 2 minutes), then pick a mode and ask something.<br>
-      <b>Fast</b> = routing only · <b>Balanced</b> = routing + critique loop · <b>Council</b> = everything: ensemble + synthesis + critique.<br>
-      Answers come back in plain English with a simple diagram where it helps — the full technical answer is one click below (switch off with <b>🗣 Plain</b>).</div>
-    </main>
+    <main id="chat"><!-- the welcome / starter-question panel is rendered by renderEmptyState() --></main>
     <div id="composer" role="region" aria-label="Write a message">
       <textarea id="input" rows="1" placeholder="Ask the council anything…"></textarea>
       <button id="send">Send</button>
@@ -512,6 +549,7 @@
     <article class="about">
       <p class="ab-kicker">Technical overview</p>
       <h1 id="abTitle">About AI Council</h1>
+      <p class="ab-plain"><b>In plain words:</b> AI Council asks several AI models your question, has a different one check the answer, and tells you where they disagreed. It all runs in your browser using your own free API keys. The rest of this page is the technical detail, for anyone who wants it.</p>
       <p class="ab-lead">AI Council is a client-side <b>multi-model LLM orchestration layer</b>. It routes each prompt to a task-appropriate model, can fan the prompt out across several heterogeneous providers, and subjects the result to <b>cross-model verification</b> before presenting it. The intermediate artefacts (drafts, critiques, per-model answers, tool traces) are exposed for audit.</p>
       <nav class="ab-toc" aria-label="On this page">
         <a href="#" data-target="ab-what">What it does</a>
@@ -535,13 +573,13 @@
       <h2 id="ab-arch">2. Architecture</h2>
       <ul>
         <li><b>Execution environment.</b> Static single-page application. No application server, database or server-side session.</li>
-        <li><b>Transport.</b> HTTPS <code>POST</code> to each provider's <code>/chat/completions</code> with <code>Authorization: Bearer &lt;key&gt;</code> and a JSON body <code>{model, messages, max_tokens, temperature: 0.7, stream}</code>. A provider must return permissive <b>CORS</b> headers to be callable from a browser origin; one that does not cannot be supported without a proxy, which is why such providers are not offered.</li>
+        <li><b>Transport.</b> HTTPS <code>POST</code> to each provider's <code>/chat/completions</code> with <code>Authorization: Bearer &lt;key&gt;</code> and a JSON body <code>{model, messages, max_tokens, temperature, stream}</code>. A provider must return permissive <b>CORS</b> headers to be callable from a browser origin; one that does not cannot be supported without a proxy, which is why such providers are not offered.</li>
         <li><b>Streaming.</b> Server-sent events (<code>text/event-stream</code>). Token deltas are accumulated and re-rendered on a throttle of at least 80&nbsp;ms; partial control markers are withheld from the display.</li>
         <li><b>Deadlines.</b> An <code>AbortController</code> deadline of <span data-cfg="timeoutS">90</span>&nbsp;s per request. Each Council member additionally races a <span data-cfg="councilS">30</span>&nbsp;s cutoff so one slow provider cannot stall the ensemble (the late response is discarded).</li>
         <li><b>Token budget.</b> <code>max_tokens</code> has a floor of 512. Reasoning-tuned models spend part of the budget on hidden chain-of-thought, and a very small cap would otherwise yield an empty completion.</li>
-        <li><b>Persistence.</b> <code>localStorage</code> holds chats (including their saved workings), long-term memory and preferences. API keys, and the proxy access token, are stored only when "Remember" is ticked.</li>
+        <li><b>Persistence.</b> <code>localStorage</code> holds chats (including their saved workings), long-term memory and preferences. API keys, and the proxy access token, are stored only when "Remember" is ticked (it is unticked by default). Chats and memory can be saved to, and restored from, a backup file with the sidebar's Export and Import; that file never contains keys.</li>
         <li><b>Optional key-holding proxy.</b> A reverse proxy (Cloudflare Worker) can hold provider keys server-side, guarded by an origin allow-list, a shared-secret header and a fixed provider allow-list. It is disabled by default and is not used by visitors.</li>
-        <li><b>Global question counter.</b> The sidebar shows a running total of questions asked by all users, abbreviated with <code>K</code> (thousand), <code>Mi</code> (million) and <code>Bi</code> (billion), truncated to one decimal so it never overstates. Each question sends one anonymous <code>POST</code> (no body, no custom headers, no question text) to a counter endpoint on the same Worker, which increments a single integer held in a <b>Durable Object</b>. Because a Durable Object serialises access to its storage, simultaneous increments cannot be lost. The page reads the total on load, after each of its own questions and once a minute while the tab is visible, and hides the box if the counter is unreachable. Per-IP (20 a minute) and global (600 a minute) rate limits stop one client from inflating it, so treat the figure as indicative, not audited.</li>
+        <li><b>Global question counter.</b> The sidebar shows a running total of questions asked by all users, abbreviated with <code>K</code> (thousand), <code>Mi</code> (million) and <code>Bi</code> (billion), truncated to one decimal so it never overstates. Each question sends one anonymous <code>POST</code> (no body, no custom headers, no question text) to a counter endpoint on the same Worker, which increments a single integer held in a <b>Durable Object</b>. Because a Durable Object serialises access to its storage, simultaneous increments cannot be lost. The page reads the total on load, after each of its own questions and once a minute while the tab is visible, and hides the box if the counter is unreachable or the total is still small (under 100). Per-IP (20 a minute) and global (600 a minute) rate limits stop one client from inflating it, so treat the figure as indicative, not audited.</li>
       </ul>
       <h3>Providers and roles</h3>
       <div class="ab-scroll" tabindex="0" role="region" aria-label="Providers and their roles (scrollable table)"><table class="ab-table" id="abProviders"><thead><tr><th>Provider</th><th>Workhorse model</th><th>Fast model</th><th>Roles</th></tr></thead><tbody></tbody></table></div>
@@ -573,7 +611,7 @@
           <tr><td><b>Council</b></td><td>route → <i>N</i> parallel generations → synthesis → critique → revise (if defects found)</td><td><i>N</i>+3 to <i>N</i>+4 for <i>N</i> connected providers (6–7 with three)</td></tr>
         </tbody>
       </table></div>
-      <p>The plain-language rewrite adds one call, and memory maintenance adds one or two background calls. Sampling temperature is fixed at 0.7, so wording varies between runs.</p>
+      <p>The plain-language rewrite adds one call, and memory maintenance adds one or two background calls. Drafts, Council answers and revisions sample at temperature 0.7, so wording varies between runs; the router, critic, synthesiser, plain-language rewrite and memory calls use low temperatures (0 to 0.3) so they are repeatable. Gemini is always sent the default, because Google advises against lowering it on its newer models.</p>
 
       <h2 id="ab-mitig">4. How it reduces incorrect responses</h2>
       <p>Each mechanism targets a specific failure mode of a single LLM call.</p>
@@ -581,16 +619,16 @@
       <div class="ab-mech"><span class="ab-tag">Balanced and Council</span><h3>2 · Verifier / author separation</h3><p>The critic is a different model instance from the generator whenever two or more providers are connected. This reduces self-preference and self-confirmation bias, because a model is more likely to overlook its own error than another model's. The critic's constrained output protocol (<code>APPROVED</code> or a defect list) makes its verdict machine-checkable, and the no-rewrite rule keeps it from silently replacing content.</p></div>
       <div class="ab-mech"><span class="ab-tag">Council mode</span><h3>3 · Explicit disagreement surfacing</h3><p>Inter-model disagreement is a practical proxy for epistemic uncertainty. Instead of averaging it away, the system reports conflicts in a distinct callout ("Where the models disagreed") and preserves it through every later stage, so the reader knows which claims to verify independently.</p></div>
       <div class="ab-mech"><span class="ab-tag">Tools toggle (Fast and Balanced)</span><h3>4 · Tool-augmented determinism</h3><p>LLMs are unreliable at exact arithmetic and have no clock. With tools enabled, the model may call <code>calculate</code>, whose input is validated against the grammar <code>^[\d\s+\-*/().]+$</code> and must evaluate to a finite number, or <code>current_datetime</code>. Calls are bounded to 4 rounds per request, results are fed back as <code>tool</code> messages, and every call and result is shown in the workings. Deterministic code replaces stochastic guessing for those two classes of claim.</p></div>
-      <div class="ab-mech"><span class="ab-tag">Prompt conditioning</span><h3>5 · Calibrated, task-specific prompts</h3><p>The <code>FACTUAL</code> prompt instructs the model to say plainly when it is unsure of a fact, and the <code>REASONING</code> prompt elicits step-by-step derivation before the final answer (chain-of-thought), which improves multi-step accuracy and exposes the reasoning to review.</p></div>
+      <div class="ab-mech"><span class="ab-tag">Prompt conditioning</span><h3>5 · Calibrated, task-specific prompts</h3><p>The <code>FACTUAL</code> prompt instructs the model to say plainly when it is unsure of a fact, and the <code>REASONING</code> prompt elicits step-by-step derivation before the final answer (chain-of-thought), which improves multi-step accuracy and exposes the reasoning to review. Every prompt also states today's date, because models have no clock and would otherwise each guess a different one.</p></div>
       <div class="ab-mech"><span class="ab-tag">Transparency</span><h3>6 · Auditability and cross-examination</h3><p>The workings panel records every draft, critique, per-provider answer, fallback event and tool trace, and is saved with the chat. Each Council member has a <b>cross-examine</b> form that asks that one model a follow-up conditioned on its own earlier answer, without re-running the pipeline, so a doubtful claim can be interrogated directly.</p></div>
-      <div class="ab-mech"><span class="ab-tag">Reliability</span><h3>7 · Failure containment</h3><p>Provider fallback chains, per-request and per-member deadlines, a deterministic default for routing failure, typed error classification (rate-limit, auth, overload, timeout, CORS, billing) and live health probes shown as status dots keep a failing provider from degrading an answer unnoticed. Empty or truncated completions are detected and reported instead of being shown as answers.</p></div>
+      <div class="ab-mech"><span class="ab-tag">Reliability</span><h3>7 · Failure containment</h3><p>Provider fallback chains, per-request and per-member deadlines, a deterministic default for routing failure, typed error classification (rate-limit, auth, overload, timeout, CORS, billing) and status dots (fed by a cheap key check, a model-list request that generates no text so a page load spends none of your quota, and by the outcome of real requests) keep a failing provider from degrading an answer unnoticed. Empty or truncated completions are detected and reported instead of being shown as answers.</p></div>
       <div class="ab-mech"><span class="ab-tag">Rendering</span><h3>8 · Safe handling of model output</h3><p>Model text is treated as untrusted input. It is HTML-escaped before the markdown transform, so markup or script injected by a model (including via prompt injection) is displayed as text and never executed. Links are limited to <code>http(s)</code> and open with <code>rel="noopener"</code>, and code is rendered inert in <code>&lt;pre&gt;&lt;code&gt;</code>. Model output is never passed to <code>eval</code>; the calculator accepts only the whitelisted grammar above.</p></div>
       <div class="ab-mech"><span class="ab-tag">Memory hygiene</span><h3>9 · Bounded, expiring memory</h3><p>Because extracted facts are not re-verified, they expire after <span data-cfg="ttlDays">90</span> days, are capped at 40, and are visible and deletable in the Memory panel. This limits how long a mistaken or stale fact can influence later answers.</p></div>
 
       <h2 id="ab-safety">5. Improper or unsafe content: scope of protection</h2>
       <div class="ab-note info">
         <p><b>AI Council does not contain its own content-moderation classifier or policy engine.</b> Its handling of inappropriate, harmful or policy-violating requests is inherited from the providers it calls. That means the alignment training of each underlying model, plus whatever moderation each provider enforces on its own API.</p>
-        <p>The architecture adds <em>redundancy</em>, not a separate guarantee. In Council mode several independently aligned models answer, and an outlier response is less likely to survive synthesis. The critic, however, is prompted to assess accuracy, completeness and clarity, not policy compliance, so it should not be relied on as a safety filter.</p>
+        <p>The architecture adds <em>redundancy</em>, not a separate guarantee. In Council mode several independently aligned models answer, and an outlier response is less likely to survive synthesis. The critic, however, is prompted to assess accuracy, completeness and clarity, not policy compliance, so it should not be relied on as a safety filter. A light-touch extra applies to medical, legal and financial questions, detected by a local keyword check: the models are asked to be explicit about uncertainty, the critic is asked to flag doses, legal positions or money decisions stated too confidently, and a short "general information only" note is added under the answer. This is a courtesy, not a filter: keyword detection misses some questions and flags some harmless ones.</p>
         <p>Rendering is hardened against injected markup (mechanism 8), but that concerns how output is displayed, not whether its content is appropriate.</p>
       </div>
 
@@ -601,7 +639,7 @@
         <li><b>No grounding.</b> There is no retrieval-augmented generation, live web access or citation checking. Claims are not verified against external sources, and model knowledge has a training cut-off.</li>
         <li><b>LLM-as-judge bias.</b> Critics show verbosity, position and self-preference biases and can approve a wrong answer or object to a correct one.</li>
         <li><b>Graceful degradation, not equivalence.</b> With one provider connected there is no ensemble, and the critic falls back to the same provider, removing the independence that mechanism 2 relies on. Free-tier rate limits (HTTP 429) and outages likewise shrink the ensemble. If the critic itself is unavailable the draft is passed through unreviewed, and the pipeline bar shows "Critique unavailable".</li>
-        <li><b>Non-determinism.</b> Temperature 0.7 means repeated runs can differ.</li>
+        <li><b>Non-determinism.</b> Drafts sample at temperature 0.7, so repeated runs can differ (the router, critic and memory calls are set low to stay repeatable).</li>
         <li><b>Lossy transforms.</b> The plain-language rewrite and the rolling memory summary compress information and can drop nuance, which is why the technical answer is retained.</li>
         <li><b>Bounded context.</b> Only the last <span data-cfg="historyLimit">8</span> messages plus the summary and facts are sent to a model.</li>
         <li><b>Not professional advice.</b> Outputs on medical, legal, financial or safety-critical matters must be checked by a qualified person.</li>
@@ -610,10 +648,10 @@
       <h2 id="ab-data">7. Data handling</h2>
       <ul>
         <li><b>Storage.</b> Keys and the proxy token (only if remembered), chats, workings, memory and preferences live in this browser's <code>localStorage</code>. There is no AI Council server that receives your prompts, keys, chats or memory.</li>
-        <li><b>What leaves the browser.</b> Your prompts, the recent conversation and the memory preamble are sent to the providers you have connected, under those providers' terms and retention policies. Use only providers whose terms you accept.</li>
+        <li><b>What leaves the browser.</b> Your prompts, the recent conversation, the memory preamble and today's date (no time zone or location) are sent to the providers you have connected, under those providers' terms and retention policies. Use only providers whose terms you accept.</li>
         <li><b>The question counter.</b> The only thing this site itself sends to a server of its own is one anonymous "+1" per question, with no prompt, key, chat or memory content in it. As with any web request, your IP address reaches that server; it is held in memory only, to apply the rate limit, and is not stored or logged by the counter's own code. (Cloudflare, which hosts the Worker, handles requests under its own terms.)</li>
         <li><b>Advertising (Google AdSense).</b> This site loads Google's advertising script. In testing, a plain visit contacted Google's ad and consent-messaging servers (<code>pagead2.googlesyndication.com</code>, <code>fundingchoicesmessages.google.com</code>) and set one Google consent cookie on this domain. AI Council does not pass your keys, prompts or chats to that script. Like any third-party script, though, it executes in the same browsing context as the page, and Google's own privacy terms govern what it collects.</li>
-        <li><b>Erasure.</b> Delete a chat with ✕ in the sidebar, clear memory with "Forget everything", and remove a key by clearing its field in ⚙&nbsp;Keys (untick "Remember" to avoid storing one).</li>
+        <li><b>Erasure.</b> Delete a chat with ✕ in the sidebar, clear memory with "Forget everything", and remove a key by clearing its field in ⚙&nbsp;Keys ("Remember" is unticked by default).</li>
       </ul>
       <p class="ab-foot">AI Council is an independent orchestration front-end and is not affiliated with any of the model providers it can call.</p>
     </article>
@@ -676,12 +714,12 @@
           <input type="password" id="wlKey" placeholder="Paste your key here" autocomplete="off" spellcheck="false" aria-label="API key">
           <button class="wl-connect" id="wlConnect">Connect</button>
         </div>
-        <label class="wl-remember"><input type="checkbox" id="wlRemember" checked> Remember it on this device so I don't have to do this again</label>
+        <label class="wl-remember"><input type="checkbox" id="wlRemember"> Remember it on this device so I don't have to paste it again <small>(only tick this on your own computer)</small></label>
         <div class="wl-status" id="wlStatus" role="status"></div>
       </div>
     </div>
 
-    <div class="wl-safe"><b>Your key stays private.</b> It's saved only in this browser and is sent only to the AI service you got it from — never to us. Free plans have usage limits, so if one service says "rate limited", wait a minute or add a second key.</div>
+    <div class="wl-safe"><b>Your key stays private.</b> It's sent only to the AI service you got it from — never to us — and it's only saved in this browser if you tick "Remember". Free plans have usage limits, so if one service says "rate limited", wait a minute or add a second key.</div>
 
     <div class="wl-foot">
       <label><input type="checkbox" id="wlNever"> Don't show this again</label>
@@ -854,8 +892,17 @@ const CONFIG = {
   routeTimeoutMs: 5000,   // a routing call normally takes about 1 s; 5 s per attempt caps the worst case at 15 s
   routeMaxAttempts: 3,
 
-  /* Global question counter shown at the bottom of the sidebar. Empty url = the counter is switched off and hidden. */
-  stats: { url: "https://ai-council-proxy.o-t-dowling.workers.dev/count", pollMs: 60000 }
+  /* Sampling temperature per stage. The "author" calls (drafts, Council answers, revisions) stay at 0.7 so the wording
+     is natural; the judging and utility calls use low temperatures so routing, critique, synthesis, the plain-language
+     rewrite and memory extraction give repeatable results. */
+  temperatures: { route: 0, judge: 0.2, synth: 0.3, plain: 0.3, memory: 0.1, summary: 0.2 },
+  /* Providers that get the default 0.7 whatever the stage asks for. Google advises leaving temperature alone on its
+     newer Gemini reasoning models (lowering it can hurt them), so the low values above are not sent to Gemini. */
+  keepDefaultTemperature: ["gemini"],
+
+  /* Global question counter shown at the bottom of the sidebar. Empty url = the counter is switched off and hidden.
+     minToShow: the box stays hidden until the total reaches this, so a brand-new counter doesn't read "0". */
+  stats: { url: "https://ai-council-proxy.o-t-dowling.workers.dev/count", pollMs: 60000, minToShow: 100 }
 };
 
 /* =====================================================================
@@ -950,21 +997,59 @@ function recordCallResult(id, err) {
   return setHealth(id, "fail", "Not connected — " + m.replace(/\s+/g, " ").slice(0, 160));
 }
 
-async function callModel(providerId, model, messages, maxTokens, onDelta) {
+async function callModel(providerId, model, messages, maxTokens, onDelta, opts) {
   try {
-    const out = await callModelRaw(providerId, model, messages, maxTokens, onDelta);
+    const out = await callModelRaw(providerId, model, messages, maxTokens, onDelta, opts);
     recordCallResult(providerId, null);
     return out;
   } catch (e) { recordCallResult(providerId, e); throw e; }
 }
 
-async function checkProvider(id) {
+/* The cheap "is this key accepted?" URL for a provider: its model list (a GET that generates no text and costs no
+   tokens). OpenRouter's model list is public and would accept any key, so its key-check endpoint is used instead.
+   Returns "" when the provider's URL isn't of a recognisable shape. */
+function keyCheckUrl(p) {
+  const u = String(p.url || "").trim();
+  if (/\/chat\/completions\/?$/.test(u)) {
+    return /openrouter\.ai/i.test(u) ? u.replace(/\/chat\/completions\/?$/, "/auth/key") : u.replace(/\/chat\/completions\/?$/, "/models");
+  }
+  if (/\/v1\/messages\/?$/.test(u)) return u.replace(/\/messages\/?$/, "/models");
+  return "";
+}
+/* true = a clear answer was recorded (accepted / rejected / rate-limited); false = inconclusive (blocked by CORS,
+   404, timeout…), which must not be shown as a failure because a real question may still work fine. */
+async function lightCheck(id) {
+  const p = P[id];
+  const url = keyCheckUrl(p);
+  if (!url || useProxy(p) || !p.key.trim()) return false;
+  const headers = isAnthropic(p)
+    ? { "x-api-key": p.key.trim(), "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" }
+    : { "Authorization": "Bearer " + p.key.trim() };
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 15000);
+  try {
+    const res = await fetch(url, { method: "GET", headers, signal: ctrl.signal });
+    if (res.ok) { setHealth(id, "ok", "Connected — key accepted"); return true; }
+    if (res.status === 401 || res.status === 403) { setHealth(id, "fail", "Not connected — key rejected (check it in ⚙ Keys)"); return true; }
+    if (res.status === 429) { setHealth(id, "limited", "Connected but rate-limited right now"); return true; }
+  } catch (_) { /* inconclusive */ }
+  finally { clearTimeout(timer); }
+  return false;
+}
+/* Page load and closing the Keys drawer use the cheap check only, so a reload never spends free-plan quota on
+   generated text. Clicking the dots (force) is an explicit "re-check", and may fall back to a tiny real request. */
+async function checkProvider(id, force) {
   const p = P[id];
   if (!p || !isConfigured(id)) return;
   if (p.corsBlocked && !useProxy(p)) return;   // already shown red by providerStatus()
   setHealth(id, "checking", "Checking…");
-  try { await callModel(id, p.fast || p.workhorse, [{ role: "user", content: "Reply with the single word: ready" }], 10); }
-  catch (_) { /* recordCallResult already logged it */ }
+  if (await lightCheck(id)) return;
+  if (force) {
+    try { await callModel(id, p.fast || p.workhorse, [{ role: "user", content: "Reply with the single word: ready" }], 10); }
+    catch (_) { /* recordCallResult already logged it */ }
+    return;
+  }
+  setHealth(id, "unverified", "Key added — not pre-checked, to save your free-plan quota. It will be confirmed by your first question.");
 }
 /* Tests every provider that is configured but not yet verified (used on load
    and whenever the Keys drawer closes) — or all of them when `force` is set. */
@@ -972,7 +1057,7 @@ function verifyProviders(force) {
   return Promise.all(Object.keys(P).filter(id => {
     const s = providerStatus(id).state;
     return force ? isConfigured(id) : s === "unverified";
-  }).map(checkProvider));
+  }).map(id => checkProvider(id, !!force)));
 }
 
 /* onDelta (optional): called with the accumulated text as tokens stream in.
@@ -991,7 +1076,14 @@ function splitSystemMessage(messages) {
   return { system: undefined, rest: messages };
 }
 
-async function callModelRaw(providerId, model, messages, maxTokens, onDelta) {
+/* opts.temperature (optional) is honoured except for providers listed in CONFIG.keepDefaultTemperature. */
+function temperatureFor(providerId, opts) {
+  const t = opts && opts.temperature;
+  if (typeof t !== "number" || CONFIG.keepDefaultTemperature.includes(providerId)) return undefined;
+  return t;
+}
+
+async function callModelRaw(providerId, model, messages, maxTokens, onDelta, opts) {
   const prov = P[providerId];
   if (!prov) throw new Error(`Unknown provider ${providerId}`);
   const viaProxy = useProxy(prov);
@@ -1017,12 +1109,14 @@ async function callModelRaw(providerId, model, messages, maxTokens, onDelta) {
     const { system, rest } = splitSystemMessage(messages);
     bodyObj = { model, max_tokens: maxTokens || 2048, messages: rest, stream: streaming };
     if (system) bodyObj.system = system;
+    if (temperatureFor(providerId, opts) !== undefined) bodyObj.temperature = temperatureFor(providerId, opts);
   } else {
     /* Reasoning models (e.g. Groq's gpt-oss and Gemini 2.5+)
        spend part of max_tokens on hidden reasoning. With a tiny cap (Test button, router: 10)
        the whole budget goes on reasoning and the visible reply comes back empty, so keep a
        floor. Short answers still stop early; the floor only raises the ceiling. */
-    bodyObj = { model, messages, max_tokens: Math.max(maxTokens || 2048, 512), temperature: 0.7, stream: streaming };
+    const temp = temperatureFor(providerId, opts);
+    bodyObj = { model, messages, max_tokens: Math.max(maxTokens || 2048, 512), temperature: temp !== undefined ? temp : 0.7, stream: streaming };
   }
 
   const ctrl = new AbortController();
@@ -1337,12 +1431,12 @@ function rawErrorDetails(raw) {
   return d;
 }
 
-async function callWithFallback(preferredId, messages, maxTokens, onDelta, ui, note) {
+async function callWithFallback(preferredId, messages, maxTokens, onDelta, ui, note, opts) {
   const order = [preferredId, ...availableProviders().filter(id => id !== preferredId)];
   let lastErr = null;
   for (const id of order) {
     try {
-      const text = await callModel(id, P[id].workhorse, messages, maxTokens, onDelta);
+      const text = await callModel(id, P[id].workhorse, messages, maxTokens, onDelta, opts);
       return { text, provId: id };
     } catch (e) {
       lastErr = e;
@@ -1433,7 +1527,7 @@ async function routeQuestion(question, ui) {
           "REASONING (maths, logic puzzles, step-by-step planning, analysis), " +
           "FACTUAL (everything else: facts, explanations, summaries, chat)." },
         { role: "user", content: question.slice(0, 2000) }
-      ], 10), CONFIG.routeTimeoutMs, P[id].label);
+      ], 10, undefined, { temperature: CONFIG.temperatures.route }), CONFIG.routeTimeoutMs, P[id].label);
       const word = String(raw).toUpperCase().match(ROUTE_LABEL_RE);
       if (!word) throw new Error(`${P[id].label}: unclear routing reply`);
       const category = word[0].toLowerCase();
@@ -1464,6 +1558,46 @@ function specialistFor(category) {
   return { provId, model: P[provId].workhorse };
 }
 
+/* Models have no clock, so without this "63 days from today" gets a different guess from every provider (and then a
+   false "the models disagreed" warning). Only the date is sent — no time zone or location. */
+function todayLine() {
+  try {
+    return " Today's date is " + new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" }) +
+           ". Use it for anything date-relative; never guess the date.";
+  } catch (_) { return ""; }
+}
+
+/* Medical / legal / financial questions get a gentle extra instruction to the models plus a short visible note under the
+   answer. Detection is a local keyword check (no extra API call). False positives only cost a one-line caveat.
+   currentSensitive is set at the start of each answer(); a later cross-examine reuses the latest value. */
+const SENSITIVE_HINTS = [
+  ["medical", /\b(symptoms?|diagnos\w*|medicat\w*|medicines?|prescri\w+|dosage|doses?|overdos\w*|ibuprofen|paracetamol|acetaminophen|aspirin|antibiotics?|antidepressants?|side[- ]effects?|contraindicat\w*|pregnan\w*|infections?|chest pain|blood pressure|cancer|diabet\w*|\d+\s?(mg|mcg)\b)/i],
+  ["legal", /\b(legal(ly)?|lawsuit|sue|suing|solicitor|lawyer|attorney|court case|magistrates?|liable|liability|breach of contract|tenancy|landlord|tenant|eviction|custody|divorce|probate|defamation|libel|slander|unfair dismissal|employment tribunal)\b/i],
+  ["financial", /\b(invest(ing|ment|ments|or|ors)?|stock market|etfs?|crypto\w*|bitcoin|pensions?|isa|mortgages?|remortgag\w*|loans?|debts?|taxes|taxable|capital gains|inheritance tax|self[- ]assessment|should i (buy|sell)|retirement)\b/i]
+];
+function sensitiveDomain(question) {
+  const q = String(question).slice(0, 3000);
+  for (const [name, re] of SENSITIVE_HINTS) if (re.test(q)) return name;
+  return null;
+}
+const CAUTION_TEXT = {
+  medical: "ℹ️ General information only, not medical advice. For your own situation, check with a doctor or pharmacist — especially before taking or combining medicines.",
+  legal: "ℹ️ General information only, not legal advice. Laws differ by country and circumstance; check with a qualified solicitor or lawyer before acting.",
+  financial: "ℹ️ General information only, not financial advice. Check with a qualified adviser before making decisions about your money."
+};
+const CAUTION_ROLE = { medical: "doctor or pharmacist", legal: "solicitor or lawyer", financial: "financial adviser" };
+let currentSensitive = null;
+function cautionPromptLine() {
+  return currentSensitive
+    ? " This question touches on a " + currentSensitive + " matter: give clear general information, say plainly what is uncertain or depends on the person's circumstances, and where it matters suggest checking with a qualified " + CAUTION_ROLE[currentSensitive] + ". Do not refuse just because the topic is sensitive."
+    : "";
+}
+function cautionReviewLine() {
+  return currentSensitive
+    ? " Also check safety: flag any dose, legal position or money decision that is stated with more confidence than is justified, or that omits when to consult a qualified " + CAUTION_ROLE[currentSensitive] + "."
+    : "";
+}
+
 function systemPromptFor(category) {
   const base = "You are a capable, concise assistant. Use markdown. ";
   let p;
@@ -1471,7 +1605,7 @@ function systemPromptFor(category) {
   else if (category === "creative") p = base + "You are in CREATIVE mode: be vivid, original and engaging.";
   else if (category === "reasoning") p = base + "You are in REASONING mode: think step by step and show your working before the final answer.";
   else p = base + "Answer accurately; say so plainly if you are unsure of a fact.";
-  return p + memoryPreamble();
+  return p + todayLine() + cautionPromptLine() + memoryPreamble();
 }
 
 async function generate(spec, category, history, ui) {
@@ -1522,9 +1656,9 @@ async function critique(draft, question, generatorProv, ui) {
         "You are a strict, fair reviewer. You will be shown a QUESTION and a DRAFT ANSWER written by another AI. " +
         "If the draft is accurate, complete and well written, reply with exactly: APPROVED. " +
         "Otherwise list the specific problems (errors, omissions, unclear parts) as short bullet points. " +
-        "Do NOT rewrite the answer yourself." },
+        "Do NOT rewrite the answer yourself." + todayLine() + cautionReviewLine() },
       { role: "user", content: "QUESTION:\n" + question + "\n\nDRAFT ANSWER:\n" + draft }
-    ], 800);
+    ], 800, undefined, { temperature: CONFIG.temperatures.judge });
     const approved = /^\s*APPROVED\b/i.test(text);
     ui.stage("crit", "done", approved ? `Critique · approved (${P[critProv].label})` : `Critique · issues found (${P[critProv].label})`);
     return { approved, text, provId: critProv };
@@ -1621,9 +1755,9 @@ async function councilGenerate(category, history, question, ui) {
       "bullet list of any point where the source models gave genuinely conflicting factual claims (not just " +
       "different wording or emphasis) — name which model made which claim when useful. " +
       "If the models didn't meaningfully disagree on anything, write " + DISAGREEMENT_MARKER + " followed by " +
-      "the single word None." },
+      "the single word None." + todayLine() },
     { role: "user", content: "QUESTION:\n" + question + "\n\n" + labelled }
-  ], null, ui.stream, ui, "synthesis");
+  ], null, ui.stream, ui, "synthesis", { temperature: CONFIG.temperatures.synth });
   ui.stage("synth", "done", `Synthesized · ${P[provId].label}`);
 
   /* Split the merged answer from the disagreement note *before* critique/revise
@@ -1651,7 +1785,7 @@ async function plainify(question, technical, disagreement, category, ui) {
   const DISAGREE = "%%%DISAGREE%%%";
   const F = "```";
   const sys =
-    "You are a friendly explainer. You will get a QUESTION and a detailed TECHNICAL ANSWER prepared by a panel of AI experts. " +
+    "You are a friendly explainer. You will get a QUESTION and a detailed TECHNICAL ANSWER prepared by a panel of AI models. " +
     "Rewrite it so a smart person with NO specialist background understands it in under a minute.\n\n" +
     "FIRST, check the QUESTION for any instruction about length or format — for example \"one short sentence\", \"two sentences\", " +
     "\"in 20 words\", \"a single word\", \"yes or no\", \"3 bullet points\", \"a table\", \"a haiku\". If there is one, OBEY IT EXACTLY: " +
@@ -1673,18 +1807,18 @@ async function plainify(question, technical, disagreement, category, ui) {
     "  bars: = then one line per item as 'Label: number unit' (2 to 6 items) to compare sizes.\n" +
     "  Labels are 1 to 4 plain words and may start with one emoji.\n" +
     "- If the question was for code, a script or a document, say in plain words what it does and how to use it. Do NOT reproduce the code; the full version is shown separately.\n" +
-    "- Never mention 'the technical answer', 'the panel', 'the experts' or these rules (except in the disagreement section below). Output only the rewritten answer.\n" +
+    "- Never mention 'the technical answer', 'the panel', 'the experts' or these rules. If you must refer to the AI systems, call them 'the AI models' — never 'experts'. Output only the rewritten answer.\n" +
     (disagreement
-      ? "- The experts disagreed on some points (listed in the input). After your answer, on a new line by itself, write exactly " + DISAGREE +
-        " followed by 1 to 3 plain-language bullets saying what they disagreed about and what that means for the reader.\n"
+      ? "- The AI models disagreed on some points (listed in the input). After your answer, on a new line by itself, write exactly " + DISAGREE +
+        " followed by 1 to 3 plain-language bullets saying what the models disagreed about and what that means for the reader.\n"
       : "");
   const { text, provId } = await callWithFallback(preferred, [
     { role: "system", content: sys },
     { role: "user", content:
       "QUESTION:\n" + question.slice(0, 3000) +
       "\n\nTECHNICAL ANSWER:\n" + technical.slice(0, 12000) +
-      (disagreement ? "\n\nPOINTS WHERE THE EXPERTS DISAGREED:\n" + disagreement : "") }
-  ], null, ui.stream, ui, "plain-language rewrite");
+      (disagreement ? "\n\nPOINTS WHERE THE MODELS DISAGREED:\n" + disagreement : "") }
+  ], null, ui.stream, ui, "plain-language rewrite", { temperature: CONFIG.temperatures.plain });
   let plain = text, plainDisagree = "";
   const split = splitDisagree(text);
   if (split.found) { plain = split.body.trim(); plainDisagree = split.note.trim(); }
@@ -1791,7 +1925,7 @@ async function updateMemory(question, finalAnswer, ui) {
         "goals, constraints, tools they use. Ignore one-off details and anything about this specific answer. " +
         "Reply with ONLY a JSON array of short strings, e.g. [\"prefers Python\"]. If nothing is worth keeping, reply []." },
       { role: "user", content: "USER SAID:\n" + question.slice(0, 3000) + "\n\nASSISTANT REPLIED:\n" + finalAnswer.slice(0, 2000) }
-    ], 300);
+    ], 300, undefined, { temperature: CONFIG.temperatures.memory });
     const jsonMatch = raw.match(/\[[\s\S]*\]/);
     if (jsonMatch) {
       const arr = JSON.parse(jsonMatch[0]);
@@ -1811,7 +1945,7 @@ async function updateMemory(question, finalAnswer, ui) {
           "Output only the summary text." },
         { role: "user", content:
           "EXISTING SUMMARY:\n" + (memory.summary || "(none)") + "\n\nNEW TURNS:\n" + transcript.slice(0, 8000) }
-      ], 400);
+      ], 400, undefined, { temperature: CONFIG.temperatures.summary });
       history = history.slice(-CONFIG.historyLimit);   // folded into summary, safe to drop
       saveMemory();
       renderMemoryPanel();
@@ -1956,7 +2090,7 @@ function startNewChat() {
   if (aboutOn()) setAbout(false);
   currentChatId = null;
   history = [];
-  chatEl.innerHTML = `<div class="sysnote">New chat. Long-term memory (🧠) carries over; the conversation itself starts fresh.</div>`;
+  renderEmptyState(false);
   renderChatList();
   closeSidebarOnMobile();
   inputEl.focus();
@@ -2016,6 +2150,7 @@ async function answer(question, ui) {
   /* Past answers are sent to the models in their technical form only. */
   const trimmedHistory = [...history.slice(-CONFIG.historyLimit).map(m => ({ role: m.role, content: forModel(m.content) })), { role: "user", content: question }];
   const usePlain = plainMode;
+  currentSensitive = sensitiveDomain(question);
   if (usePlain) ui.setStream("drafting");   // hold back the technical draft; the plain answer streams instead
 
   /* 5 — SPECIALIST ROUTING (all modes) */
@@ -2053,6 +2188,8 @@ async function answer(question, ui) {
     final = final.trimEnd() + "\n\n:::disagreement\n" + disagreement + "\n:::";
   }
   const technical = final;   // the full, detailed answer
+  /* medical / legal / financial: a short "general information only" note, kept out of the technical section */
+  const cautionMd = currentSensitive ? "\n\n:::caution\n" + CAUTION_TEXT[currentSensitive] + "\n:::" : "";
 
   /* PLAIN ENGLISH — lead with a short, jargon-free version; keep the detail underneath. */
   ui.setStream("raw");
@@ -2064,13 +2201,14 @@ async function answer(question, ui) {
       if (pl.disagreement) plainMd += "\n\n:::disagreement\n" + pl.disagreement + "\n:::";
       else if (disagreement) plainMd += "\n\n:::disagreement\n" + disagreement + "\n:::";
       // Code answers keep the technical section open — the code is usually the point.
-      final = plainMd + "\n\n:::technical" + (category === "code" ? "-open" : "") + "\n" + technical + "\n:::end-technical";
+      final = plainMd + cautionMd + "\n\n:::technical" + (category === "code" ? "-open" : "") + "\n" + technical + "\n:::end-technical";
     } catch (e) {
       ui.stage("plain", "warn", "Plain-English rewrite unavailable — showing full answer");
       ui.working("Plain-English rewrite", describeError(e));
     }
     ui.setStream("raw");
   }
+  if (cautionMd && !TECH_RE.test(final)) final += cautionMd;   // plain mode off, or the rewrite failed
 
   history.push({ role: "user", content: question });
   /* The workings are kept with the answer so they survive saving and reloading the chat.
@@ -2132,7 +2270,8 @@ function stripOpenFence(s) {
 const TECH_RE = /\n*:::technical(-open)?\n([\s\S]*?)\n:::end-technical\s*$/;
 function forModel(content) {
   const m = String(content).match(TECH_RE);
-  return m ? m[2] : content;
+  /* the UI-only "general information" note is never fed back to a model */
+  return m ? m[2] : String(content).replace(/\n*:::caution\n[\s\S]*?\n:::/g, "");
 }
 
 function renderMarkdown(md) {
@@ -2147,6 +2286,11 @@ function renderMarkdown(md) {
     disagreementBlocks.push(
       `<div class="disagreement-box"><div class="db-head">⚠️ Where the models disagreed</div>${renderMarkdown(inner.trim())}</div>`
     );
+    return "\u0000DB" + (disagreementBlocks.length - 1) + "\u0000";
+  });
+
+  md = md.replace(/:::caution\n([\s\S]*?)\n:::/g, (_, inner) => {
+    disagreementBlocks.push(`<div class="caution-box">${renderMarkdown(inner.trim())}</div>`);
     return "\u0000DB" + (disagreementBlocks.length - 1) + "\u0000";
   });
 
@@ -2193,6 +2337,7 @@ const inputEl = document.getElementById("input");
 const sendEl = document.getElementById("send");
 
 function addUserBubble(text) {
+  const es = chatEl.querySelector(".es"); if (es) es.remove();   // the welcome / starter panel goes once a chat begins
   const div = document.createElement("div");
   div.className = "msg user";
   div.innerHTML = `<div class="bubble"></div>`;
@@ -2465,7 +2610,69 @@ document.getElementById("modePicker").addEventListener("click", e => {
   mode = btn.dataset.mode;
   document.querySelectorAll("#modePicker button").forEach(b => b.classList.toggle("active", b === btn));
   refreshToolsToggle();
+  syncEmptyModes();
 });
+
+/* ---------- empty state: mode cards + starter questions ---------- */
+const STARTERS = [
+  "Write a Python function that removes duplicates from a list but keeps the order",
+  "What's the difference between a virus and a bacterium?",
+  "Suggest three names for a small seaside coffee shop",
+  "If a £86.40 bill is split 3 ways with a 12.5% tip, what does each person pay?"
+];
+function syncEmptyModes() {
+  document.querySelectorAll(".es-mode").forEach(b => b.classList.toggle("active", b.dataset.emode === mode));
+}
+function runExample(text) {
+  if (busy) return;
+  inputEl.value = text; autoGrow();
+  if (availableProviders().length === 0) { openWelcome(); return; }   // brand-new visitor: get a key first; the question stays typed
+  onSend();
+}
+function renderEmptyState(first) {
+  chatEl.innerHTML = "";
+  const wrap = document.createElement("div");
+  wrap.className = "es";
+  const lead = document.createElement("p");
+  if (first) lead.innerHTML = "New here? Click <b>❓ How to start</b> to get your free AI key (about 2 minutes), then pick a mode and ask something.";
+  else lead.textContent = "New chat. Long-term memory (🧠) carries over; the conversation itself starts fresh.";
+  wrap.appendChild(lead);
+  const modes = document.createElement("div");
+  modes.className = "es-modes";
+  for (const [id, name, what, calls] of [
+    ["fast", "Fast", "Routing only", "2 calls"],
+    ["balanced", "Balanced", "Routing + critique loop", "3–4 calls"],
+    ["council", "Council", "Ensemble + synthesis + critique", "6–7 calls"]
+  ]) {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "es-mode"; b.dataset.emode = id;
+    b.innerHTML = "<b></b><span></span><em></em>";
+    b.querySelector("b").textContent = name;
+    b.querySelector("span").textContent = what;
+    b.querySelector("em").textContent = calls + " per question";
+    b.addEventListener("click", () => { const t = document.querySelector('#modePicker button[data-mode="' + id + '"]'); if (t) t.click(); });
+    modes.appendChild(b);
+  }
+  wrap.appendChild(modes);
+  const hint = document.createElement("p");
+  hint.className = "es-hint";
+  hint.textContent = first
+    ? "Every call counts against your free-plan limits, so Fast stretches them furthest. Answers come back in plain English with a simple diagram where it helps; the full technical answer is one click below (switch off with 🗣 Plain)."
+    : "Every call counts against your free-plan limits, so Fast stretches them furthest.";
+  wrap.appendChild(hint);
+  const tryRow = document.createElement("div");
+  tryRow.className = "es-try";
+  tryRow.setAttribute("aria-label", "Example questions");
+  for (const q of STARTERS) {
+    const c = document.createElement("button");
+    c.type = "button"; c.className = "es-chip"; c.textContent = q;
+    c.addEventListener("click", () => runExample(q));
+    tryRow.appendChild(c);
+  }
+  wrap.appendChild(tryRow);
+  chatEl.appendChild(wrap);
+  syncEmptyModes();
+}
 
 /* ---------- sidebar ---------- */
 const sidebarEl = document.getElementById("sidebar");
@@ -2558,13 +2765,15 @@ document.getElementById("forgetAll").addEventListener("click", () => {
 function refreshDots() {
   const el = document.getElementById("provDots");
   el.innerHTML = "";
-  el.title = "Green = connected · Amber = checking / not tested yet · Red = not connected. Click to re-check.";
+  el.title = "Filled green circle = connected · Hollow amber ring = not tested yet or rate-limited · Red diamond = not connected. Click to re-check.";
   for (const id of Object.keys(P)) {
     const st = providerStatus(id);
     const s = document.createElement("span");
     const dot = document.createElement("span");
     dot.className = "pdot " + (st.state === "ok" ? "on" : st.state);
     s.title = st.msg;
+    s.setAttribute("role", "img");
+    s.setAttribute("aria-label", P[id].label + ": " + st.msg);
     s.appendChild(dot);
     s.appendChild(document.createTextNode(P[id].label));
     el.appendChild(s);
@@ -2899,6 +3108,93 @@ document.addEventListener("keydown", e => {
 });
 
 /* =====================================================================
+   Backup — export / import chats and memory as a JSON file. API keys and the proxy token are never included.
+   Everything else lives only in this browser's localStorage, so this is the only way to move it or survive
+   "clear site data". Import merges: a chat with the same id is replaced only if the file's copy is newer.
+   ===================================================================== */
+const sideNoteEl = document.querySelector(".sidebar-note");
+const sideNoteDefault = sideNoteEl.textContent;
+let sideNoteTimer = null;
+function flashSideNote(msg) {
+  sideNoteEl.textContent = msg;
+  clearTimeout(sideNoteTimer);
+  sideNoteTimer = setTimeout(() => { sideNoteEl.textContent = sideNoteDefault; }, 7000);
+}
+function exportBackup() {
+  const payload = { app: "ai-council", version: 1, exportedAt: new Date().toISOString(), chats, memory };
+  const blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = "ai-council-backup-" + new Date().toISOString().slice(0, 10) + ".json";
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  flashSideNote("Backup downloaded (" + chats.length + " chat" + (chats.length === 1 ? "" : "s") + "). API keys are not included.");
+}
+function cleanImportedChat(c) {
+  if (!c || typeof c !== "object" || !Array.isArray(c.history)) return null;
+  const hist = [];
+  for (const m of c.history.slice(0, 500)) {
+    if (!m || (m.role !== "user" && m.role !== "assistant") || typeof m.content !== "string") continue;
+    const out = { role: m.role, content: m.content };
+    if (Array.isArray(m.workings)) {
+      const w = m.workings.filter(x => x && typeof x === "object" && typeof x.title === "string" && (typeof x.body === "string" || (x.body && typeof x.body === "object"))).slice(0, 40);
+      if (w.length) out.workings = w;
+    }
+    hist.push(out);
+  }
+  if (!hist.length) return null;
+  return {
+    id: String(c.id || Date.now() + Math.random()).slice(0, 40),
+    title: String(c.title || "Imported chat").slice(0, 120),
+    history: hist,
+    updatedAt: Number.isFinite(c.updatedAt) ? c.updatedAt : Date.now()
+  };
+}
+function importBackup(text) {
+  let data;
+  try { data = JSON.parse(text); } catch (_) { flashSideNote("That file isn't valid JSON, so nothing was imported."); return; }
+  if (!data || data.app !== "ai-council" || !Array.isArray(data.chats)) { flashSideNote("That isn't an AI Council backup file, so nothing was imported."); return; }
+  let added = 0, updated = 0;
+  for (const raw of data.chats.slice(0, 300)) {
+    const c = cleanImportedChat(raw);
+    if (!c) continue;
+    const i = chats.findIndex(x => x.id === c.id);
+    if (i === -1) { chats.push(c); added++; }
+    else if (c.updatedAt > chats[i].updatedAt) { chats[i] = c; updated++; }
+  }
+  let facts = 0;
+  const m = data.memory;
+  if (m && typeof m === "object") {
+    const seen = new Set(memory.facts.map(f => f.text.toLowerCase().trim()));
+    for (const f of (Array.isArray(m.facts) ? m.facts : []).slice(0, 80)) {
+      const t = f && typeof f.text === "string" ? f.text.trim() : "";
+      if (t && t.length <= 200 && !seen.has(t.toLowerCase())) {
+        memory.facts.push({ text: t, addedAt: Number.isFinite(f.addedAt) ? f.addedAt : Math.floor(Date.now() / 1000) });
+        seen.add(t.toLowerCase()); facts++;
+      }
+    }
+    if (memory.facts.length > 40) memory.facts = memory.facts.slice(-40);
+    if (!memory.summary && typeof m.summary === "string") memory.summary = m.summary.slice(0, 2000);
+    pruneExpiredFacts();
+    saveMemory(); renderMemoryPanel();
+  }
+  saveChats(); renderChatList();
+  flashSideNote("Imported " + added + " new chat" + (added === 1 ? "" : "s") + (updated ? ", updated " + updated : "") + (facts ? ", and " + facts + " memory fact" + (facts === 1 ? "" : "s") : "") + ".");
+}
+document.getElementById("exportChats").addEventListener("click", exportBackup);
+document.getElementById("importChats").addEventListener("click", () => document.getElementById("importFile").click());
+document.getElementById("importFile").addEventListener("change", e => {
+  const f = e.target.files && e.target.files[0];
+  e.target.value = "";
+  if (!f) return;
+  if (f.size > 25 * 1024 * 1024) { flashSideNote("That file is too large to be an AI Council backup."); return; }
+  const r = new FileReader();
+  r.onload = () => importBackup(String(r.result));
+  r.onerror = () => flashSideNote("Couldn't read that file.");
+  r.readAsText(f);
+});
+
+/* =====================================================================
    Global question counter — the running total of questions asked by all users, at the bottom of the sidebar.
    The total lives in the site's Worker (a Durable Object, see worker/src/index.js). Each question sends ONE
    anonymous POST with no body, no custom headers and no question text; the page reads the total on load, after
@@ -2927,6 +3223,7 @@ let lastTickAt = 0;
 
 function renderGlobalCount(bump) {
   if (globalTotal === null) return;
+  if (globalTotal < (CONFIG.stats.minToShow || 0)) { gcEl.hidden = true; return; }   // a tiny total reads as "nobody uses this"
   gcEl.hidden = false;
   gcNum.textContent = formatCount(globalTotal);
   const exact = globalTotal.toLocaleString("en-GB");
@@ -3030,6 +3327,7 @@ loadMemory();
 loadChats();
 buildSettings();
 buildAbout();
+renderEmptyState(true);
 refreshDots();
 verifyProviders();   // dots go green only once a provider has actually answered
 renderMemoryPanel();
