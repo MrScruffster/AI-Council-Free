@@ -462,7 +462,7 @@
     #toolsToggle { order: 10; }
     #compressToggle { order: 10; }
     #memoryBtn { order: 11; }
-    #plainToggle, #toolsToggle, #compressToggle, #memoryBtn { flex: 1 1 0; min-width: 0; padding: 6px 4px; font-size: .78rem; white-space: nowrap; }
+    #plainToggle, #toolsToggle, #compressToggle, #memoryBtn { flex: 1 1 auto; min-width: 0; padding: 6px 5px; font-size: .74rem; white-space: nowrap; }
     header .icon-btn { padding: 6px 10px; }
     #chat { padding: 14px 12px; gap: 14px; }
     .msg.user { max-width: 92%; }
@@ -480,13 +480,17 @@
   @media (max-width: 1400px) { #helpBtn .hb-text { display: none; } }
   /* on mid-width desktops the Memory / Keys / About buttons drop their words (they keep tooltips and aria-labels)
      so the header stays on one row instead of wrapping into two */
-  @media (min-width: 761px) and (max-width: 1180px) {
+  @media (min-width: 761px) and (max-width: 1360px) {   /* 1360, not 1180: the Compress button and the Search dot made the full-width header wrap a little sooner */
     .hb-opt { display: none; }
     header { gap: 6px; padding-left: 12px; padding-right: 12px; }
     header .icon-btn { padding: 6px 8px; }
     .mode-picker button { padding: 6px 10px; }
     .provider-dots { gap: 4px 8px; font-size: .72rem; }
     .pdot { margin-right: 2px; }
+  }
+  @media (min-width: 761px) and (max-width: 1100px) {   /* tablets: tighter buttons so the wrap is one tidy second row */
+    header .icon-btn { padding: 6px 6px; font-size: .78rem; }
+    .mode-picker button { padding: 6px 8px; }
   }
   body.about-mode .mode-picker, body.about-mode #plainToggle, body.about-mode #toolsToggle, body.about-mode #compressToggle { display: none; }
   #layout.about-mode #maincol { display: none; }
@@ -3469,7 +3473,11 @@ function refreshDots() {
     s.setAttribute("role", "img");
     s.setAttribute("aria-label", "Web search, Tavily: " + st.msg);
     s.appendChild(dot);
-    s.appendChild(document.createTextNode("🔎 Search"));
+    s.appendChild(document.createTextNode("🔎"));
+    const lab = document.createElement("span");
+    lab.className = "hb-opt";   // hidden on mid-width desktops (see the min-width:761px and max-width:1180px block); the tooltip still names it
+    lab.textContent = " Search";
+    s.appendChild(lab);
     el.appendChild(s);
   }
   for (const id of Object.keys(P)) {
