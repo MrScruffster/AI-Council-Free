@@ -1,0 +1,11 @@
+# The internal 700-question set, its answers, and the code that builds and validates it are kept OUT of this public repository
+# on purpose. The repository is public and the live site serves every file in it, so committing them would publish the answer
+# key (and get it scraped into model training data, which would make the benchmark meaningless).
+/data/
+/build.mjs
+/validate.mjs
+/lib/generators.mjs
+/lib/exact.mjs
+/out/benchmark-700.jsonl
+/out/benchmark-meta.json
+/out/MANIFEST.json

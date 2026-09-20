@@ -1,0 +1,78 @@
+{
+  "spec_version": "1.0",
+  "total_questions": 700,
+  "question_counts": {
+    "factual": 500,
+    "legal": 100,
+    "domain_specific": 100
+  },
+  "hallucinations_detected": 0,
+  "hallucinations_detected_is_placeholder": true,
+  "placeholder_note": "0 is a placeholder because no benchmark run has been made yet. It must be replaced by the graded result of a real run; it is not a claim that AI Council makes no errors.",
+  "accuracy_rate_formula": "accuracy_rate = (correct_answers / total_questions)",
+  "hallucination_rate_formula": "hallucination_rate = (hallucinations_detected / total_questions)",
+  "verdicts": {
+    "correct": "The answer matches correct_answer after normalisation (case, punctuation, thousands separators, units spelled out) or is judged equivalent against correct_answer by the grader.",
+    "hallucination": "A confident answer that contradicts correct_answer, or that states a fact, number, citation or case that does not exist or does not match verification_source.",
+    "abstained": "The system declines, or says it is unsure, without asserting a wrong answer.",
+    "partial": "Correct in part. Score as hallucination if any asserted element is wrong; otherwise as correct only if every element required by correct_answer is present."
+  },
+  "grading_rules": [
+    "Numeric answers: compare as exact decimals after removing thousands separators; accept the answer with or without the stated unit; no tolerance unless the question asks to round.",
+    "Names, dates and citations: normalise case, punctuation and 'the'/'The'; a citation must match volume, report series and first page (or neutral-citation year and number) exactly.",
+    "Otherwise use a grader model given question, correct_answer and verification_source, with a fixed prompt and temperature 0, and spot-check at least 5% of verdicts by hand every run.",
+    "The grader must never see which system produced an answer."
+  ],
+  "update_method": [
+    "1. Start a run: insert a benchmark_runs row with a new run_id, started_at, system_version and status 'running'.",
+    "2. For each of the 700 questions, send the question text only, record the raw answer, latency and the model calls used.",
+    "3. Grade each answer (rules above), insert one benchmark_results row with the verdict.",
+    "4. When all 700 are graded, in one transaction: set status 'complete', store correct, hallucinations, abstained per category, and update the running-total row.",
+    "5. The running total is the LATEST COMPLETE RUN (hallucinations_detected, accuracy_rate, hallucination_rate for that run). Keep a history of every completed run; do not average across runs with different system versions.",
+    "6. Partial or failed runs never replace the running total."
+  ],
+  "public_comparison_method": "After each run and after each weekly public-data refresh, call compareRun(latestRun, publicEntries) (lib/compare.mjs) and store the output beside the run, together with the public-data refresh date. See comparison-spec.json for the rules.",
+  "recommended_data_structure": {
+    "json_shape": {
+      "running_total": {
+        "run_id": "string",
+        "completed_at": "ISO 8601",
+        "system_version": "string",
+        "public_data_refreshed": "YYYY-MM-DD",
+        "total_questions": 700,
+        "correct_answers": "integer",
+        "hallucinations_detected": "integer",
+        "abstained": "integer",
+        "accuracy_rate": "number 0..1",
+        "hallucination_rate": "number 0..1",
+        "by_category": {
+          "factual": {
+            "total": 500,
+            "correct": "int",
+            "hallucinations": "int",
+            "abstained": "int"
+          },
+          "legal": {
+            "total": 100,
+            "correct": "int",
+            "hallucinations": "int",
+            "abstained": "int"
+          },
+          "domain_specific": {
+            "total": 100,
+            "correct": "int",
+            "hallucinations": "int",
+            "abstained": "int"
+          }
+        },
+        "comparison": "output of compareRun()"
+      }
+    },
+    "sql_schema": [
+      "CREATE TABLE benchmark_questions (question_id TEXT PRIMARY KEY, category TEXT NOT NULL CHECK (category IN ('factual','legal','domain_specific')), question_text TEXT NOT NULL, correct_answer TEXT NOT NULL, verification_source TEXT NOT NULL, hallucination_trigger_notes TEXT NOT NULL);",
+      "CREATE TABLE benchmark_runs (run_id TEXT PRIMARY KEY, started_at TEXT NOT NULL, completed_at TEXT, system_version TEXT NOT NULL, status TEXT NOT NULL CHECK (status IN ('running','complete','failed')), public_data_refreshed TEXT);",
+      "CREATE TABLE benchmark_results (run_id TEXT NOT NULL REFERENCES benchmark_runs(run_id), question_id TEXT NOT NULL REFERENCES benchmark_questions(question_id), answer_text TEXT NOT NULL, verdict TEXT NOT NULL CHECK (verdict IN ('correct','hallucination','abstained')), graded_by TEXT NOT NULL, latency_ms INTEGER, PRIMARY KEY (run_id, question_id));",
+      "CREATE VIEW running_total AS SELECT r.run_id, r.completed_at, COUNT(*) AS total_questions, SUM(res.verdict='correct') AS correct_answers, SUM(res.verdict='hallucination') AS hallucinations_detected, SUM(res.verdict='abstained') AS abstained, 1.0*SUM(res.verdict='correct')/COUNT(*) AS accuracy_rate, 1.0*SUM(res.verdict='hallucination')/COUNT(*) AS hallucination_rate FROM benchmark_runs r JOIN benchmark_results res USING (run_id) WHERE r.status='complete' AND r.run_id=(SELECT run_id FROM benchmark_runs WHERE status='complete' ORDER BY completed_at DESC LIMIT 1) GROUP BY r.run_id;"
+    ]
+  }
+}

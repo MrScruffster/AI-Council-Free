@@ -1,0 +1,191 @@
+{
+  "generated_for": "2026-09-20",
+  "refresh_method": {
+    "cadence": "weekly",
+    "steps": [
+      "For every entry with a source_url, fetch the abstract (arXiv) or README (GitHub) and extract the published figure.",
+      "If a re-read figure differs from the stored one, keep the old value in a history array, write the new one, and set changed:true for review. Never overwrite silently.",
+      "If a source cannot be read, keep the stored value, set stale:true, and leave date_refreshed unchanged so the age stays visible.",
+      "Only entries with include_in_public_average:true feed the comparison; adding an entry to the average is a manual, reviewed decision."
+    ]
+  },
+  "entries": [
+    {
+      "date_refreshed": "2026-09-20",
+      "source_name": "HaluEval (Li, Cheng, Zhao, Nie, Wen; 2023)",
+      "domain": "general",
+      "reported_hallucination_rate": {
+        "min": 0.195,
+        "max": 0.195
+      },
+      "notes_on_methodology": "Abstract: ChatGPT is likely to generate hallucinated content in specific topics by fabricating unverifiable information, about 19.5% of responses. Human-annotated benchmark of generated and real responses; the rate applies to the chosen topics and the 2023-era model, not to LLMs in general.",
+      "source_url": "https://arxiv.org/abs/2305.11747",
+      "publication_year": 2023,
+      "evidence_level": "published_figure",
+      "comparable_to_council_categories": [
+        "factual"
+      ],
+      "include_in_public_average": true
+    },
+    {
+      "date_refreshed": "2026-09-20",
+      "source_name": "TruthfulQA (Lin, Hilton, Evans; 2021)",
+      "domain": "general",
+      "reported_hallucination_rate": null,
+      "reported_as": "Best model truthful on 58% of questions; human performance 94%",
+      "notes_on_methodology": "Adversarial questions built to elicit common human misconceptions. It measures truthfulness, not a hallucination rate, and the models are 2021-era, so it is historical context only and is excluded from the average.",
+      "source_url": "https://arxiv.org/abs/2109.07958",
+      "publication_year": 2021,
+      "evidence_level": "published_figure",
+      "comparable_to_council_categories": [],
+      "include_in_public_average": false
+    },
+    {
+      "date_refreshed": "2026-09-20",
+      "source_name": "Working assumption: general LLM range (owner-specified)",
+      "domain": "general",
+      "reported_hallucination_rate": {
+        "min": 0.1,
+        "max": 0.3
+      },
+      "notes_on_methodology": "A planning range supplied by the site owner, NOT a single published figure. It is the same order of magnitude as HaluEval's 19.5%, but published rates vary enormously with task and model (from 1.8% in grounded summarisation to 58%–88% on legal case queries). Kept for display continuity; excluded from the average.",
+      "source_url": null,
+      "publication_year": null,
+      "evidence_level": "owner_assumption",
+      "comparable_to_council_categories": [],
+      "include_in_public_average": false
+    },
+    {
+      "date_refreshed": "2026-09-20",
+      "source_name": "Vectara Hallucination Leaderboard, best-case models (HHEM)",
+      "domain": "grounded_summarisation",
+      "reported_hallucination_rate": {
+        "min": 0.018,
+        "max": 0.033
+      },
+      "notes_on_methodology": "Top three models when read: 1.8%, 3.1% and 3.3% (leaderboard last updated 2026-05-11). Measures how often a model adds claims not supported by the document it was asked to summarise, scored by Vectara's HHEM-2.3 model over 7,700+ articles. It is a faithfulness-to-source task, much easier than open-book question answering, so it is the best case and must not be compared with closed-book accuracy.",
+      "source_url": "https://github.com/vectara/hallucination-leaderboard",
+      "publication_year": 2026,
+      "evidence_level": "published_figure",
+      "comparable_to_council_categories": [],
+      "include_in_public_average": false
+    },
+    {
+      "date_refreshed": "2026-09-20",
+      "source_name": "Vectara Hallucination Leaderboard, full range across models (HHEM)",
+      "domain": "grounded_summarisation",
+      "reported_hallucination_rate": {
+        "min": 0.018,
+        "max": 0.242
+      },
+      "notes_on_methodology": "Range across all models on the leaderboard when read (1.8% to 24.2%). The maintainers state the approach is far from definitive and measures only factual consistency with the source, not summary quality or other kinds of hallucination.",
+      "source_url": "https://github.com/vectara/hallucination-leaderboard",
+      "publication_year": 2026,
+      "evidence_level": "published_figure",
+      "comparable_to_council_categories": [],
+      "include_in_public_average": false
+    },
+    {
+      "date_refreshed": "2026-09-20",
+      "source_name": "Stanford RegLab / HAI, Hallucination-Free? Assessing the Reliability of Leading AI Legal Research Tools (Magesh et al.; 2024)",
+      "domain": "legal_ai_tools",
+      "reported_hallucination_rate": {
+        "min": 0.17,
+        "max": 0.33
+      },
+      "notes_on_methodology": "Abstract: Lexis+ AI and Thomson Reuters' Westlaw AI-Assisted Research and Ask Practical Law AI each hallucinate between 17% and 33% of the time. These are retrieval-augmented commercial legal research tools, evaluated on a preregistered set of legal queries. The published upper figure is 33%, not 34%.",
+      "source_url": "https://arxiv.org/abs/2405.20362",
+      "publication_year": 2024,
+      "evidence_level": "published_figure",
+      "comparable_to_council_categories": [
+        "legal"
+      ],
+      "include_in_public_average": true
+    },
+    {
+      "date_refreshed": "2026-09-20",
+      "source_name": "Stanford RegLab / HAI, Large Legal Fictions: Profiling Legal Hallucinations in Large Language Models (Dahl et al.; 2024)",
+      "domain": "legal_general_llms",
+      "reported_hallucination_rate": {
+        "min": 0.58,
+        "max": 0.88
+      },
+      "notes_on_methodology": "Abstract: legal hallucinations occur between 58% of the time with ChatGPT 4 and 88% with Llama 2 when asked specific, verifiable questions about random federal court cases. General-purpose models without retrieval, 2023-era. Far harsher than legal AI tools, so it is reported separately and excluded from the primary average.",
+      "source_url": "https://arxiv.org/abs/2401.01301",
+      "publication_year": 2024,
+      "evidence_level": "published_figure",
+      "comparable_to_council_categories": [
+        "legal"
+      ],
+      "include_in_public_average": false
+    },
+    {
+      "date_refreshed": "2026-09-20",
+      "source_name": "MedHallu (Pandit et al.; 2025)",
+      "domain": "medical",
+      "reported_hallucination_rate": null,
+      "reported_as": "Best model F1 as low as 0.625 at detecting 'hard' medical hallucinations (GPT-4o, Llama-3.1, UltraMedical tested)",
+      "notes_on_methodology": "A hallucination DETECTION benchmark: it scores how well a model spots planted medical hallucinations, not how often a model produces them. An F1 score is not a hallucination rate, so no rate is recorded.",
+      "source_url": "https://arxiv.org/abs/2502.14302",
+      "publication_year": 2025,
+      "evidence_level": "published_figure",
+      "comparable_to_council_categories": [],
+      "include_in_public_average": false
+    },
+    {
+      "date_refreshed": "2026-09-20",
+      "source_name": "Med-HALT (Pal, Umapathi, Sankarasubbu; 2023)",
+      "domain": "medical",
+      "reported_hallucination_rate": null,
+      "notes_on_methodology": "Reasoning- and memory-based hallucination tests over medical question sets. The abstract reports significant differences between models (GPT-3.5, LlaMa-2 and others) but gives no percentage, so no rate is recorded here; take figures from the paper's tables if you need them.",
+      "source_url": "https://arxiv.org/abs/2307.15343",
+      "publication_year": 2023,
+      "evidence_level": "published_figure_without_rate",
+      "comparable_to_council_categories": [],
+      "include_in_public_average": false
+    },
+    {
+      "date_refreshed": "2026-09-20",
+      "source_name": "We Have a Package for You! Package hallucinations by code-generating LLMs (Spracklen et al.; 2024)",
+      "domain": "technical",
+      "reported_hallucination_rate": {
+        "min": 0.052,
+        "max": 0.217
+      },
+      "notes_on_methodology": "Abstract: the average percentage of hallucinated packages is at least 5.2% for commercial models and 21.7% for open-source models. Measures recommended software packages that do not exist. A code-generation task; not comparable to engineering knowledge questions.",
+      "source_url": "https://arxiv.org/abs/2406.10279",
+      "publication_year": 2024,
+      "evidence_level": "published_figure",
+      "comparable_to_council_categories": [],
+      "include_in_public_average": false
+    },
+    {
+      "date_refreshed": "2026-09-20",
+      "source_name": "FinanceBench (Islam et al.; 2023)",
+      "domain": "financial_regulatory_filings",
+      "reported_hallucination_rate": {
+        "min": 0.81,
+        "max": 0.81
+      },
+      "reported_as": "GPT-4-Turbo with a retrieval system incorrectly answered or refused 81% of questions",
+      "notes_on_methodology": "150-case sample of 10,000+ questions on public companies' filings. The 81% counts wrong answers AND refusals, so it overstates hallucination alone. It is the closest verified proxy for regulatory-document question answering; excluded from the average.",
+      "source_url": "https://arxiv.org/abs/2311.11944",
+      "publication_year": 2023,
+      "evidence_level": "published_figure",
+      "comparable_to_council_categories": [],
+      "include_in_public_average": false
+    },
+    {
+      "date_refreshed": "2026-09-20",
+      "source_name": "Regulatory / compliance question answering (gap)",
+      "domain": "regulatory",
+      "reported_hallucination_rate": null,
+      "notes_on_methodology": "No verified public hallucination-rate figure specific to regulatory or compliance question answering was gathered in this refresh. FinanceBench is the nearest verified proxy. Do not display a regulatory number until a source is added here.",
+      "source_url": null,
+      "publication_year": null,
+      "evidence_level": "no_verified_figure",
+      "comparable_to_council_categories": [],
+      "include_in_public_average": false
+    }
+  ]
+}

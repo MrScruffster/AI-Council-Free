@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 420" width="100%" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="aic-title aic-desc">
+<title id="aic-title">AI Council accuracy 90.0%; industry average hallucination rate 20.0%; relative difference 75%</title>
+<desc id="aic-desc">Two progress rings. The teal ring shows AI Council's accuracy on its internal benchmark. The amber ring shows the average hallucination rate reported publicly for comparable systems. A badge shows the relative difference between the two hallucination rates. This is sample data, not a result.</desc>
+<style>text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}.big{font-size:44px;font-weight:700}.mid{font-size:34px;font-weight:700}.lbl{font-size:15px;fill:#A6ABB0}.cap{font-size:13px;fill:#A6ABB0}@media (max-width:480px){.lbl{font-size:18px}.cap{font-size:16px}}</style>
+<rect width="720" height="420" rx="20" fill="#1C1C1E"/>
+<g id="ring-accuracy" transform="rotate(-90 210 178)"><circle cx="210" cy="178" r="84" fill="none" stroke="#3A3F44" stroke-width="18"/><circle cx="210" cy="178" r="84" fill="none" stroke="#2BB3B1" stroke-width="18" stroke-linecap="round" stroke-dasharray="475.01 527.79"/></g>
+<text x="210" y="192" text-anchor="middle" class="big" fill="#F2F2F2">90.0%</text>
+<text x="210" y="290" text-anchor="middle" class="lbl">AI Council accuracy</text>
+<g id="ring-industry" transform="rotate(-90 510 178)"><circle cx="510" cy="178" r="64" fill="none" stroke="#3A3F44" stroke-width="14"/><circle cx="510" cy="178" r="64" fill="none" stroke="#FFC15A" stroke-width="14" stroke-linecap="round" stroke-dasharray="80.42 402.12"/></g>
+<text x="510" y="190" text-anchor="middle" class="mid" fill="#F2F2F2">20.0%</text>
+<text x="510" y="290" text-anchor="middle" class="lbl">Industry average hallucination rate</text>
+<g id="badge"><rect x="180" y="312" width="360" height="42" rx="21" fill="#3A3F44"/><text x="360" y="339" text-anchor="middle" font-size="17" font-weight="600" fill="#2BB3B1">▲ 75% relative reduction in hallucination rate</text></g>
+<text x="360" y="382" text-anchor="middle" class="cap">AI Council's own 700-question benchmark compared with published rates</text>
+<text x="360" y="400" text-anchor="middle" class="cap">from different benchmarks. Not a like-for-like test.</text>
+<clipPath id="card-clip"><rect width="720" height="420" rx="20"/></clipPath><g id="sample-banner" clip-path="url(#card-clip)"><rect x="0" y="0" width="720" height="34" rx="0" fill="#FFC15A"/><text x="360" y="23" text-anchor="middle" font-size="15" font-weight="700" fill="#1C1C1E">SAMPLE DATA — placeholder numbers, not benchmark results</text></g>
+</svg>
