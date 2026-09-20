@@ -203,6 +203,10 @@
   .agent-history { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 8px; }
   .agent-history summary { cursor: pointer; color: var(--text-dim); font-size: .78rem; }
   .agent-history-row { margin-top: 5px; font-size: .75rem; color: var(--text-dim); }
+  .council-decision { margin: 10px 0; padding: 10px 12px; border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 8px; background: var(--panel-2); font-size: .82rem; }
+  .council-decision strong { color: var(--text); }
+  .council-decision ul { margin: 5px 0 0 18px; padding: 0; }
+  .council-decision .decision-muted { color: var(--text-dim); }
   #stopAgent { display: none; border-color: rgba(229,115,95,.65); color: #f0b3a8; }
   #stopAgent.visible { display: inline-flex; }
   .disagreement-box {
@@ -2387,6 +2391,47 @@ function describeError(err, tail) {
    back a marker that is only half-arrived (e.g. "%%%DISAG"), so it never flashes on screen.
    Returns { body, note, found }. */
 const DISAGREE_RE = /%+[\s*_]*DISAGREE(?:MENT)?[\s*_]*%+/i;
+const COUNCIL_DECISION_SCHEMA = {
+  type: "object", additionalProperties: false,
+  required: ["answer", "votes", "disagreements", "confidence"],
+  properties: {
+    answer: { type: "string", minLength: 1, maxLength: 12000 },
+    votes: {
+      type: "array", minItems: 1, maxItems: 12,
+      items: {
+        type: "object", additionalProperties: false,
+        required: ["provider", "position", "confidence"],
+        properties: {
+          provider: { type: "string", maxLength: 100 },
+          position: { type: "string", enum: ["agree", "disagree", "unclear"] },
+          confidence: { type: "number", minimum: 0, maximum: 1 }
+        }
+      }
+    },
+    disagreements: { type: "array", maxItems: 8, items: { type: "string", maxLength: 300 } },
+    confidence: { type: "number", minimum: 0, maximum: 1 }
+  }
+};
+function parseCouncilDecision(raw, good) {
+  let parsed;
+  try {
+    const match = String(raw || "").match(/\{[\s\S]*\}/);
+    parsed = JSON.parse(match ? match[0] : raw);
+  } catch (_) { throw new Error("The council decision was not valid JSON."); }
+  if (!parsed || typeof parsed !== "object" || typeof parsed.answer !== "string" || !parsed.answer.trim() || !Array.isArray(parsed.votes)) {
+    throw new Error("The council decision was missing its answer or votes.");
+  }
+  const names = new Set(good.map(r => P[r.provId].label));
+  const votes = parsed.votes.filter(v => v && names.has(String(v.provider)) && ["agree", "disagree", "unclear"].includes(v.position)).map(v => ({
+    provider: String(v.provider), position: v.position, confidence: Math.max(0, Math.min(1, Number(v.confidence) || 0))
+  }));
+  return {
+    answer: parsed.answer.trim().slice(0, 12000),
+    votes,
+    disagreements: Array.isArray(parsed.disagreements) ? parsed.disagreements.map(x => String(x).trim()).filter(Boolean).slice(0, 8) : [],
+    confidence: Math.max(0, Math.min(1, Number(parsed.confidence) || 0))
+  };
+}
 function splitDisagree(text, opts) {
   const m = text.match(DISAGREE_RE);
   if (m) return { body: text.slice(0, m.index), note: text.slice(m.index + m[0].length), found: true };
@@ -2727,34 +2772,24 @@ async function councilGenerate(category, history, question, ui) {
   const spec = specialistFor(category);
   ui.stage("synth", "running", `Synthesizing · ${P[spec.provId].label}`);
   const labelled = good.map((r, i) => `--- ANSWER ${i + 1} (from ${P[r.provId].label}) ---\n${r.answer}`).join("\n\n");
-  const DISAGREEMENT_MARKER = "%%%DISAGREEMENT%%%";
   const { text: rawDraft, provId } = await callWithFallback(spec.provId, [
     { role: "system", content:
-      "Several AI models independently answered the same question. Merge them into ONE best answer: " +
-      "keep what they agree on, resolve contradictions in favour of the most plausible claim, include the " +
-      "strongest unique points, drop filler. " +
-      "Output only the final merged answer in markdown — do not mention the merging process or the sources. " +
-      "Then, on a new line by itself, write exactly " + DISAGREEMENT_MARKER + " followed by a short markdown " +
-      "bullet list of any point where the source models gave genuinely conflicting factual claims (not just " +
-      "different wording or emphasis) — name which model made which claim when useful. " +
-      "If the models didn't meaningfully disagree on anything, write " + DISAGREEMENT_MARKER + " followed by " +
-      "the single word None." + todayLine() },
+      "Several AI models independently answered the same question. Return ONLY JSON matching the supplied schema. " +
+      "The answer field must be one best markdown answer: keep agreed claims, resolve contradictions cautiously, include strong unique points, and do not mention the merging process. " +
+      "For votes, list each source model by its exact displayed provider name and classify whether its answer agrees with the final answer, disagrees, or is unclear. " +
+      "List only genuine factual conflicts in disagreements, not different wording or emphasis. " + todayLine() },
     { role: "user", content: "QUESTION:\n" + question + "\n\n" + labelled }
-  ], null, ui.stream, ui, "synthesis", { temperature: CONFIG.temperatures.synth });
+  ], null, undefined, ui, "synthesis", { json: { schema: COUNCIL_DECISION_SCHEMA }, temperature: CONFIG.temperatures.synth });
   ui.stage("synth", "done", `Synthesized · ${P[provId].label}`);
 
-  /* Split the merged answer from the disagreement note *before* critique/revise
-     ever sees it, so neither stage can rewrite or drop it — it's re-attached
-     verbatim to whatever the pipeline finally produces (see answer()). */
-  let draft = rawDraft, disagreement = "";
-  const split = splitDisagree(rawDraft);
-  if (split.found) {
-    draft = split.body.trim();
-    const rest = split.note.trim();
-    if (rest && !/^none\.?$/i.test(rest)) disagreement = rest;
-  }
-
-  return { genProvId: provId, draft, disagreement };
+  const decision = parseCouncilDecision(rawDraft, good);
+  ui.councilDecision(decision);
+  ui.working("Structured council decision", {
+    summary: `${decision.votes.filter(v => v.position === "agree").length} agree, ${decision.votes.filter(v => v.position === "disagree").length} disagree, ${decision.votes.filter(v => v.position === "unclear").length} unclear · ${Math.round(decision.confidence * 100)}% confidence`,
+    raw: JSON.stringify(decision)
+  });
+  const disagreement = decision.disagreements.length ? decision.disagreements.map(x => "- " + x).join("\n") : "";
+  return { genProvId: provId, draft: decision.answer, disagreement, decision };
 }
 
 /* Stage: PLAIN ENGLISH — the finished (technical) answer is rewritten for a
@@ -4546,6 +4581,7 @@ function addAiBubble() {
   div.innerHTML = `
     <div class="bubble">
       <div class="pipeline"></div>
+      <div class="council-decision" hidden></div>
       <div class="answer"><span style="color:var(--text-dim)">Working…</span></div>
       <div class="agent-panel" hidden></div>
       <details class="workings" style="display:none">
@@ -4557,6 +4593,7 @@ function addAiBubble() {
   chatEl.scrollTop = chatEl.scrollHeight;
 
   const pipelineEl = div.querySelector(".pipeline");
+  const decisionEl = div.querySelector(".council-decision");
   const answerEl = div.querySelector(".answer");
   const agentPanelEl = div.querySelector(".agent-panel");
   const workingsEl = div.querySelector(".workings");
@@ -4613,6 +4650,25 @@ function addAiBubble() {
       };
       task.render = render;
       render();
+    },
+    councilDecision(decision) {
+      decisionEl.hidden = false;
+      decisionEl.innerHTML = "";
+      const heading = document.createElement("strong");
+      const agree = decision.votes.filter(v => v.position === "agree").length;
+      const disagree = decision.votes.filter(v => v.position === "disagree").length;
+      const unclear = decision.votes.filter(v => v.position === "unclear").length;
+      heading.textContent = `Council decision · ${agree} agree · ${disagree} disagree${unclear ? ` · ${unclear} unclear` : ""} · ${Math.round(decision.confidence * 100)}% confidence`;
+      decisionEl.appendChild(heading);
+      if (decision.disagreements.length) {
+        const label = document.createElement("div"); label.className = "decision-muted"; label.textContent = "Reported conflicts:";
+        const list = document.createElement("ul");
+        decision.disagreements.forEach(item => { const li = document.createElement("li"); li.textContent = item; list.appendChild(li); });
+        decisionEl.append(label, list);
+      } else {
+        const note = document.createElement("div"); note.className = "decision-muted"; note.textContent = "No material factual conflict was reported by the synthesis model.";
+        decisionEl.appendChild(note);
+      }
     },
     /* live token stream — throttled re-render so long answers stay smooth */
     stream(accumulated) {
