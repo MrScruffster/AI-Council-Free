@@ -187,6 +187,14 @@
     background: rgba(108, 140, 255, .08); border: 1px solid rgba(108, 140, 255, .3); color: var(--text-dim);
   }
   .caution-box p { margin: 0; }
+  /* source check: green like the "ok" states, since it reports what trusted sources say (or that none were found) */
+  .sources-box {
+    margin-top: 12px; padding: 10px 14px; border-radius: var(--radius); font-size: .86rem; line-height: 1.5;
+    background: rgba(76, 195, 138, .07); border: 1px solid rgba(76, 195, 138, .3);
+  }
+  .sources-box > .sb-head { color: var(--ok); font-weight: 600; font-size: .85rem; margin-bottom: 6px; }
+  .sources-box p:first-of-type { margin-top: 0; }
+  .sources-box ol { margin-bottom: 6px; }
   @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
 
   details.workings { margin-top: 12px; border-top: 1px dashed var(--border); padding-top: 8px; }
@@ -280,6 +288,16 @@
     padding: 0 22px; font-size: .95rem; cursor: pointer; font-family: inherit; font-weight: 600;
   }
   #send:disabled { opacity: .5; cursor: not-allowed; }
+  /* 🎙️ sits beside the box as an .icon-btn; while recording it takes the .active look plus the existing pulse */
+  #mic { flex: none; font-size: 1.05rem; padding: 0 14px; border-radius: var(--radius); }
+  #mic.recording { animation: pulse 1s infinite; }
+  @media (prefers-reduced-motion: reduce) { #mic.recording { animation: none; } }
+  /* one-line, non-blocking message for the mic (it never covers the chat or the box) */
+  #micStatus { margin: 0; min-height: 0; padding: 6px max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left)); background: var(--panel); border-top: 1px solid var(--border); }
+  #micStatus:empty { display: none; }
+  /* read-aloud button under a finished answer */
+  .ans-tools { margin-top: 10px; display: flex; gap: 6px; }
+  .speak-btn { font-size: .76rem; padding: 4px 10px; }
 
   /* ---------- Settings drawer ---------- */
   #overlay {
@@ -515,7 +533,7 @@
     <button data-mode="council" title="All models answer in parallel, one synthesizes, another critiques, then a final revision. 6–7 calls.">Council</button>
   </div>
   <button class="icon-btn active" id="plainToggle" title="Explain answers in plain, everyday language (with a simple diagram where it helps). The full technical answer stays one click away.">🗣 Plain: on</button>
-  <button class="icon-btn" id="toolsToggle" title="Let a model use a small built-in toolset (calculator, current date/time) while drafting — Fast/Balanced modes only.">🔧 Tools: off</button>
+  <button class="icon-btn" id="toolsToggle" title="Let a model use a small built-in toolset (calculator, current date/time, and web search when a proxy with a Tavily key is set up) while drafting — Fast/Balanced modes only.">🔧 Tools: off</button>
   <button class="icon-btn" id="memoryBtn" title="Working memory: what the council remembers about you" aria-label="Memory">🧠<span class="hb-opt"> Memory</span></button>
   <button class="icon-btn" id="aboutBtn" title="How AI Council works, and how it reduces incorrect answers" aria-label="About AI Council"><span id="abIco">ℹ️</span><span class="hb-text hb-opt" id="abTxt"> About</span></button>
   <button class="icon-btn" id="helpBtn" title="How to get set up: it takes about 2 minutes and needs no credit card" aria-label="How to start">❓<span class="hb-text"> How to start</span></button>
@@ -539,8 +557,10 @@
   </nav>
   <div id="maincol">
     <main id="chat"><!-- the welcome / starter-question panel is rendered by renderEmptyState() --></main>
+    <div class="teststatus" id="micStatus" role="status" aria-live="polite"></div>
     <div id="composer" role="region" aria-label="Write a message">
       <textarea id="input" rows="1" placeholder="Ask the council anything…"></textarea>
+      <button class="icon-btn" id="mic" type="button" hidden title="Speak your question: click to start recording, click again to stop (60 seconds at most)" aria-label="Start voice input" aria-pressed="false">🎙️</button>
       <button id="send">Send</button>
     </div>
   </div>
@@ -602,7 +622,7 @@
         <li><b>Memory update (background).</b> A fast model extracts durable facts as a JSON array (at most 200 characters each, deduplicated, capped at 40, expiring after <span data-cfg="ttlDays">90</span> days), and folds turns older than the context window into a rolling summary of under 150 words.</li>
       </ol>
       <h3>Council mode (ensemble + synthesis)</h3>
-      <p>Instead of a single generator, the prompt is sent in parallel (<code>Promise.all</code>) to <b>every connected provider</b>. Successful answers are passed to a synthesis model, chosen by the routing table with provider fallback. It merges them, keeping agreed claims, resolving contradictions toward the most plausible one, and emitting a delimited <b>disagreement list</b> of genuinely conflicting factual claims (or <code>None</code>). That list is parsed out <em>before</em> critique and revision and re-attached verbatim, so no later stage can smooth it away. Each member's raw answer stays visible with its own <b>cross-examine</b> form.</p>
+      <p>Instead of a single generator, the prompt is sent in parallel (<code>Promise.all</code>) to <b>every connected provider</b>. Successful answers are passed to a synthesis model, chosen by the routing table with provider fallback. It merges them, keeping agreed claims, resolving contradictions toward the most plausible one, and emitting a delimited <b>disagreement list</b> of genuinely conflicting factual claims (or <code>None</code>). That list is parsed out <em>before</em> critique and revision and re-attached verbatim, so no later stage can smooth it away. Each member's raw answer stays visible with its own <b>cross-examine</b> form. <b>Source check:</b> when the models disagreed and a proxy is configured, the question is also searched against a fixed list of trusted sites only (official bodies, statute text, historical records, journal indexes and IFCN fact-checkers) and a green box shows what they say, with each source labelled by kind. It shows what those documents say, not that a claim is true, and it never rewrites the answer.</p>
       <div class="ab-scroll" tabindex="0" role="region" aria-label="Execution modes (scrollable table)"><table class="ab-table">
         <thead><tr><th>Mode</th><th>Stages</th><th>Approx. model calls</th></tr></thead>
         <tbody>
@@ -618,7 +638,7 @@
       <div class="ab-mech"><span class="ab-tag">Council mode</span><h3>1 · Heterogeneous ensembling</h3><p>Independent models from different vendors, trained on different data with different architectures, tend to make <em>different</em> errors. Querying several and arbitrating between them is a cross-vendor analogue of self-consistency and mixture-of-agents aggregation. It filters idiosyncratic hallucinations, since a claim made by one model and contradicted by the others is down-weighted in synthesis.</p></div>
       <div class="ab-mech"><span class="ab-tag">Balanced and Council</span><h3>2 · Verifier / author separation</h3><p>The critic is a different model instance from the generator whenever two or more providers are connected. This reduces self-preference and self-confirmation bias, because a model is more likely to overlook its own error than another model's. The critic's constrained output protocol (<code>APPROVED</code> or a defect list) makes its verdict machine-checkable, and the no-rewrite rule keeps it from silently replacing content.</p></div>
       <div class="ab-mech"><span class="ab-tag">Council mode</span><h3>3 · Explicit disagreement surfacing</h3><p>Inter-model disagreement is a practical proxy for epistemic uncertainty. Instead of averaging it away, the system reports conflicts in a distinct callout ("Where the models disagreed") and preserves it through every later stage, so the reader knows which claims to verify independently.</p></div>
-      <div class="ab-mech"><span class="ab-tag">Tools toggle (Fast and Balanced)</span><h3>4 · Tool-augmented determinism</h3><p>LLMs are unreliable at exact arithmetic and have no clock. With tools enabled, the model may call <code>calculate</code>, whose input is validated against the grammar <code>^[\d\s+\-*/().]+$</code> and must evaluate to a finite number, or <code>current_datetime</code>. Calls are bounded to 4 rounds per request, results are fed back as <code>tool</code> messages, and every call and result is shown in the workings. Deterministic code replaces stochastic guessing for those two classes of claim.</p></div>
+      <div class="ab-mech"><span class="ab-tag">Tools toggle (Fast and Balanced)</span><h3>4 · Tool-augmented determinism</h3><p>LLMs are unreliable at exact arithmetic and have no clock. With tools enabled, the model may call <code>calculate</code>, whose input is validated against the grammar <code>^[\d\s+\-*/().]+$</code> and must evaluate to a finite number, or <code>current_datetime</code>. Calls are bounded to 4 rounds per request, results are fed back as <code>tool</code> messages, and every call and result is shown in the workings. Deterministic code replaces stochastic guessing for those two classes of claim. A third tool, <code>web_search</code>, gives the model fresh sources to cite; it needs a Worker proxy holding a Tavily key, so it is unavailable on a plain static deployment, and a missing key or used-up monthly quota just means the model answers without it. Search results are snippets, not verified facts.</p></div>
       <div class="ab-mech"><span class="ab-tag">Prompt conditioning</span><h3>5 · Calibrated, task-specific prompts</h3><p>The <code>FACTUAL</code> prompt instructs the model to say plainly when it is unsure of a fact, and the <code>REASONING</code> prompt elicits step-by-step derivation before the final answer (chain-of-thought), which improves multi-step accuracy and exposes the reasoning to review. Every prompt also states today's date, because models have no clock and would otherwise each guess a different one.</p></div>
       <div class="ab-mech"><span class="ab-tag">Transparency</span><h3>6 · Auditability and cross-examination</h3><p>The workings panel records every draft, critique, per-provider answer, fallback event and tool trace, and is saved with the chat. Each Council member has a <b>cross-examine</b> form that asks that one model a follow-up conditioned on its own earlier answer, without re-running the pipeline, so a doubtful claim can be interrogated directly.</p></div>
       <div class="ab-mech"><span class="ab-tag">Reliability</span><h3>7 · Failure containment</h3><p>Provider fallback chains, per-request and per-member deadlines, a deterministic default for routing failure, typed error classification (rate-limit, auth, overload, timeout, CORS, billing) and status dots (fed by a cheap key check, a model-list request that generates no text so a page load spends none of your quota, and by the outcome of real requests) keep a failing provider from degrading an answer unnoticed. Empty or truncated completions are detected and reported instead of being shown as answers.</p></div>
@@ -649,6 +669,7 @@
       <ul>
         <li><b>Storage.</b> Keys and the proxy token (only if remembered), chats, workings, memory and preferences live in this browser's <code>localStorage</code>. There is no AI Council server that receives your prompts, keys, chats or memory.</li>
         <li><b>What leaves the browser.</b> Your prompts, the recent conversation, the memory preamble and today's date (no time zone or location) are sent to the providers you have connected, under those providers' terms and retention policies. Use only providers whose terms you accept.</li>
+        <li><b>Voice input, read-aloud and web search.</b> If you use 🎙️, your recording is sent to Groq for transcription (straight from your browser with your Groq key, or through a proxy that holds one) and is not stored by this site. 🔊 read-aloud runs on your device's built-in speech engine: no request goes to AI Council, though some browsers use an online voice service run by the browser maker. Web search only works when a proxy is configured: the search words the model chooses are sent to that Worker and on to Tavily, and its free allowance (1,000 searches a month) is shared by everyone using that Worker. The same goes for the <b>source check</b> (below): when Council models disagree, your question is sent to that Worker and on to Tavily.</li>
         <li><b>The question counter.</b> The only thing this site itself sends to a server of its own is one anonymous "+1" per question, with no prompt, key, chat or memory content in it. As with any web request, your IP address reaches that server; it is held in memory only, to apply the rate limit, and is not stored or logged by the counter's own code. (Cloudflare, which hosts the Worker, handles requests under its own terms.)</li>
         <li><b>Advertising (Google AdSense).</b> This site loads Google's advertising script. In testing, a plain visit contacted Google's ad and consent-messaging servers (<code>pagead2.googlesyndication.com</code>, <code>fundingchoicesmessages.google.com</code>) and set one Google consent cookie on this domain. AI Council does not pass your keys, prompts or chats to that script. Like any third-party script, though, it executes in the same browsing context as the page, and Google's own privacy terms govern what it collects.</li>
         <li><b>Erasure.</b> Delete a chat with ✕ in the sidebar, clear memory with "Forget everything", and remove a key by clearing its field in ⚙&nbsp;Keys ("Remember" is unticked by default).</li>
@@ -902,7 +923,13 @@ const CONFIG = {
 
   /* Global question counter shown at the bottom of the sidebar. Empty url = the counter is switched off and hidden.
      minToShow: the box stays hidden until the total reaches this, so a brand-new counter doesn't read "0". */
-  stats: { url: "https://ai-council-proxy.o-t-dowling.workers.dev/count", pollMs: 60000, minToShow: 100 }
+  stats: { url: "https://ai-council-proxy.o-t-dowling.workers.dev/count", pollMs: 60000, minToShow: 100 },
+
+  /* Voice input (🎙️). Recordings are transcribed by Groq's Whisper: with a Groq key pasted in ⚙ Keys the browser calls
+     Groq directly (the model below is sent by the browser); otherwise, if a proxy is set, it goes to the Worker's
+     /api/transcribe, which forces the same model itself. So it needs either a Groq key or a proxy that holds one.
+     It counts against Groq's free-tier rate limits (console.groq.com/docs/rate-limits), not against chat tokens. */
+  voice: { url: "https://api.groq.com/openai/v1/audio/transcriptions", model: "whisper-large-v3-turbo", maxSeconds: 60 }
 };
 
 /* =====================================================================
@@ -1204,9 +1231,12 @@ async function callModelRaw(providerId, model, messages, maxTokens, onDelta, opt
    multi-turn tool loop into the parallel fanout + synthesis would make
    failures much harder to reason about for little benefit here),
    non-streaming (a tool round-trip doesn't fit the token-stream contract
-   callModel() has with the UI), and only two tools to start: arithmetic
-   and the current date/time. No code execution, no browsing, no
-   third-party plugin registry.
+   callModel() has with the UI), and only three tools: arithmetic, the
+   current date/time, and web search. No code execution, no page browsing,
+   no third-party plugin registry. Web search is the odd one out: it needs
+   a server-side Tavily key, so it only works when the Worker proxy is
+   configured (there is no paste-your-own-key route for it), and it draws
+   on a monthly free quota shared by everyone using that Worker.
 
    Unlike the hosted/paid build (which restricts this to Claude/ChatGPT,
    the only two providers it has a guaranteed tool-calling contract with),
@@ -1247,8 +1277,51 @@ const TOOLS = {
       const now = new Date();
       return { iso: now.toISOString(), readable: now.toString() };
     }
+  },
+  web_search: {
+    description: "Search the web for current information (news, recent events, facts you may not know). Returns up to 5 results, each with a title, url and a text snippet.",
+    parameters: {
+      type: "object",
+      properties: { query: { type: "string", description: "e.g. latest stable Python version" } },
+      required: ["query"]
+    },
+    /* Unlike the other two tools this one makes a network call, so run() is async and callModelWithToolsRaw()
+       awaits it. Every failure comes back as { error } (never a throw), so a missing key, an exhausted monthly
+       quota or a network blip just means the model answers without search results instead of the whole answer failing. */
+    async run(args) {
+      const query = String(args?.query ?? "").trim();
+      if (!query) return { error: "No search query given." };
+      return webSearchViaProxy(query, false);
+    }
   }
 };
+
+/* The one place that talks to the Worker's /api/websearch. Used by the web_search tool (whole web) and by the Council
+   source check (`trusted` = only the Worker's trusted-source list). Always resolves to { results } or { error }, never throws. */
+async function webSearchViaProxy(query, trusted) {
+  if (!proxyOn()) return { error: "Web search requires this app's built-in proxy to be configured — it needs a server-side key, not something that can be pasted into the browser." };
+  const headers = { "Content-Type": "application/json" };
+  if (CONFIG.proxy.token.trim()) headers["X-Proxy-Token"] = CONFIG.proxy.token.trim();
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 20000);
+  try {
+    const res = await fetch(CONFIG.proxy.url.trim().replace(/\/+$/, "") + "/api/websearch", {
+      method: "POST", signal: ctrl.signal, headers, body: JSON.stringify(trusted ? { query: query.slice(0, 400), trusted: true } : { query: query.slice(0, 400) })
+    });
+    if (!res.ok) {
+      let detail = "";
+      try { detail = (await res.json()).error?.message || ""; } catch (_) { /* no JSON body */ }
+      if (res.status === 401) return { error: "Web search: the proxy rejected the access token (check it in ⚙ Keys)." };
+      if (res.status === 429) return { error: detail || "Web search is rate-limited or its monthly free quota is used up right now. Answer without it." };
+      if (res.status === 503) return { error: "Web search isn't set up on this proxy (no TAVILY_API_KEY secret). Answer without it." };
+      return { error: "Web search failed (HTTP " + res.status + "). " + detail };
+    }
+    const data = await res.json();
+    return { results: Array.isArray(data.results) ? data.results : [] };
+  } catch (e) {
+    return { error: e.name === "AbortError" ? "Web search timed out." : "Web search failed: couldn't reach the proxy." };
+  } finally { clearTimeout(timer); }
+}
 
 let toolsEnabled = false;
 
@@ -1345,12 +1418,15 @@ async function callModelWithToolsRaw(providerId, model, messages) {
       const text = blocks.filter(b => b.type === "text").map(b => b.text).join("");
       if (toolUses.length === 0) return { text: text.trim(), toolCallsUsed };
       convo.push({ role: "assistant", content: blocks });
-      const results = toolUses.map(tu => {
+      /* One at a time rather than Promise.all: run() may now be async (web_search), and a plain loop keeps
+         toolCallsUsed in the order the model asked for the calls. */
+      const results = [];
+      for (const tu of toolUses) {
         const tool = TOOLS[tu.name];
-        const result = tool ? tool.run(tu.input || {}) : { error: `Unknown tool ${tu.name}` };
+        const result = tool ? await tool.run(tu.input || {}) : { error: `Unknown tool ${tu.name}` };
         toolCallsUsed.push({ name: tu.name, args: tu.input, result });
-        return { type: "tool_result", tool_use_id: tu.id, content: JSON.stringify(result) };
-      });
+        results.push({ type: "tool_result", tool_use_id: tu.id, content: JSON.stringify(result) });
+      }
       convo.push({ role: "user", content: results });
     } else {
       const msg = data.choices?.[0]?.message || {};
@@ -1361,7 +1437,7 @@ async function callModelWithToolsRaw(providerId, model, messages) {
         let args = {};
         try { args = JSON.parse(c.function?.arguments || "{}"); } catch (_) { /* leave empty */ }
         const tool = TOOLS[c.function?.name];
-        const result = tool ? tool.run(args) : { error: `Unknown tool ${c.function?.name}` };
+        const result = tool ? await tool.run(args) : { error: `Unknown tool ${c.function?.name}` };
         toolCallsUsed.push({ name: c.function?.name, args, result });
         convo.push({ role: "tool", tool_call_id: c.id, content: JSON.stringify(result) });
       }
@@ -1615,7 +1691,9 @@ async function generate(spec, category, history, ui) {
     ui.stage("gen", "running", `Generating (with tools) · ${P[order[0]].label}`);
     const msgs = [
       { role: "system", content: systemPromptFor(category) +
-        " You have a calculator and a current-date/time tool available — use them when precision matters (arithmetic, \"what's today's date\"), otherwise just answer directly." },
+        " You have a calculator, a current-date/time tool and a web-search tool available — use them when precision or fresh information matters " +
+        "(arithmetic, \"what's today's date\", recent events or facts you may not know), otherwise just answer directly. " +
+        "When you rely on web search results, cite the URLs you used." },
       ...history
     ];
     let lastErr = null;
@@ -2088,6 +2166,7 @@ function persistCurrentChat(firstQuestion) {
 function startNewChat() {
   if (busy) return;
   if (aboutOn()) setAbout(false);
+  stopSpeaking();   // the answer being read out is about to leave the screen
   currentChatId = null;
   history = [];
   renderEmptyState(false);
@@ -2101,6 +2180,7 @@ function loadChat(id) {
   const chat = chats.find(c => c.id === id);
   if (!chat) return;
   if (aboutOn()) setAbout(false);
+  stopSpeaking();
   currentChatId = id;
   history = chat.history.slice();
   chatEl.innerHTML = "";
@@ -2146,6 +2226,65 @@ function renderChatList() {
   });
 }
 
+/* =====================================================================
+   Council source check. When the Council models disagreed, search ONLY the Worker's trusted-source list (official
+   bodies, statute text, historical records, journal indexes, IFCN fact-checkers; see worker/src/index.js) and show
+   what those sources say. Honest limits:
+   - it runs only after a disagreement and only with a proxy (the search key lives on the Worker), because every
+     search spends a monthly free quota shared by everyone using that Worker;
+   - a source shows what that DOCUMENT says. It is not proof a claim is true, and the summary is written by a model
+     from short search snippets, so the source list underneath (built from the real results, not by a model) is what to trust;
+   - it never changes the answer; it adds a box under it, and if anything fails the answer is shown without it.
+   ===================================================================== */
+const SOURCE_KIND_LABEL = {
+  general: "official body", legislative: "law text", historical: "historical record", scientific: "scientific index",
+  "fact-check": "IFCN fact-checker", "us-federal": "US federal site", trusted: "trusted list"
+};
+function mdLinkSafe(title, url) {   // keeps a hostile title or URL from breaking out of the markdown link syntax
+  return "[" + String(title || url).replace(/[\[\]\n]/g, " ").trim().slice(0, 120) + "](" + String(url).replace(/[()\s]/g, c => encodeURIComponent(c)) + ")";
+}
+async function sourceCheck(question, disagreement, ui) {
+  if (!proxyOn()) { ui.stage("src", "skipped", "Source check · needs the proxy"); return ""; }
+  ui.stage("src", "running", "Checking trusted sources");
+  const found = await webSearchViaProxy(question, true);
+  if (found.error) {
+    ui.stage("src", "warn", "Source check unavailable");
+    ui.working("Source check", found.error);
+    return "";
+  }
+  const results = found.results.filter(r => /^https?:\/\//i.test(r.url || ""));
+  if (!results.length) {
+    ui.stage("src", "warn", "Source check · nothing found");
+    ui.working("Source check", "The trusted-source search returned nothing for: " + question.slice(0, 200));
+    return "\n\n:::sources\nNo trusted source turned up for this question, so the disagreement above is **unresolved**. Check it against a primary source yourself.\n:::";
+  }
+  ui.working("Source check — search results", results.map((r, i) => `[${i + 1}] (${r.kind || "trusted"}) ${r.title}\n${r.url}\n${r.content}`).join("\n\n"));
+  let summary = "";
+  try {
+    const { text } = await callWithFallback(pickProvider(CONFIG.specialists.factual), [
+      { role: "system", content:
+        "You are checking a disagreement between AI models against SOURCES retrieved from trusted websites. For each point of disagreement, " +
+        "say in one or two plain sentences which claim, if either, the sources support, citing the source as [n]. " +
+        "Use ONLY what the source excerpts actually say. If they do not address a point, write \"The sources found don't settle this.\" " +
+        "Never add facts from your own knowledge and never invent quotes, section numbers or dates. " +
+        "A source shows what that document says, not that a claim is true in general, and a fact-checker's verdict is that organisation's assessment. " +
+        "At most 120 words, as markdown bullets, no headings." + todayLine() },
+      { role: "user", content:
+        "QUESTION:\n" + question.slice(0, 1500) + "\n\nPOINTS WHERE THE MODELS DISAGREED:\n" + disagreement.slice(0, 2500) +
+        "\n\nSOURCES:\n" + results.map((r, i) => `[${i + 1}] (${SOURCE_KIND_LABEL[r.kind] || "trusted"}) ${r.title}\n${r.url}\n${r.content}`).join("\n\n") }
+    ], 500, undefined, ui, "source check", { temperature: CONFIG.temperatures.judge });
+    summary = text.replace(/^:::.*$/gm, "").trim();
+  } catch (e) {
+    ui.working("Source check summary", describeError(e));
+  }
+  const kinds = [...new Set(results.map(r => SOURCE_KIND_LABEL[r.kind] || "trusted list"))];
+  ui.stage("src", "done", `Source check · ${results.length} source${results.length === 1 ? "" : "s"} (${kinds.join(", ")})`);
+  return "\n\n:::sources\n" + (summary || "*The summary couldn't be written; the sources found are listed below.*") +
+    "\n\n**Sources checked** (only trusted sites were searched):\n" +
+    results.map((r, i) => `${i + 1}. ${mdLinkSafe(r.title, r.url)} — ${SOURCE_KIND_LABEL[r.kind] || "trusted list"}`).join("\n") +
+    "\n\n*A source shows what that document says, not that a claim is true. Check anything important yourself.*\n:::";
+}
+
 async function answer(question, ui) {
   /* Past answers are sent to the models in their technical form only. */
   const trimmedHistory = [...history.slice(-CONFIG.historyLimit).map(m => ({ role: m.role, content: forModel(m.content) })), { role: "user", content: question }];
@@ -2188,6 +2327,12 @@ async function answer(question, ui) {
     final = final.trimEnd() + "\n\n:::disagreement\n" + disagreement + "\n:::";
   }
   const technical = final;   // the full, detailed answer
+  /* Council only, and only when the models disagreed: check the disagreement against trusted sources (kept out of the technical section) */
+  let sourceMd = "";
+  if (mode === "council" && disagreement) {
+    try { sourceMd = await sourceCheck(question, disagreement, ui); }
+    catch (e) { ui.stage("src", "warn", "Source check unavailable"); ui.working("Source check", describeError(e)); }
+  }
   /* medical / legal / financial: a short "general information only" note, kept out of the technical section */
   const cautionMd = currentSensitive ? "\n\n:::caution\n" + CAUTION_TEXT[currentSensitive] + "\n:::" : "";
 
@@ -2201,14 +2346,14 @@ async function answer(question, ui) {
       if (pl.disagreement) plainMd += "\n\n:::disagreement\n" + pl.disagreement + "\n:::";
       else if (disagreement) plainMd += "\n\n:::disagreement\n" + disagreement + "\n:::";
       // Code answers keep the technical section open — the code is usually the point.
-      final = plainMd + cautionMd + "\n\n:::technical" + (category === "code" ? "-open" : "") + "\n" + technical + "\n:::end-technical";
+      final = plainMd + sourceMd + cautionMd + "\n\n:::technical" + (category === "code" ? "-open" : "") + "\n" + technical + "\n:::end-technical";
     } catch (e) {
       ui.stage("plain", "warn", "Plain-English rewrite unavailable — showing full answer");
       ui.working("Plain-English rewrite", describeError(e));
     }
     ui.setStream("raw");
   }
-  if (cautionMd && !TECH_RE.test(final)) final += cautionMd;   // plain mode off, or the rewrite failed
+  if (!TECH_RE.test(final)) final += sourceMd + cautionMd;   // plain mode off, or the rewrite failed
 
   history.push({ role: "user", content: question });
   /* The workings are kept with the answer so they survive saving and reloading the chat.
@@ -2270,8 +2415,8 @@ function stripOpenFence(s) {
 const TECH_RE = /\n*:::technical(-open)?\n([\s\S]*?)\n:::end-technical\s*$/;
 function forModel(content) {
   const m = String(content).match(TECH_RE);
-  /* the UI-only "general information" note is never fed back to a model */
-  return m ? m[2] : String(content).replace(/\n*:::caution\n[\s\S]*?\n:::/g, "");
+  /* the UI-only "general information" note and source-check box are never fed back to a model */
+  return m ? m[2] : String(content).replace(/\n*:::(caution|sources)\n[\s\S]*?\n:::/g, "");
 }
 
 function renderMarkdown(md) {
@@ -2286,6 +2431,11 @@ function renderMarkdown(md) {
     disagreementBlocks.push(
       `<div class="disagreement-box"><div class="db-head">⚠️ Where the models disagreed</div>${renderMarkdown(inner.trim())}</div>`
     );
+    return "\u0000DB" + (disagreementBlocks.length - 1) + "\u0000";
+  });
+
+  md = md.replace(/:::sources\n([\s\S]*?)\n:::/g, (_, inner) => {
+    disagreementBlocks.push(`<div class="sources-box"><div class="sb-head">🔎 Source check</div>${renderMarkdown(inner.trim())}</div>`);
     return "\u0000DB" + (disagreementBlocks.length - 1) + "\u0000";
   });
 
@@ -2335,6 +2485,93 @@ function renderMarkdown(md) {
 const chatEl = document.getElementById("chat");
 const inputEl = document.getElementById("input");
 const sendEl = document.getElementById("send");
+
+/* ---------- read aloud ----------
+   Uses the browser's built-in speech synthesis: free, no API call, no key, works offline with a local voice.
+   Honest limits: how it sounds depends entirely on the voices the device has, and a few browsers hand speech to
+   an online voice service run by the browser vendor. If speechSynthesis doesn't exist the button is never drawn. */
+const canSpeak = "speechSynthesis" in window && typeof SpeechSynthesisUtterance !== "undefined";
+let speaking = null;   // { btn } for the answer being read out, or null. Each session is its own object so a late "end" event from a cancelled one can't reset a newer one.
+
+function setSpeakBtn(btn, on) {
+  btn.classList.toggle("active", on);
+  btn.textContent = on ? "⏹ Stop" : "🔊 Read aloud";
+  btn.setAttribute("aria-pressed", String(on));
+}
+function stopSpeaking() {
+  if (!canSpeak) return;
+  const s = speaking;
+  speaking = null;                       // cleared first, so the cancelled utterances' events below are ignored
+  window.speechSynthesis.cancel();
+  if (s && s.btn.isConnected) setSpeakBtn(s.btn, false);
+}
+
+/* The answer as plain speech: markdown is already rendered, so read the DOM text, minus what sounds wrong aloud —
+   code, the collapsed "full technical answer", diagrams and emoji. */
+function speechTextFor(answerEl) {
+  const c = answerEl.cloneNode(true);
+  c.querySelectorAll("details.tech, .cursor-blink, .diagram").forEach(n => n.remove());
+  c.querySelectorAll("pre").forEach(n => n.replaceWith(document.createTextNode("(Code block skipped.)\n")));
+  c.querySelectorAll("br").forEach(n => n.replaceWith(document.createTextNode("\n")));
+  c.querySelectorAll("p, li, h1, h2, h3, div, summary").forEach(n => n.append("\n"));   // textContent alone would run paragraphs together
+  return c.textContent.replace(/\p{Extended_Pictographic}️?/gu, "").replace(/[ \t]+/g, " ").replace(/\n\s*\n+/g, "\n").trim();
+}
+/* Chrome (desktop) silently stops a single long utterance after roughly 15 s, so the text is queued as
+   sentence-sized pieces instead of one long one. */
+function speechChunks(text) {
+  const out = [];
+  for (const para of text.split("\n")) {
+    let cur = "";
+    // sentence split without a regex lookbehind, which older Safari can't even parse (that would break the whole page)
+    for (const raw of para.match(/[^.!?]+[.!?]*\s*/g) || [para]) {
+      let s = raw.trim();
+      if (!s) continue;
+      while (s.length > 220) {   // one very long unpunctuated run: cut it at a word boundary
+        const cut = s.lastIndexOf(" ", 220) > 0 ? s.lastIndexOf(" ", 220) : 220;
+        if (cur) { out.push(cur); cur = ""; }
+        out.push(s.slice(0, cut).trim());
+        s = s.slice(cut).trim();
+      }
+      if (!s) continue;
+      if (cur && (cur + " " + s).length > 220) { out.push(cur); cur = s; }
+      else cur = cur ? cur + " " + s : s;
+    }
+    if (cur.trim()) out.push(cur.trim());
+  }
+  return out;
+}
+function toggleSpeak(btn, answerEl) {
+  if (speaking && speaking.btn === btn) { stopSpeaking(); return; }   // second click = stop
+  stopSpeaking();                                                    // starting another answer stops the first
+  const chunks = speechChunks(speechTextFor(answerEl));
+  if (!chunks.length) return;
+  const session = { btn };
+  speaking = session;
+  setSpeakBtn(btn, true);
+  const done = () => { if (speaking === session) { speaking = null; setSpeakBtn(btn, false); } };
+  chunks.forEach((t, i) => {
+    const u = new SpeechSynthesisUtterance(t);
+    // "canceled"/"interrupted" are what stopping causes, and by then `speaking` has moved on, so these ignore them;
+    // a real error part-way stops the rest of the queue rather than leaving it talking under a "Read aloud" label
+    if (i === chunks.length - 1) u.onend = done;
+    u.onerror = () => { if (speaking === session) stopSpeaking(); };
+    window.speechSynthesis.speak(u);
+  });
+}
+/* Adds the 🔊 button under a finished answer (live or reloaded from a saved chat). */
+function addReadAloud(answerEl) {
+  if (!canSpeak || answerEl.parentNode.querySelector(".ans-tools")) return;
+  const row = document.createElement("div");
+  row.className = "ans-tools";
+  const btn = document.createElement("button");
+  btn.type = "button"; btn.className = "icon-btn speak-btn";
+  btn.title = "Read this answer aloud using your device's built-in voice";
+  setSpeakBtn(btn, false);
+  btn.addEventListener("click", () => toggleSpeak(btn, answerEl));
+  row.appendChild(btn);
+  answerEl.after(row);
+}
+window.addEventListener("pagehide", stopSpeaking);   // browsers can keep talking after a reload otherwise
 
 function addUserBubble(text) {
   const es = chatEl.querySelector(".es"); if (es) es.remove();   // the welcome / starter panel goes once a chat begins
@@ -2441,6 +2678,7 @@ function addStaticAiBubble(markdown, workings, ctx) {
   div.className = "msg ai";
   div.innerHTML = `<div class="bubble"><div class="answer"></div></div>`;
   div.querySelector(".answer").innerHTML = renderMarkdown(markdown);
+  addReadAloud(div.querySelector(".answer"));
   if (Array.isArray(workings) && workings.length) {
     const d = document.createElement("details");
     d.className = "workings";
@@ -2526,6 +2764,7 @@ function addAiBubble() {
     getWorkings() { return workingsLog; },
     finish(markdown) {
       answerEl.innerHTML = renderMarkdown(markdown);
+      addReadAloud(answerEl);
       chatEl.scrollTop = chatEl.scrollHeight;
     },
     fail(message) {
@@ -2572,6 +2811,137 @@ function autoGrow() {
 }
 inputEl.addEventListener("input", autoGrow);
 
+/* ---------- voice input (🎙️) ----------
+   Click to record, click again (or wait CONFIG.voice.maxSeconds) to stop; the recording is sent to Groq's Whisper and
+   the text is APPENDED to the box, never auto-sent, so a mis-heard word can be fixed first. Honest limits: the browser
+   only offers the microphone on https (or localhost); it needs a Groq key in ⚙ Keys or a proxy holding one (see
+   CONFIG.voice); and Whisper can occasionally invent a short phrase from near-silence, hence "edit, then Send". */
+const micEl = document.getElementById("mic");
+const micStatusEl = document.getElementById("micStatus");
+const micSupported = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+let rec = null;          // the recording in progress: { recorder, stream, chunks, timer }
+let micBusy = false;     // true while waiting for the permission prompt or for a transcription
+let micStatusTimer = null;
+micEl.hidden = !micSupported;   // no MediaRecorder (old browsers, some in-app webviews): no button, nothing else changes
+
+function micSay(cls, msg, clearAfterMs) {
+  clearTimeout(micStatusTimer);
+  micStatusEl.className = "teststatus" + (cls ? " " + cls : "");
+  micStatusEl.textContent = msg;
+  if (msg && clearAfterMs) micStatusTimer = setTimeout(() => { micStatusEl.textContent = ""; }, clearAfterMs);
+}
+function setMicUi() {
+  const on = !!rec;
+  micEl.classList.toggle("active", on);
+  micEl.classList.toggle("recording", on);
+  micEl.setAttribute("aria-pressed", String(on));
+  micEl.disabled = micBusy && !on;
+  micEl.textContent = micBusy && !on ? "⏳" : on ? "⏹" : "🎙️";
+  micEl.setAttribute("aria-label", on ? "Stop recording" : "Start voice input");
+}
+/* Same rule callModel() uses for Groq: a key typed in ⚙ Keys wins; otherwise the proxy, if one is set. */
+function voiceReady() { return useProxy(P.groq) || P.groq.key.trim() !== ""; }
+
+function micErrorText(e) {
+  const n = e && e.name;
+  if (n === "NotAllowedError" || n === "SecurityError") return "Microphone access was blocked. Allow it for this site in your browser's address-bar or site settings, then try again. You can still type your question.";
+  if (n === "NotFoundError" || n === "OverconstrainedError") return "No microphone was found on this device.";
+  if (n === "NotReadableError") return "The microphone is being used by another app. Close it and try again.";
+  return "Couldn't start the microphone." + (window.isSecureContext ? "" : " Voice input only works on an https:// page.");
+}
+
+async function startMic() {
+  if (rec || micBusy) return;
+  if (!voiceReady()) { micSay("err", "Voice input needs a Groq key (add one in ⚙ Keys) or a proxy that holds one.", 9000); return; }
+  micBusy = true; setMicUi(); micSay("", "");
+  let stream, recorder;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (e) {
+    micBusy = false; setMicUi(); micSay("err", micErrorText(e), 12000); return;
+  }
+  /* Chrome/Firefox record webm/ogg, Safari records mp4; Whisper reads all of them. */
+  const type = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"].find(t => MediaRecorder.isTypeSupported(t));
+  try {
+    recorder = type ? new MediaRecorder(stream, { mimeType: type }) : new MediaRecorder(stream);
+  } catch (_) {
+    stream.getTracks().forEach(t => t.stop());
+    micBusy = false; setMicUi(); micSay("err", "This browser can't record audio here.", 9000); return;
+  }
+  const r = { recorder, stream, chunks: [], timer: null };
+  recorder.ondataavailable = e => { if (e.data && e.data.size) r.chunks.push(e.data); };
+  recorder.onerror = () => { micSay("err", "The recording failed. Try again.", 9000); stopMic(); };
+  recorder.onstop = () => finishRecording(r, recorder.mimeType || type || "audio/webm");
+  recorder.start();
+  rec = r; micBusy = false; setMicUi();
+  r.timer = setTimeout(stopMic, CONFIG.voice.maxSeconds * 1000);
+  micSay("", "Recording… click ⏹ to stop (it stops by itself after " + CONFIG.voice.maxSeconds + " seconds).");
+}
+function stopMic() {
+  if (!rec) return;
+  clearTimeout(rec.timer);
+  if (rec.recorder.state !== "inactive") rec.recorder.stop();   // onstop then calls finishRecording()
+}
+async function finishRecording(r, type) {
+  r.stream.getTracks().forEach(t => t.stop());   // releases the microphone (and the browser's "recording" indicator)
+  if (rec === r) rec = null;
+  const blob = new Blob(r.chunks, { type });
+  if (!blob.size) { setMicUi(); micSay("err", "Nothing was recorded. Check your microphone and try again.", 9000); return; }
+  micBusy = true; setMicUi(); micSay("", "Transcribing…");
+  try {
+    const text = (await transcribeAudio(blob)).trim();
+    if (!text) {
+      micSay("err", "Didn't catch any speech. Try again, a little closer to the microphone.", 9000);
+    } else {
+      const cur = inputEl.value;
+      inputEl.value = cur && !/\s$/.test(cur) ? cur + " " + text : cur + text;   // append, never replace what's already typed
+      autoGrow(); inputEl.focus();
+      micSay("ok", "Added to your message. Check it, then press Send.", 7000);
+    }
+  } catch (e) {
+    micSay("err", String((e && e.message) || e), 12000);
+  }
+  micBusy = false; setMicUi();
+}
+
+/* Mirrors callModelRaw()'s choice: through the proxy (X-Proxy-Token when set) unless a Groq key is typed in ⚙ Keys,
+   in which case straight to Groq. Multipart, so there is deliberately no Content-Type header: fetch adds it with the boundary. */
+async function transcribeAudio(blob) {
+  const groq = P.groq;
+  const viaProxy = useProxy(groq);
+  if (!viaProxy && !groq.key.trim()) throw new Error("Voice input needs a Groq key (add one in ⚙ Keys) or a proxy that holds one.");
+  const ext = /webm/.test(blob.type) ? "webm" : /mp4/.test(blob.type) ? "mp4" : /ogg/.test(blob.type) ? "ogg" : "webm";
+  const form = new FormData();
+  form.append("file", blob, "recording." + ext);
+  form.append("model", CONFIG.voice.model);   // the Worker ignores this and forces its own
+  form.append("response_format", "json");
+  const headers = {};
+  if (viaProxy) { if (CONFIG.proxy.token.trim()) headers["X-Proxy-Token"] = CONFIG.proxy.token.trim(); }
+  else headers["Authorization"] = "Bearer " + groq.key.trim();
+  const endpoint = viaProxy ? CONFIG.proxy.url.trim().replace(/\/+$/, "") + "/api/transcribe" : CONFIG.voice.url;
+
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 45000);
+  let res;
+  try {
+    res = await fetch(endpoint, { method: "POST", signal: ctrl.signal, headers, body: form });
+  } catch (e) {
+    throw new Error(e.name === "AbortError" ? "Transcription timed out. Try a shorter recording." : "Couldn't reach the transcription service. Check your internet connection.");
+  } finally { clearTimeout(timer); }
+  if (!res.ok) {
+    let detail = "";
+    try { detail = (await res.json()).error?.message || ""; } catch (_) { /* no JSON body */ }
+    if (res.status === 401 || res.status === 403) throw new Error(viaProxy ? "The proxy rejected the access token (check it in ⚙ Keys)." : "Groq rejected the key (check it in ⚙ Keys).");
+    if (res.status === 429) throw new Error("Voice input is rate-limited right now (Groq's free limits). Wait a minute and try again, or type your question.");
+    if (res.status === 413) throw new Error("That recording was too large. Try a shorter one.");
+    if (res.status === 503 && viaProxy) throw new Error("The proxy has no GROQ_API_KEY set, so it can't transcribe.");
+    throw new Error("Transcription failed (HTTP " + res.status + "). " + detail);
+  }
+  const data = await res.json();
+  return String(data.text || "");
+}
+micEl.addEventListener("click", () => { if (rec) stopMic(); else startMic(); });
+
 /* ---------- plain-language toggle ---------- */
 const plainToggleEl = document.getElementById("plainToggle");
 function refreshPlainToggle() {
@@ -2592,7 +2962,7 @@ function refreshToolsToggle() {
   toolsToggleEl.disabled = disabledByCouncil;
   toolsToggleEl.title = disabledByCouncil
     ? "Not available in Council mode. Switch to Fast or Balanced to use tools."
-    : "Let a model use a small built-in toolset (calculator, current date/time) while drafting — Fast/Balanced modes only.";
+    : "Let a model use a small built-in toolset (calculator, current date/time, and web search when a proxy with a Tavily key is set up) while drafting — Fast/Balanced modes only.";
   toolsToggleEl.classList.toggle("active", toolsEnabled && !disabledByCouncil);
   toolsToggleEl.textContent = "🔧 Tools: " + (toolsEnabled && !disabledByCouncil ? "on" : "off");
 }

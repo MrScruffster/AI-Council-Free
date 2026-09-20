@@ -12,6 +12,27 @@ class_name = "Counter"
 tag = "v1"
 new_sqlite_classes = ["Counter"]
 
+# Secrets are not stored in this file; set each with `npx wrangler secret put NAME` (all optional):
+#   GROQ_API_KEY GEMINI_API_KEY OPENROUTER_API_KEY COHERE_API_KEY SAMBANOVA_API_KEY MISTRAL_API_KEY  (chat providers)
+#   GROQ_API_KEY also powers voice input (/api/transcribe): no separate secret
+#   TAVILY_API_KEY  web search (/api/websearch): tavily.com, free, no card, 1,000 searches/month shared by all users of this Worker
+#   PROXY_TOKEN     shared token the app must send; set it
+# For local `wrangler dev`, put the same names in a .dev.vars file (never commit it).
+
+# Trusted-source check, optional. Without it the app still uses the static source lists; with it, the IFCN
+# fact-checker list and a slice of CISA's .gov registry are also refreshed weekly. Deliberately commented out:
+# a KV binding needs YOUR namespace id, and a placeholder would make `wrangler deploy` fail.
+#   1. npx wrangler kv namespace create TRUSTED_KV     (prints an id)
+#   2. uncomment both blocks below and paste the id
+#   3. npx wrangler deploy, then fill it once instead of waiting for Monday:
+#        curl -X POST https://ai-council-proxy.<you>.workers.dev/trusted -H "X-Proxy-Token: <your PROXY_TOKEN>"
+# [[kv_namespaces]]
+# binding = "TRUSTED_KV"
+# id = "<paste the id here>"
+#
+# [triggers]
+# crons = ["0 4 * * 1"]   # 04:00 UTC every Monday
+
 [vars]
 # The exact origin(s) of the page that calls this Worker (no trailing slash, no path),
 # comma-separated.

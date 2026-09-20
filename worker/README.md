@@ -22,7 +22,40 @@ npx wrangler secret put PROXY_TOKEN
 ```
 
 Secret names: `GROQ_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`,
-`COHERE_API_KEY`, `SAMBANOVA_API_KEY`, `MISTRAL_API_KEY`.
+`COHERE_API_KEY`, `SAMBANOVA_API_KEY`, `MISTRAL_API_KEY`, `TAVILY_API_KEY`.
+
+- **Voice input reuses `GROQ_API_KEY`.** There is no new secret for it.
+- **Web search needs `TAVILY_API_KEY`, a new one.** Get it free at [tavily.com](https://tavily.com) (no credit card,
+  1,000 searches a month): `npx wrangler secret put TAVILY_API_KEY`. That allowance is **shared by everyone who
+  uses your deployment**, not per visitor, the same caveat as the free AI provider keys above.
+
+## What the Worker offers besides chat
+
+| Route | What it does | Uses |
+|---|---|---|
+| `POST /api/<provider>` | forwards a chat request to that provider | that provider's key |
+| `POST /api/transcribe` | 🎙️ voice input: forwards a recording to Groq's Whisper (`whisper-large-v3-turbo`, fixed on the server) and returns `{ "text": "…" }` | `GROQ_API_KEY` |
+| `POST /api/websearch` | 🔧 web search tool: sends `{ "query": "…" }` to Tavily and returns `{ "results": [{ title, url, content }] }`. With `"trusted": true` it searches only the trusted-source list and adds a `kind` to each result (see below) | `TAVILY_API_KEY` |
+| `GET` / `POST /trusted` | **you only** (`X-Proxy-Token`): report the trusted list's size and last refresh / refresh it now | optional KV `TRUSTED_KV` |
+
+All three sit behind the same origin check and `PROXY_TOKEN`. The two extra routes also have a per-IP limit of
+12 requests a minute. That limit is held in each Worker instance's memory, so it stops one browser tab looping
+but is not a hard cap; the providers' own quotas are the real ceiling.
+
+## Voice input, read-aloud & web search
+
+- **Read-aloud (🔊) is free forever.** It uses the browser's built-in speech engine: no API call, no key, nothing
+  goes through the Worker. How it sounds depends on the voices the device has.
+- **Voice input (🎙️) is free within Groq's free-tier rate limits** (see
+  [console.groq.com/docs/rate-limits](https://console.groq.com/docs/rate-limits); they change, so no numbers are
+  copied here). The app calls Groq directly if the visitor pasted a Groq key in ⚙ Keys, and otherwise goes through
+  this Worker's `/api/transcribe`. It needs one of the two, and the browser only offers the microphone on
+  `https://` (or `localhost`). The text is added to the question box and never sent automatically.
+- **Web search needs the `TAVILY_API_KEY` secret *and* the Worker proxy set up in ⚙ Keys.** There is no
+  paste-your-own-key route: it is a shared capability of your deployment, not a per-visitor AI key. It is
+  a tool, so it is used only when 🔧 Tools is on, in Fast or Balanced mode (never Council). When the key is
+  missing, the proxy isn't configured, or the monthly quota is used up, the search returns a plain message to the
+  model, which then answers without it. The answer isn't broken, and no error is shown.
 
 ## Connect the app
 
@@ -34,6 +67,62 @@ so leave a provider's card empty to route it through the Worker.
 
 The public site no longer offers SambaNova: its API blocks browser calls and now requires
 paid billing. (The Worker still knows the `sambanova` route if you have a paid key.)
+
+## Trusted-source check (Council mode)
+
+When Council models **disagree** and a proxy is configured, the app searches **only** a fixed list of trusted sites
+(`POST /api/websearch` with `"trusted": true`) and shows a green **Source check** box: a short model-written summary of
+what those sources say, and under it a list of the real sources found, each labelled with its kind. It runs only after a
+disagreement, because every search spends the shared monthly Tavily quota, and it never changes the answer. It needs
+`TAVILY_API_KEY` and the proxy, like web search.
+
+### What each group is, and what it does and doesn't tell you
+
+These are **not interchangeable kinds of trust**, and the box labels each source so they aren't mixed up.
+
+| Kind | Domains | What being on the list means | Licence |
+|---|---|---|---|
+| **general** | official statistics, health, science and intergovernmental bodies: `cdc.gov`, `nih.gov`, `fda.gov`, `nasa.gov`, `noaa.gov`, `census.gov`, `gov.uk`, `ons.gov.uk`, `nhs.uk`, `who.int`, `un.org`, `europa.eu`, `oecd.org`, `worldbank.org`, `imf.org` and a few more (see `GENERAL_TRUSTED_DOMAINS`) | a real document published by that institution | varies by site; US federal works are generally public domain |
+| **legislative** | `congress.gov` (US bills and statutes), `legislation.gov.uk` (UK statutes), plus my additions `govinfo.gov` (US Code, Federal Register) and `eur-lex.europa.eu` (EU law) | primary-source law text, *not* reporting about law | US government works: generally public domain. UK: Crown copyright under the Open Government Licence. EU: see EUR-Lex's own reuse notice |
+| **historical** | `loc.gov` and `chroniclingamerica.loc.gov` (Library of Congress archives and digitised newspapers), plus my addition `archives.gov` (US National Archives) | a digitised primary record, e.g. what a 1920s newspaper printed | rights vary item by item; the Library of Congress publishes a rights statement per item |
+| **scientific** | `pubmed.ncbi.nlm.nih.gov` and `www.ncbi.nlm.nih.gov` (NIH/NLM), `doaj.org` (Directory of Open Access Journals) | a real paper or record in an index with a genuine vetting step: PubMed only indexes journals that pass an editorial selection process, and DOAJ is a curated whitelist built to screen out predatory journals. This is the strongest signal of the static groups, and it is *still* about the journal, not about each paper being right | PubMed abstracts stay under their publishers' copyright; DOAJ lists open-access journals, each with its own licence |
+| **fact-check** (IFCN) | the ~150 *verified* signatories of the International Fact-Checking Network, refreshed weekly | an organisation whose fact-checking practice was independently assessed against the IFCN code of principles. **This is the only group that reports a claim's truth** (a fact-checker's verdict), and it is that organisation's assessment, not a settled fact. Being a signatory doesn't mean everything the outlet publishes has been fact-checked | the public directory; only domain names are stored |
+| **us-federal** (CISA) | a small slice of CISA's registry of federal `.gov` domains, refreshed weekly | a real US federal site for a science, health, statistics, law or records agency | public domain (CC0) |
+
+The honest distinction: **general, legislative, historical, scientific and us-federal** confirm that a page *really is a
+document from that institution*. Only **fact-check** is about a claim having been *checked and found true or false*, and
+only in that fact-checker's judgement. A statute site tells you what the law's text says, not that an AI's summary of it is
+right; a journal index tells you a paper exists in a vetted journal, not that its finding is true. The source check shows
+what the documents say and leaves the conclusion to you. Nothing is stored or republished: only the search snippets Tavily
+returns are shown, with a link.
+
+**Left out on purpose: Crossref.** It is a metadata-only API (DOIs, titles, reference lists) with no browsable content of its
+own, so a search restricted to it would return nothing readable, and a DOI just points at whichever publisher hosts the paper,
+which says nothing about that publisher's reliability.
+
+### How the list is built and kept fresh
+
+The static groups are fixed in `worker/src/index.js` (edit and redeploy). The IFCN and CISA lists live in a KV namespace and
+are refreshed by a weekly cron; without the KV binding the app simply uses the static groups. To turn it on, follow the
+comments in `wrangler.toml` (create the namespace, uncomment two blocks, deploy), then fill it immediately with:
+
+```bash
+curl -X POST https://ai-council-proxy.<you>.workers.dev/trusted -H "X-Proxy-Token: <your PROXY_TOKEN>"
+curl https://ai-council-proxy.<you>.workers.dev/trusted -H "X-Proxy-Token: <your PROXY_TOKEN>"   # sizes and last refresh
+```
+
+- **IFCN:** the signatory list has no official download. The Worker reads the JSON endpoint the IFCN website itself loads
+  (undocumented, so it could change). Only verified, non-expired signatories are kept ("In Renewal" and "Expired" are not).
+- **CISA:** the registry lists about 1,300 federal domains, four times Tavily's cap, and isn't a quality ranking. So only
+  agencies whose job is science, health, statistics, law or records are considered, and at most two domains are kept per agency
+  (its shortest names, which are usually the main site). That is a heuristic, which is why the important sites are also
+  named explicitly in the static groups.
+- **A refresh can't blank the list.** Each list is replaced only if the new one looks sane (a minimum size); otherwise the
+  old list stays and the failure is recorded (`meta` in `GET /trusted`).
+- **The 300-domain cap.** Tavily allows at most 300 `include_domains`. Merge order is static groups, then IFCN, then CISA. If the
+  total ever goes over, the tail is dropped **and a warning is logged** saying how many of which kind were lost. With live data
+  at the time of writing the merged list is **239 domains** (53 static, 148 IFCN, 38 CISA after removing duplicates), so this
+  doesn't trigger today. Note that the CISA slice is the first thing to lose out if IFCN grows.
 
 ## Global question counter
 
@@ -64,6 +153,6 @@ the limit. Counts are indicative, not audited.
 - Set `PROXY_TOKEN`. The app keeps it in memory only, unless you tick **Remember** on the proxy card, in which
   case it is stored in that browser's `localStorage` (treat it like an API key).
 - A provider with no key in the browser *and* no secret on the Worker will show an error in the council and be skipped; set the secret or ignore it.
-- Only the six listed providers are reachable; there is no open forwarding.
+- Only the six listed providers, plus `transcribe` and `websearch`, are reachable; there is no open forwarding.
 
 Copyright (c) 2026 O. T. Dowling. All rights reserved. See the LICENSE file in the repository root.
