@@ -617,7 +617,7 @@
         <li><b>Persistence.</b> <code>localStorage</code> holds chats (including their saved workings), long-term memory and preferences. API keys, and the proxy access token, are stored only when "Remember" is ticked (it is unticked by default). Chats and memory can be saved to, and restored from, a backup file with the sidebar's Export and Import; that file never contains keys.</li>
         <li><b>Token counter.</b> ⚙&nbsp;Keys shows, per provider, the tokens each provider itself reported for this session's calls (the response's <code>usage</code> field). Streamed replies only carry it if the provider honours <code>stream_options.include_usage</code>; calls without usage are shown in their own column and never estimated.</li>
         <li><b>Optional key-holding proxy.</b> A reverse proxy (Cloudflare Worker) can hold provider keys server-side, guarded by an origin allow-list, a shared-secret header and a fixed provider allow-list. It is disabled by default and is not used by visitors.</li>
-        <li><b>Global question counter.</b> The sidebar shows a running total of questions asked by all users, abbreviated with <code>K</code> (thousand), <code>Mi</code> (million) and <code>Bi</code> (billion), truncated to one decimal so it never overstates. Each question sends one anonymous <code>POST</code> (no body, no custom headers, no question text) to a counter endpoint on the same Worker, which increments a single integer held in a <b>Durable Object</b>. Because a Durable Object serialises access to its storage, simultaneous increments cannot be lost. The page reads the total on load, after each of its own questions and once a minute while the tab is visible, and hides the box if the counter is unreachable or the total is still small (under 100). Per-IP (20 a minute) and global (600 a minute) rate limits stop one client from inflating it, so treat the figure as indicative, not audited.</li>
+        <li><b>Global question counter.</b> The sidebar shows a running total of questions asked by all users, abbreviated with <code>K</code> (thousand), <code>Mi</code> (million) and <code>Bi</code> (billion), truncated to one decimal so it never overstates. Each question sends one anonymous <code>POST</code> (no body, no custom headers, no question text) to a counter endpoint on the same Worker, which increments a single integer held in a <b>Durable Object</b>. Because a Durable Object serialises access to its storage, simultaneous increments cannot be lost. The page reads the total on load, after each of its own questions and once a minute while the tab is visible, and hides the box if the counter is unreachable. Per-IP (20 a minute) and global (600 a minute) rate limits stop one client from inflating it, so treat the figure as indicative, not audited.</li>
       </ul>
       <h3>Providers and roles</h3>
       <div class="ab-scroll" tabindex="0" role="region" aria-label="Providers and their roles (scrollable table)"><table class="ab-table" id="abProviders"><thead><tr><th>Provider</th><th>Workhorse model</th><th>Fast model</th><th>Roles</th></tr></thead><tbody></tbody></table></div>
@@ -939,9 +939,10 @@ const CONFIG = {
      newer Gemini reasoning models (lowering it can hurt them), so the low values above are not sent to Gemini. */
   keepDefaultTemperature: ["gemini"],
 
-  /* Global question counter shown at the bottom of the sidebar. Empty url = the counter is switched off and hidden.
-     minToShow: the box stays hidden until the total reaches this, so a brand-new counter doesn't read "0". */
-  stats: { url: "https://ai-council-proxy.o-t-dowling.workers.dev/count", pollMs: 60000, minToShow: 100 },
+  /* Global question counter, shown in the sidebar just above Export / Import. Empty url = the counter is switched off and hidden.
+     minToShow: the box stays hidden until the total reaches this. It is 0 (always shown, even when the number is small) because
+     the owner wants the running total visible from the start; it was 100 originally, so that a brand-new counter didn't look empty. */
+  stats: { url: "https://ai-council-proxy.o-t-dowling.workers.dev/count", pollMs: 60000, minToShow: 0 },
 
   /* Voice input (🎙️). Recordings are transcribed by Groq's Whisper: with a Groq key pasted in ⚙ Keys the browser calls
      Groq directly (the model below is sent by the browser); otherwise, if a proxy is set, it goes to the Worker's
@@ -4044,7 +4045,7 @@ let lastTickAt = 0;
 
 function renderGlobalCount(bump) {
   if (globalTotal === null) return;
-  if (globalTotal < (CONFIG.stats.minToShow || 0)) { gcEl.hidden = true; return; }   // a tiny total reads as "nobody uses this"
+  if (globalTotal < (CONFIG.stats.minToShow || 0)) { gcEl.hidden = true; return; }   // optional floor; 0 means always show
   gcEl.hidden = false;
   gcNum.textContent = formatCount(globalTotal);
   const exact = globalTotal.toLocaleString("en-GB");
