@@ -51,6 +51,7 @@ Both page tools only exist for the model when their key is set, work in Fast/Bal
 - **🧠 Task memory** – the Memory drawer now keeps user-approved preferences and recurring workflow notes in a separate editable list from automatically extracted conversation facts. Items can be deleted individually and are included in the API-key-free backup export/import.
 - **🔎 Verification evidence** – source-check and web-search result panels now distinguish model prose from evidence, show trusted versus unverified counts, report independent domains, and preserve publication dates when the search provider supplies them.
 - **🧪 Automated smoke tests** – `runner/npm test` covers runner URL security plus frontend startup controls and inline-script syntax, providing a fast regression check without requiring a browser session.
+- **🛡️ Browser privacy hardening** – the static app declares a strict-origin referrer policy, disables unused camera/geolocation permissions, and exposes council progress and answers through accessible live regions.
 - **🌐 Local browser runner (optional, first phase)** – `runner/` contains an authenticated Playwright companion service for isolated, task-scoped browser contexts. It supports approved HTTPS navigation, visible-text extraction, screenshots and form filling; private addresses, non-allowlisted domains and form submission are blocked. See `runner/README.md`; the frontend does not send provider keys to the runner.
 
 ## Local browser runner

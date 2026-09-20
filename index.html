@@ -17,6 +17,8 @@
 <meta property="og:description" content="Ask several AI models at once, with cross-model checking and disagreements flagged.">
 <meta property="og:url" content="https://www.ai-council.co.uk/">
 <meta name="theme-color" content="#171a23">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta http-equiv="Permissions-Policy" content="camera=(), geolocation=(), microphone=(self)">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <meta name="mobile-web-app-capable" content="yes">
@@ -4642,9 +4644,9 @@ function addAiBubble() {
   div.className = "msg ai";
   div.innerHTML = `
     <div class="bubble">
-      <div class="pipeline"></div>
+      <div class="pipeline" role="status" aria-live="polite" aria-label="Council progress"></div>
       <div class="council-decision" hidden></div>
-      <div class="answer"><span style="color:var(--text-dim)">Working…</span></div>
+      <div class="answer" aria-live="polite" aria-atomic="false"><span style="color:var(--text-dim)">Working…</span></div>
       <div class="agent-panel" hidden></div>
       <details class="workings" style="display:none">
         <summary>Show the council's workings</summary>
