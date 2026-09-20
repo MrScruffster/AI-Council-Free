@@ -1,3 +1,9 @@
+/*!
+ * Copyright (c) 2026 O. T. Dowling. All rights reserved.
+ * Proprietary software: it may not be copied, modified or redistributed without
+ * the copyright holder's prior written permission. See the LICENSE file.
+ */
+
 /**
  * AI Council — key-holding proxy (Cloudflare Worker)
  *

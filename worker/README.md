@@ -42,3 +42,5 @@ paid billing. (The Worker still knows the `sambanova` route if you have a paid k
 - Set `PROXY_TOKEN`. The app keeps the token in memory only (never saved), so re-enter it after reloading the page.
 - A provider with no key in the browser *and* no secret on the Worker will show an error in the council and be skipped; set the secret or ignore it.
 - Only the seven listed providers are reachable; there is no open forwarding.
+
+Copyright (c) 2026 O. T. Dowling. All rights reserved. See the LICENSE file in the repository root.

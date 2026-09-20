@@ -1,4 +1,10 @@
 <!DOCTYPE html>
+<!--
+  AI Council
+  Copyright (c) 2026 O. T. Dowling. All rights reserved.
+  Proprietary software: it may not be copied, modified or redistributed without
+  the copyright holder's prior written permission. See the LICENSE file.
+-->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -38,7 +44,7 @@
 
   /* ---------- Header ---------- */
   header {
-    display: flex; align-items: center; gap: 12px;
+    display: flex; align-items: center; gap: 8px;
     /* keep clear of a phone's notch / status bar (all zero on desktop) */
     padding: max(10px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left));
     background: var(--panel);
@@ -56,7 +62,7 @@
   .mode-picker button.active { background: var(--accent); color: #fff; }
   .icon-btn {
     background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
-    border-radius: 8px; padding: 6px 12px; cursor: pointer; font-size: .85rem; font-family: inherit;
+    border-radius: 8px; padding: 6px 10px; cursor: pointer; font-size: .85rem; font-family: inherit;
   }
   .icon-btn:hover { border-color: var(--accent); }
   .icon-btn.active { border-color: var(--accent); color: var(--accent); }
@@ -377,15 +383,16 @@
     header h1 { font-size: 1rem; order: 2; }
     #sidebarBtn { order: 1; }
     header .spacer { order: 3; }
-    #helpBtn { order: 4; }
-    #settingsBtn { order: 5; }
-    .provider-dots { order: 6; flex: 1 0 100%; flex-wrap: nowrap; overflow-x: auto; gap: 12px; font-size: .7rem; padding: 2px 0; -webkit-overflow-scrolling: touch; }
+    #aboutBtn { order: 4; }
+    #helpBtn { order: 5; }
+    #settingsBtn { order: 6; }
+    .provider-dots { order: 7; flex: 1 0 100%; flex-wrap: nowrap; overflow-x: auto; gap: 12px; font-size: .7rem; padding: 2px 0; -webkit-overflow-scrolling: touch; }
     .provider-dots > span { flex: none; white-space: nowrap; }
-    .mode-picker { order: 7; flex: 1 0 100%; }
+    .mode-picker { order: 8; flex: 1 0 100%; }
     .mode-picker button { flex: 1; padding: 7px 4px; }
-    #plainToggle { order: 8; }
-    #toolsToggle { order: 9; }
-    #memoryBtn { order: 10; }
+    #plainToggle { order: 9; }
+    #toolsToggle { order: 10; }
+    #memoryBtn { order: 11; }
     #plainToggle, #toolsToggle, #memoryBtn { flex: 1 1 0; min-width: 0; padding: 6px 4px; font-size: .78rem; white-space: nowrap; }
     header .icon-btn { padding: 6px 10px; }
     #chat { padding: 14px 12px; gap: 14px; }
@@ -396,6 +403,48 @@
     #input, .keyrow input, .custom-form input, .wl-paste input, .wl-paste select { font-size: 16px; }
   }
   @media (max-width: 400px) { .hb-text { display: none; } }
+
+  /* ---------- About tab ---------- */
+  #aboutView { display: none; flex: 1; overflow-y: auto; scroll-behavior: smooth; }
+  /* the header has ~10 controls: on mid-width screens the ❓ shows as an icon only, and on the About page
+     the chat-only controls (mode, Plain, Tools) are hidden since they do nothing there */
+  @media (max-width: 1400px) { #helpBtn .hb-text { display: none; } }
+  body.about-mode .mode-picker, body.about-mode #plainToggle, body.about-mode #toolsToggle { display: none; }
+  #layout.about-mode #maincol { display: none; }
+  #layout.about-mode #aboutView { display: block; }
+  .about { max-width: 860px; margin: 0 auto; padding: 28px clamp(16px, 4vw, 32px) 64px; line-height: 1.65; font-size: .95rem; }
+  .ab-kicker { text-transform: uppercase; letter-spacing: .12em; font-size: .72rem; color: var(--accent); margin-bottom: 6px; }
+  .about h1 { font-size: 1.8rem; line-height: 1.2; margin-bottom: 12px; }
+  .about h2 { font-size: 1.2rem; margin: 34px 0 10px; padding-top: 6px; border-top: 1px solid var(--border); scroll-margin-top: 12px; }
+  .about h3 { font-size: 1rem; margin: 18px 0 6px; color: var(--text); }
+  .about p { margin: 0 0 12px; color: var(--text); }
+  .about ul, .about ol { margin: 0 0 14px 22px; }
+  .about li { margin-bottom: 6px; }
+  .about code { background: var(--panel-2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; font-size: .84em; font-family: ui-monospace, monospace; word-break: break-word; }
+  .about a { color: var(--accent); }
+  .ab-lead { font-size: 1.05rem; color: var(--text-dim); }
+  .ab-lead b { color: var(--text); }
+  .ab-toc { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 6px; }
+  .ab-toc a { background: var(--panel-2); border: 1px solid var(--border); border-radius: 999px; padding: 5px 12px; font-size: .8rem; text-decoration: none; color: var(--text-dim); }
+  .ab-toc a:hover { border-color: var(--accent); color: var(--text); }
+  .ab-scroll { overflow-x: auto; margin: 0 0 16px; border: 1px solid var(--border); border-radius: var(--radius); }
+  .ab-table { border-collapse: collapse; width: 100%; font-size: .84rem; min-width: 520px; }
+  .ab-table th, .ab-table td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .ab-table th { background: var(--panel-2); color: var(--text-dim); font-weight: 600; font-size: .74rem; text-transform: uppercase; letter-spacing: .05em; }
+  .ab-table tr:last-child td { border-bottom: none; }
+  .ab-steps { list-style: none; margin: 0 0 16px; counter-reset: abs; }
+  .ab-steps > li { counter-increment: abs; position: relative; margin: 0 0 12px; padding: 12px 14px 12px 48px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); }
+  .ab-steps > li::before { content: counter(abs); position: absolute; left: 14px; top: 12px; width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: #fff; font-size: .78rem; font-weight: 650; display: flex; align-items: center; justify-content: center; }
+  .ab-steps > li b:first-child { display: block; margin-bottom: 2px; }
+  .ab-mech { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; margin: 0 0 12px; }
+  .ab-mech h3 { margin: 0 0 4px; }
+  .ab-mech .ab-tag { display: inline-block; font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; color: var(--ok); background: rgba(76, 195, 138, .12); border-radius: 999px; padding: 1px 9px; margin-bottom: 6px; }
+  .ab-mech p:last-child { margin-bottom: 0; }
+  .ab-note { background: var(--panel-2); border: 1px solid var(--border); border-left: 3px solid var(--warn); border-radius: 8px; padding: 12px 14px; margin: 0 0 14px; }
+  .ab-note.info { border-left-color: var(--accent); }
+  .ab-note p:last-child, .ab-note ul:last-child { margin-bottom: 0; }
+  .ab-foot { margin-top: 34px; padding-top: 14px; border-top: 1px solid var(--border); color: var(--text-dim); font-size: .8rem; }
+  @media (max-width: 760px) { .about { padding-top: 18px; } .about h1 { font-size: 1.5rem; } body.about-mode #memoryBtn { display: none; } }
 </style>
 </head>
 <body>
@@ -413,7 +462,8 @@
   <button class="icon-btn active" id="plainToggle" title="Explain answers in plain, everyday language (with a simple diagram where it helps). The full technical answer stays one click away.">🗣 Plain: on</button>
   <button class="icon-btn" id="toolsToggle" title="Let a model use a small built-in toolset (calculator, current date/time) while drafting — Fast/Balanced modes only.">🔧 Tools: off</button>
   <button class="icon-btn" id="memoryBtn">🧠 Memory</button>
-  <button class="icon-btn" id="helpBtn" title="How to get set up: it takes about 2 minutes and needs no credit card" aria-label="How to start">❓<span class="hb-text"> How to start</span></button>
+  <button class="icon-btn" id="aboutBtn" title="How AI Council works, and how it reduces incorrect answers" aria-label="About AI Council"><span id="abIco">ℹ️</span><span class="hb-text" id="abTxt"> About</span></button>
+  <button class="icon-btn" id="helpBtn"title="How to get set up: it takes about 2 minutes and needs no credit card" aria-label="How to start">❓<span class="hb-text"> How to start</span></button>
   <button class="icon-btn" id="settingsBtn">⚙ Keys</button>
 </header>
 
@@ -434,6 +484,115 @@
       <button id="send">Send</button>
     </div>
   </div>
+
+  <section id="aboutView" aria-labelledby="abTitle">
+    <article class="about">
+      <p class="ab-kicker">Technical overview</p>
+      <h1 id="abTitle">About AI Council</h1>
+      <p class="ab-lead">AI Council is a client-side <b>multi-model LLM orchestration layer</b>. It routes each prompt to a task-appropriate model, can fan the prompt out across several heterogeneous providers, and subjects the result to <b>cross-model verification</b> before presenting it. The intermediate artefacts (drafts, critiques, per-model answers, tool traces) are exposed for audit.</p>
+      <nav class="ab-toc" aria-label="On this page">
+        <a href="#" data-target="ab-what">What it does</a>
+        <a href="#" data-target="ab-arch">Architecture</a>
+        <a href="#" data-target="ab-pipe">Request pipeline</a>
+        <a href="#" data-target="ab-mitig">Reducing incorrect answers</a>
+        <a href="#" data-target="ab-safety">Improper content</a>
+        <a href="#" data-target="ab-limits">Limitations</a>
+        <a href="#" data-target="ab-data">Data handling</a>
+      </nav>
+
+      <h2 id="ab-what">1. What it does</h2>
+      <p>A user submits a natural-language prompt. The orchestrator (a) classifies its intent, (b) selects a specialist model, (c) generates a draft, (d) has an independent model audit the draft, (e) conditionally revises it, and (f) in <b>Council</b> mode first queries every connected provider in parallel and reconciles their answers, explicitly flagging factual conflicts. The output can then be projected into plain language, with the full technical answer retained beneath it.</p>
+      <ul>
+        <li><b>Provider-agnostic.</b> Any endpoint that speaks the OpenAI-compatible <code>chat/completions</code> schema can be used. Six are built in and custom endpoints can be added under ⚙&nbsp;Keys.</li>
+        <li><b>Zero-backend.</b> The application is a single static HTML document; orchestration executes in the visitor's browser.</li>
+        <li><b>Bring-your-own-key (BYOK).</b> Requests travel browser&nbsp;→&nbsp;provider using the visitor's own API key.</li>
+        <li><b>Observable.</b> Every intermediate artefact is inspectable in the "Show the council's workings" panel.</li>
+      </ul>
+
+      <h2 id="ab-arch">2. Architecture</h2>
+      <ul>
+        <li><b>Execution environment.</b> Static single-page application. No application server, database or server-side session.</li>
+        <li><b>Transport.</b> HTTPS <code>POST</code> to each provider's <code>/chat/completions</code> with <code>Authorization: Bearer &lt;key&gt;</code> and a JSON body <code>{model, messages, max_tokens, temperature: 0.7, stream}</code>. A provider must return permissive <b>CORS</b> headers to be callable from a browser origin; one that does not cannot be supported without a proxy, which is why such providers are not offered.</li>
+        <li><b>Streaming.</b> Server-sent events (<code>text/event-stream</code>). Token deltas are accumulated and re-rendered on a throttle of at least 80&nbsp;ms; partial control markers are withheld from the display.</li>
+        <li><b>Deadlines.</b> An <code>AbortController</code> deadline of <span data-cfg="timeoutS">90</span>&nbsp;s per request. Each Council member additionally races a <span data-cfg="councilS">30</span>&nbsp;s cutoff so one slow provider cannot stall the ensemble (the late response is discarded).</li>
+        <li><b>Token budget.</b> <code>max_tokens</code> has a floor of 512. Reasoning-tuned models spend part of the budget on hidden chain-of-thought, and a very small cap would otherwise yield an empty completion.</li>
+        <li><b>Persistence.</b> <code>localStorage</code> holds chats (including their saved workings), long-term memory and preferences. API keys are stored only when "Remember" is ticked.</li>
+        <li><b>Optional key-holding proxy.</b> A reverse proxy (Cloudflare Worker) can hold provider keys server-side, guarded by an origin allow-list, a shared-secret header and a fixed provider allow-list. It is disabled by default and is not used by visitors.</li>
+      </ul>
+      <h3>Providers and roles</h3>
+      <div class="ab-scroll"><table class="ab-table" id="abProviders"><thead><tr><th>Provider</th><th>Workhorse model</th><th>Fast model</th><th>Roles</th></tr></thead><tbody></tbody></table></div>
+      <p>If a preferred provider has no key or fails, routing falls back to any provider that is available, so the system degrades gracefully instead of failing.</p>
+
+      <h2 id="ab-pipe">3. Request pipeline</h2>
+      <div class="diagram flow" aria-label="Pipeline overview">
+        <span class="dgroup"><span class="dstep"><span class="dnum">1</span>Intent routing</span></span>
+        <span class="dgroup"><span class="darrow">→</span><span class="dstep"><span class="dnum">2</span>Specialist generation</span></span>
+        <span class="dgroup"><span class="darrow">→</span><span class="dstep"><span class="dnum">3</span>Cross-model critique</span></span>
+        <span class="dgroup"><span class="darrow">→</span><span class="dstep"><span class="dnum">4</span>Conditional revision</span></span>
+        <span class="dgroup"><span class="darrow">→</span><span class="dstep"><span class="dnum">5</span>Plain-language projection</span></span>
+      </div>
+      <ol class="ab-steps">
+        <li><b>Intent routing (zero-shot classification).</b> A fast model labels the prompt as <code>CODE</code>, <code>CREATIVE</code>, <code>REASONING</code> or <code>FACTUAL</code> with a one-word constrained output that is regex-parsed. The default on any failure is <code>FACTUAL</code>, a fail-safe class. Each label maps to a specialist provider, and the system prompt is conditioned per class: step-by-step derivation for <code>REASONING</code>, and an explicit instruction to state uncertainty for <code>FACTUAL</code>.</li>
+        <li><b>Specialist generation.</b> The routed provider produces a draft over the last <span data-cfg="historyLimit">8</span> messages, plus a rolling summary and extracted user facts injected as a system-prompt preamble (see Memory). If tools are enabled, generation runs a bounded function-calling loop (see mechanism 4).</li>
+        <li><b>Cross-model critique (LLM-as-a-judge).</b> A <em>different</em> provider from the generator is chosen, preferring one that is not currently failing or rate-limited. It must reply with the literal token <code>APPROVED</code> or a bulleted defect list, and is instructed <em>not</em> to rewrite the answer. Separating the verifier from the author avoids self-confirmation.</li>
+        <li><b>Conditional revision.</b> Only if defects were reported does the original generator revise the draft conditioned on the critique. Otherwise the stage is skipped, which saves latency and tokens.</li>
+        <li><b>Plain-language projection.</b> Optionally, the final technical answer is rewritten for a non-specialist reader. The rewrite obeys any length or format the user asked for and otherwise uses a default structure (bottom line, bullets, optional diagram). The full technical answer is retained in a collapsible section, so nothing is lost to the lossy transform.</li>
+        <li><b>Memory update (background).</b> A fast model extracts durable facts as a JSON array (at most 200 characters each, deduplicated, capped at 40, expiring after <span data-cfg="ttlDays">90</span> days), and folds turns older than the context window into a rolling summary of under 150 words.</li>
+      </ol>
+      <h3>Council mode (ensemble + synthesis)</h3>
+      <p>Instead of a single generator, the prompt is sent in parallel (<code>Promise.all</code>) to <b>every connected provider</b>. Successful answers are passed to a synthesis model, chosen by the routing table with provider fallback. It merges them, keeping agreed claims, resolving contradictions toward the most plausible one, and emitting a delimited <b>disagreement list</b> of genuinely conflicting factual claims (or <code>None</code>). That list is parsed out <em>before</em> critique and revision and re-attached verbatim, so no later stage can smooth it away. Each member's raw answer stays visible with its own <b>cross-examine</b> form.</p>
+      <div class="ab-scroll"><table class="ab-table">
+        <thead><tr><th>Mode</th><th>Stages</th><th>Approx. model calls</th></tr></thead>
+        <tbody>
+          <tr><td><b>Fast</b></td><td>route → generate</td><td>2</td></tr>
+          <tr><td><b>Balanced</b></td><td>route → generate → critique → revise (if defects found)</td><td>3–4</td></tr>
+          <tr><td><b>Council</b></td><td>route → <i>N</i> parallel generations → synthesis → critique → revise (if defects found)</td><td><i>N</i>+3 to <i>N</i>+4 for <i>N</i> connected providers (6–7 with three)</td></tr>
+        </tbody>
+      </table></div>
+      <p>The plain-language rewrite adds one call, and memory maintenance adds one or two background calls. Sampling temperature is fixed at 0.7, so wording varies between runs.</p>
+
+      <h2 id="ab-mitig">4. How it reduces incorrect responses</h2>
+      <p>Each mechanism targets a specific failure mode of a single LLM call.</p>
+      <div class="ab-mech"><span class="ab-tag">Council mode</span><h3>1 · Heterogeneous ensembling</h3><p>Independent models from different vendors, trained on different data with different architectures, tend to make <em>different</em> errors. Querying several and arbitrating between them is a cross-vendor analogue of self-consistency and mixture-of-agents aggregation. It filters idiosyncratic hallucinations, since a claim made by one model and contradicted by the others is down-weighted in synthesis.</p></div>
+      <div class="ab-mech"><span class="ab-tag">Balanced and Council</span><h3>2 · Verifier / author separation</h3><p>The critic is a different model instance from the generator whenever two or more providers are connected. This reduces self-preference and self-confirmation bias, because a model is more likely to overlook its own error than another model's. The critic's constrained output protocol (<code>APPROVED</code> or a defect list) makes its verdict machine-checkable, and the no-rewrite rule keeps it from silently replacing content.</p></div>
+      <div class="ab-mech"><span class="ab-tag">Council mode</span><h3>3 · Explicit disagreement surfacing</h3><p>Inter-model disagreement is a practical proxy for epistemic uncertainty. Instead of averaging it away, the system reports conflicts in a distinct callout ("Where the models disagreed") and preserves it through every later stage, so the reader knows which claims to verify independently.</p></div>
+      <div class="ab-mech"><span class="ab-tag">Tools toggle (Fast and Balanced)</span><h3>4 · Tool-augmented determinism</h3><p>LLMs are unreliable at exact arithmetic and have no clock. With tools enabled, the model may call <code>calculate</code>, whose input is validated against the grammar <code>^[\d\s+\-*/().]+$</code> and must evaluate to a finite number, or <code>current_datetime</code>. Calls are bounded to 4 rounds per request, results are fed back as <code>tool</code> messages, and every call and result is shown in the workings. Deterministic code replaces stochastic guessing for those two classes of claim.</p></div>
+      <div class="ab-mech"><span class="ab-tag">Prompt conditioning</span><h3>5 · Calibrated, task-specific prompts</h3><p>The <code>FACTUAL</code> prompt instructs the model to say plainly when it is unsure of a fact, and the <code>REASONING</code> prompt elicits step-by-step derivation before the final answer (chain-of-thought), which improves multi-step accuracy and exposes the reasoning to review.</p></div>
+      <div class="ab-mech"><span class="ab-tag">Transparency</span><h3>6 · Auditability and cross-examination</h3><p>The workings panel records every draft, critique, per-provider answer, fallback event and tool trace, and is saved with the chat. Each Council member has a <b>cross-examine</b> form that asks that one model a follow-up conditioned on its own earlier answer, without re-running the pipeline, so a doubtful claim can be interrogated directly.</p></div>
+      <div class="ab-mech"><span class="ab-tag">Reliability</span><h3>7 · Failure containment</h3><p>Provider fallback chains, per-request and per-member deadlines, a deterministic default for routing failure, typed error classification (rate-limit, auth, overload, timeout, CORS, billing) and live health probes shown as status dots keep a failing provider from degrading an answer unnoticed. Empty or truncated completions are detected and reported instead of being shown as answers.</p></div>
+      <div class="ab-mech"><span class="ab-tag">Rendering</span><h3>8 · Safe handling of model output</h3><p>Model text is treated as untrusted input. It is HTML-escaped before the markdown transform, so markup or script injected by a model (including via prompt injection) is displayed as text and never executed. Links are limited to <code>http(s)</code> and open with <code>rel="noopener"</code>, and code is rendered inert in <code>&lt;pre&gt;&lt;code&gt;</code>. Model output is never passed to <code>eval</code>; the calculator accepts only the whitelisted grammar above.</p></div>
+      <div class="ab-mech"><span class="ab-tag">Memory hygiene</span><h3>9 · Bounded, expiring memory</h3><p>Because extracted facts are not re-verified, they expire after <span data-cfg="ttlDays">90</span> days, are capped at 40, and are visible and deletable in the Memory panel. This limits how long a mistaken or stale fact can influence later answers.</p></div>
+
+      <h2 id="ab-safety">5. Improper or unsafe content: scope of protection</h2>
+      <div class="ab-note info">
+        <p><b>AI Council does not contain its own content-moderation classifier or policy engine.</b> Its handling of inappropriate, harmful or policy-violating requests is inherited from the providers it calls. That means the alignment training of each underlying model, plus whatever moderation each provider enforces on its own API.</p>
+        <p>The architecture adds <em>redundancy</em>, not a separate guarantee. In Council mode several independently aligned models answer, and an outlier response is less likely to survive synthesis. The critic, however, is prompted to assess accuracy, completeness and clarity, not policy compliance, so it should not be relied on as a safety filter.</p>
+        <p>Rendering is hardened against injected markup (mechanism 8), but that concerns how output is displayed, not whether its content is appropriate.</p>
+      </div>
+
+      <h2 id="ab-limits">6. Limitations and failure modes</h2>
+      <p>The pipeline lowers the probability of an incorrect answer. It does not eliminate it. Known limits:</p>
+      <ul>
+        <li><b>Correlated errors.</b> Models share training data and common misconceptions. Agreement between them is evidence, not proof; consensus is not ground truth.</li>
+        <li><b>No grounding.</b> There is no retrieval-augmented generation, live web access or citation checking. Claims are not verified against external sources, and model knowledge has a training cut-off.</li>
+        <li><b>LLM-as-judge bias.</b> Critics show verbosity, position and self-preference biases and can approve a wrong answer or object to a correct one.</li>
+        <li><b>Graceful degradation, not equivalence.</b> With one provider connected there is no ensemble, and the critic falls back to the same provider, removing the independence that mechanism 2 relies on. Free-tier rate limits (HTTP 429) and outages likewise shrink the ensemble. If the critic itself is unavailable the draft is passed through unreviewed, and the pipeline bar shows "Critique unavailable".</li>
+        <li><b>Non-determinism.</b> Temperature 0.7 means repeated runs can differ.</li>
+        <li><b>Lossy transforms.</b> The plain-language rewrite and the rolling memory summary compress information and can drop nuance, which is why the technical answer is retained.</li>
+        <li><b>Bounded context.</b> Only the last <span data-cfg="historyLimit">8</span> messages plus the summary and facts are sent to a model.</li>
+        <li><b>Not professional advice.</b> Outputs on medical, legal, financial or safety-critical matters must be checked by a qualified person.</li>
+      </ul>
+
+      <h2 id="ab-data">7. Data handling</h2>
+      <ul>
+        <li><b>Storage.</b> Keys (if remembered), chats, workings, memory and preferences live in this browser's <code>localStorage</code>. There is no AI Council server that receives them.</li>
+        <li><b>What leaves the browser.</b> Your prompts, the recent conversation and the memory preamble are sent to the providers you have connected, under those providers' terms and retention policies. Use only providers whose terms you accept.</li>
+        <li><b>Third-party script.</b> The page loads Google's advertising script. Keys are not passed to it, but as with any third-party script on a page, it runs in the same browsing context.</li>
+        <li><b>Erasure.</b> Delete a chat with ✕ in the sidebar, clear memory with "Forget everything", and remove a key by clearing its field in ⚙&nbsp;Keys (untick "Remember" to avoid storing one).</li>
+      </ul>
+      <p class="ab-foot">AI Council is an independent orchestration front-end and is not affiliated with any of the model providers it can call.</p>
+    </article>
+  </section>
 </div>
 
 <div id="overlay"></div>
@@ -1661,6 +1820,7 @@ function persistCurrentChat(firstQuestion) {
 
 function startNewChat() {
   if (busy) return;
+  if (aboutOn()) setAbout(false);
   currentChatId = null;
   history = [];
   chatEl.innerHTML = `<div class="sysnote">New chat. Long-term memory (🧠) carries over; the conversation itself starts fresh.</div>`;
@@ -1673,6 +1833,7 @@ function loadChat(id) {
   if (busy) return;
   const chat = chats.find(c => c.id === id);
   if (!chat) return;
+  if (aboutOn()) setAbout(false);
   currentChatId = id;
   history = chat.history.slice();
   chatEl.innerHTML = "";
@@ -2584,21 +2745,78 @@ document.addEventListener("keydown", e => {
   }
 });
 
+/* =====================================================================
+   About tab. A second view in the same page (#about), toggled from the header.
+   The numbers quoted in the text are filled in from the live settings, so the
+   page cannot drift out of step with what the code actually does. The provider
+   table is built from CONFIG for the same reason.
+   ===================================================================== */
+const layoutEl = document.getElementById("layout");
+const aboutView = document.getElementById("aboutView");
+const aboutBtn = document.getElementById("aboutBtn");
+function aboutOn() { return layoutEl.classList.contains("about-mode"); }
+function setAbout(on, opts) {
+  const was = aboutOn();
+  layoutEl.classList.toggle("about-mode", on);
+  document.body.classList.toggle("about-mode", on);
+  document.getElementById("abIco").textContent = on ? "💬" : "ℹ️";
+  document.getElementById("abTxt").textContent = on ? " Chat" : " About";
+  aboutBtn.setAttribute("aria-label", on ? "Back to the chat" : "About AI Council");
+  aboutBtn.title = on ? "Back to the chat" : "How AI Council works, and how it reduces incorrect answers";
+  if (on && !was) { aboutView.scrollTop = 0; closeSidebarOnMobile(); }
+  if (!(opts && opts.fromHistory)) {   // keep the browser Back button meaningful
+    try { history_pushAbout(on); } catch (_) {}
+  }
+  if (!on && was) inputEl.focus();
+}
+/* NB: `history` is the chat-history array in this script, so the History API is reached via window.history. */
+function history_pushAbout(on) {
+  window.history.pushState(null, "", on ? "#about" : location.pathname + location.search);
+}
+aboutBtn.addEventListener("click", () => setAbout(!aboutOn()));
+window.addEventListener("popstate", () => setAbout(location.hash === "#about", { fromHistory: true }));
+document.querySelectorAll(".ab-toc a").forEach(a => a.addEventListener("click", e => {
+  e.preventDefault();
+  const t = document.getElementById(a.dataset.target);
+  if (t) t.scrollIntoView({ behavior: "smooth", block: "start" });
+}));
+
+function buildAbout() {
+  const cfg = { historyLimit: CONFIG.historyLimit, timeoutS: CONFIG.timeoutMs / 1000, councilS: CONFIG.councilTimeoutMs / 1000, ttlDays: FACT_TTL_DAYS };
+  aboutView.querySelectorAll("[data-cfg]").forEach(el => { if (cfg[el.dataset.cfg] !== undefined) el.textContent = cfg[el.dataset.cfg]; });
+  const tbody = aboutView.querySelector("#abProviders tbody");
+  tbody.innerHTML = "";
+  const names = { code: "code", creative: "creative writing", factual: "factual Q&A", reasoning: "reasoning" };
+  for (const id of Object.keys(CONFIG.providers)) {
+    const p = CONFIG.providers[id];
+    const roles = Object.keys(CONFIG.specialists).filter(c => CONFIG.specialists[c] === id).map(c => "specialist: " + names[c]);
+    if (id === "groq") roles.push("intent router", "memory extractor");
+    if (id === CONFIG.specialists.factual) roles.push("plain-language rewrite");
+    const tr = document.createElement("tr");
+    for (const text of [p.label, p.workhorse, p.fast, roles.join(", ") || "Council member, critic, fallback"]) {
+      const td = document.createElement("td"); td.textContent = text; tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  }
+}
+
 loadProviderKeys();
 loadMemory();
 loadChats();
 buildSettings();
+buildAbout();
 refreshDots();
 verifyProviders();   // dots go green only once a provider has actually answered
 renderMemoryPanel();
 renderChatList();
+if (location.hash === "#about") setAbout(true, { fromHistory: true });
 inputEl.focus();
 
-/* First-time visitors (no key yet) get the welcome pop-up. */
+/* First-time visitors (no key yet) get the welcome pop-up, except when they arrived on the About page. */
 (function () {
   let never = false;
   try { never = localStorage.getItem(WELCOME_KEY) === "never"; } catch (_) {}
-  if (availableProviders().length === 0 && !never) openWelcome();
+  if (availableProviders().length === 0 && !never && !aboutOn()) openWelcome();
 })();
 </script>
 </body>
