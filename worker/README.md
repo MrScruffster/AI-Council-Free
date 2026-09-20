@@ -36,12 +36,40 @@ Secret names: `GROQ_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`,
 |---|---|---|
 | `POST /api/<provider>` | forwards a chat request to that provider | that provider's key |
 | `POST /api/transcribe` | 🎙️ voice input: forwards a recording to Groq's Whisper (`whisper-large-v3-turbo`, fixed on the server) and returns `{ "text": "…" }` | `GROQ_API_KEY` |
+| `POST /api/upload` | authenticated `multipart/form-data` document upload; validates size, MIME and file signature, then routes `.txt` → LLM-A, `.pdf` → LLM-B, `.docx` → LLM-C | `PROXY_TOKEN`, `LLM_A/B/C_URL`, `LLM_A/B/C_API_KEY` |
 | `GET /trusted-domains` | the website (allowed origin, no token): the merged trusted list as `[host, kind]` pairs, so a visitor's own-key searches get the IFCN/CISA parts too. Domain names only | optional KV `TRUSTED_KV` |
 | `GET` / `POST /trusted` | **you only** (`X-Proxy-Token`): report the trusted list's size and last refresh / refresh it now | optional KV `TRUSTED_KV` |
 
 `/api/*` and `/trusted` sit behind the origin check and `PROXY_TOKEN`. `/api/transcribe` also has a per-IP limit of
 12 requests a minute. That limit is held in each Worker instance's memory, so it stops one browser tab looping
 but is not a hard cap; Groq's own quota is the real ceiling.
+
+### Authenticated document uploads
+
+`POST /api/upload` requires both an allowed `Origin` and the `X-Proxy-Token` header. Send one file field:
+
+```bash
+curl -X POST https://ai-council-proxy.<you>.workers.dev/api/upload \
+  -H "Origin: https://www.ai-council.co.uk" \
+  -H "X-Proxy-Token: <your PROXY_TOKEN>" \
+  -F "file=@notes.txt;type=text/plain"
+```
+
+Uploads are limited to 10 MiB and 10 requests per IP per minute (an in-memory Worker limit, not a global quota).
+Only UTF-8 `.txt`, `%PDF-` `.pdf`, and OOXML `.docx` files with the matching MIME types are accepted. Files are
+held only in request memory and forwarded as multipart data; they are not written to disk or logged. Configure each
+destination URL and key before deployment:
+
+```bash
+npx wrangler secret put PROXY_TOKEN
+npx wrangler secret put LLM_A_API_KEY
+npx wrangler secret put LLM_B_API_KEY
+npx wrangler secret put LLM_C_API_KEY
+```
+
+Set `LLM_A_URL`, `LLM_B_URL`, and `LLM_C_URL` in `wrangler.toml` vars or `.dev.vars` to authenticated server-side
+document-ingestion endpoints. The Worker sends the file, `request_id`, and route label to the selected endpoint and
+returns only the request ID and destination label to the caller. Provider secrets never appear client-side.
 
 ## Voice input, read-aloud & web search
 
