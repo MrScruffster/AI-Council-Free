@@ -1740,6 +1740,19 @@ const TOOLS = {
     available: () => Boolean(runner.token && runner.domains.length),
     run: () => runRunnerAction("extract", {})
   },
+  browser_fill: {
+    description: "Fill one form field in the user's approved isolated browser. This changes page state but never submits a form; always request confirmation.",
+    parameters: {
+      type: "object",
+      properties: {
+        selector: { type: "string", description: "CSS selector for the form field" },
+        value: { type: "string", description: "Value to place in the field" }
+      },
+      required: ["selector", "value"]
+    },
+    available: () => Boolean(runner.token && runner.domains.length),
+    run: args => runRunnerAction("fill", { selector: String(args?.selector || ""), value: String(args?.value || "") })
+  },
   /* The two page tools below only exist for a model when their key is set (and, for Bright Data, the user has ticked it in ⚙ Keys):
      see `available`, which callModelWithToolsRaw() checks both when it lists the tools and when it runs one. */
   fetch_live_page: {
@@ -1778,7 +1791,7 @@ const AGENT_PLAN_SCHEMA = {
         properties: {
           id: { type: "string", minLength: 1, maxLength: 40 },
           description: { type: "string", minLength: 1, maxLength: 300 },
-          tool: { type: "string", enum: ["calculate", "current_datetime", "web_search", "browser_open", "browser_extract"] },
+          tool: { type: "string", enum: ["calculate", "current_datetime", "web_search", "browser_open", "browser_extract", "browser_fill"] },
           input: { type: "object" },
           risk: { type: "string", enum: ["low", "medium", "high"] },
           requires_confirmation: { type: "boolean" },
@@ -1807,7 +1820,7 @@ function agentPlanFromText(raw, goal) {
   const steps = parsed.steps.map((s, i) => {
     if (!s || typeof s !== "object") throw new Error(`Task step ${i + 1} is invalid.`);
     const tool = String(s.tool || "");
-    if (!Object.prototype.hasOwnProperty.call(TOOLS, tool) || !["calculate", "current_datetime", "web_search", "browser_open", "browser_extract"].includes(tool)) {
+    if (!Object.prototype.hasOwnProperty.call(TOOLS, tool) || !["calculate", "current_datetime", "web_search", "browser_open", "browser_extract", "browser_fill"].includes(tool)) {
       throw new Error(`Task step ${i + 1} requested an unsupported tool.`);
     }
     if (TOOLS[tool].available && !TOOLS[tool].available()) throw new Error(`Task step ${i + 1} requested ${tool}, but the local runner is not connected or has no approved domains.`);
@@ -1852,8 +1865,8 @@ async function createAgentPlan(goal, ui) {
   const messages = [
     { role: "system", content:
       "You create safe, read-only task plans for an AI assistant. Return ONLY JSON matching the supplied schema. " +
-      "The executable tools are calculate, current_datetime, web_search, browser_open and browser_extract. Browser tools are available only when the user has connected a local isolated runner and approved domains. Never request form submission, messaging, purchases, deletion, file access or side effects. " +
-      "Use low risk only for harmless local calculation/date steps; web search and browser tools are medium risk and always require confirmation. " +
+      "The executable tools are calculate, current_datetime, web_search, browser_open, browser_extract and browser_fill. Browser tools are available only when the user has connected a local isolated runner and approved domains. Never request form submission, messaging, purchases, deletion, file access or side effects. " +
+      "Use low risk only for harmless local calculation/date steps; web search, browser navigation/extraction, and browser_fill are medium risk and always require confirmation. browser_fill may change a field but must never submit a form. " +
       "Keep steps short, concrete and ordered. Include input values for tools when known." },
     { role: "user", content: `Create a safe task plan for this goal:\n${goal.slice(0, 3000)}` }
   ];

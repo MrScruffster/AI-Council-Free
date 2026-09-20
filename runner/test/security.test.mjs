@@ -27,3 +27,14 @@ test("allows only configured browser origins for CORS preflight", async () => {
     else process.env.AIC_RUNNER_ORIGINS = previous;
   }
 });
+
+test("does not allow an unapproved origin even when the token is known", async () => {
+  const previous = process.env.AIC_RUNNER_ORIGINS;
+  process.env.AIC_RUNNER_ORIGINS = "https://www.ai-council.co.uk";
+  try {
+    assert.equal(allowedOrigin({ headers: { origin: "https://attacker.example" } }), "");
+  } finally {
+    if (previous === undefined) delete process.env.AIC_RUNNER_ORIGINS;
+    else process.env.AIC_RUNNER_ORIGINS = previous;
+  }
+});
