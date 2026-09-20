@@ -21,7 +21,7 @@ npx wrangler secret put GEMINI_API_KEY   # etc.
 npx wrangler secret put PROXY_TOKEN
 ```
 
-Secret names: `GROQ_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `CEREBRAS_API_KEY`,
+Secret names: `GROQ_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`,
 `COHERE_API_KEY`, `SAMBANOVA_API_KEY`, `MISTRAL_API_KEY`.
 
 ## Connect the app
@@ -41,6 +41,6 @@ paid billing. (The Worker still knows the `sambanova` route if you have a paid k
   other origin are rejected, so other websites can't spend your keys.
 - Set `PROXY_TOKEN`. The app keeps the token in memory only (never saved), so re-enter it after reloading the page.
 - A provider with no key in the browser *and* no secret on the Worker will show an error in the council and be skipped; set the secret or ignore it.
-- Only the seven listed providers are reachable; there is no open forwarding.
+- Only the six listed providers are reachable; there is no open forwarding.
 
 Copyright (c) 2026 O. T. Dowling. All rights reserved. See the LICENSE file in the repository root.

@@ -527,7 +527,7 @@
         <li><b>Streaming.</b> Server-sent events (<code>text/event-stream</code>). Token deltas are accumulated and re-rendered on a throttle of at least 80&nbsp;ms; partial control markers are withheld from the display.</li>
         <li><b>Deadlines.</b> An <code>AbortController</code> deadline of <span data-cfg="timeoutS">90</span>&nbsp;s per request. Each Council member additionally races a <span data-cfg="councilS">30</span>&nbsp;s cutoff so one slow provider cannot stall the ensemble (the late response is discarded).</li>
         <li><b>Token budget.</b> <code>max_tokens</code> has a floor of 512. Reasoning-tuned models spend part of the budget on hidden chain-of-thought, and a very small cap would otherwise yield an empty completion.</li>
-        <li><b>Persistence.</b> <code>localStorage</code> holds chats (including their saved workings), long-term memory and preferences. API keys are stored only when "Remember" is ticked.</li>
+        <li><b>Persistence.</b> <code>localStorage</code> holds chats (including their saved workings), long-term memory and preferences. API keys, and the proxy access token, are stored only when "Remember" is ticked.</li>
         <li><b>Optional key-holding proxy.</b> A reverse proxy (Cloudflare Worker) can hold provider keys server-side, guarded by an origin allow-list, a shared-secret header and a fixed provider allow-list. It is disabled by default and is not used by visitors.</li>
       </ul>
       <h3>Providers and roles</h3>
@@ -596,7 +596,7 @@
 
       <h2 id="ab-data">7. Data handling</h2>
       <ul>
-        <li><b>Storage.</b> Keys (if remembered), chats, workings, memory and preferences live in this browser's <code>localStorage</code>. There is no AI Council server that receives them.</li>
+        <li><b>Storage.</b> Keys and the proxy token (only if remembered), chats, workings, memory and preferences live in this browser's <code>localStorage</code>. There is no AI Council server that receives them.</li>
         <li><b>What leaves the browser.</b> Your prompts, the recent conversation and the memory preamble are sent to the providers you have connected, under those providers' terms and retention policies. Use only providers whose terms you accept.</li>
         <li><b>Advertising (Google AdSense).</b> This site loads Google's advertising script. In testing, a plain visit contacted Google's ad and consent-messaging servers (<code>pagead2.googlesyndication.com</code>, <code>fundingchoicesmessages.google.com</code>) and set one Google consent cookie on this domain. AI Council does not pass your keys, prompts or chats to that script. Like any third-party script, though, it executes in the same browsing context as the page, and Google's own privacy terms govern what it collects.</li>
         <li><b>Erasure.</b> Delete a chat with ✕ in the sidebar, clear memory with "Forget everything", and remove a key by clearing its field in ⚙&nbsp;Keys (untick "Remember" to avoid storing one).</li>
@@ -785,8 +785,6 @@ const CONFIG = {
       signIn: "Google · GitHub · Discord · email",
       proxyable: true
     },
-    /* Cerebras was removed: its API answers HTTP 402 "payment required" (quota) for the free accounts we
-       tested, so it cannot be relied on as a free provider. */
     cohere: {
       label: "Cohere",
       url: "https://api.cohere.ai/compatibility/v1/chat/completions",
@@ -1747,15 +1745,37 @@ function loadProviderKeys() {
     const saved = JSON.parse(raw);
     if (Array.isArray(saved.customProviders)) customProviders = saved.customProviders;
     if (saved.rememberedKeys && typeof saved.rememberedKeys === "object") {
+      let dropped = false;
       for (const id of Object.keys(saved.rememberedKeys)) {
         if (CONFIG.providers[id]) {
           CONFIG.providers[id].key = saved.rememberedKeys[id];
           rememberedKeyIds.add(id);
-        }
+        } else dropped = true;
       }
+      rebuildRegistry();
+      if (dropped) saveProviderKeys();   // a key saved for a provider the site no longer offers is erased, not left behind
+      return;
     }
     rebuildRegistry();
   } catch (_) { /* storage unavailable — everything just starts empty */ }
+}
+
+/* The optional key-holding proxy's URL and access token. Held in memory only, unless "Remember" is
+   ticked in ⚙ Keys (the token is a credential, so it is treated exactly like an API key). Before this,
+   they were lost on every reload, which left every provider showing "not connected". */
+const PROXY_KEY = "aicouncil-proxy-v1";
+let proxyRemembered = false;
+function loadProxy() {
+  try {
+    const s = JSON.parse(localStorage.getItem(PROXY_KEY) || "null");
+    if (s && typeof s.url === "string") { CONFIG.proxy.url = s.url; CONFIG.proxy.token = String(s.token || ""); proxyRemembered = true; }
+  } catch (_) {}
+}
+function saveProxy() {
+  try {
+    if (proxyRemembered) localStorage.setItem(PROXY_KEY, JSON.stringify({ url: CONFIG.proxy.url, token: CONFIG.proxy.token }));
+    else localStorage.removeItem(PROXY_KEY);
+  } catch (_) {}
 }
 
 function saveProviderKeys() {
@@ -1782,11 +1802,27 @@ const CHATS_KEY = "aicouncil-chats-v1";
 let chats = [];              // [{id, title, history, updatedAt}]
 let currentChatId = null;
 
+/* Providers the site no longer offers (both are paid-only or unusable from a browser). Chats saved back
+   when they were offered may hold their old "workings" blocks; those are dropped as the chats load. */
+const RETIRED_PROVIDERS = /cerebras|sambanova/i;
+function stripRetiredWorkings(list) {
+  return list.filter(w => {
+    const text = [w.title, typeof w.body === "string" ? w.body : (w.body && (w.body.summary + " " + w.body.raw)), w.xe && w.xe.provId].join(" ");
+    return !RETIRED_PROVIDERS.test(text);
+  });
+}
 function loadChats() {
   try {
     const raw = localStorage.getItem(CHATS_KEY);
     if (raw) { const c = JSON.parse(raw); if (Array.isArray(c)) chats = c; }
   } catch (_) {}
+  let changed = false;
+  for (const c of chats) for (const m of (c.history || [])) {
+    if (!Array.isArray(m.workings)) continue;
+    const kept = stripRetiredWorkings(m.workings);
+    if (kept.length !== m.workings.length) { m.workings = kept; changed = true; }
+  }
+  if (changed) saveChats();
 }
 function saveChats() {
   try {
@@ -2456,25 +2492,29 @@ function buildSettings() {
       <input type="password" id="proxyToken" placeholder="Access token (only if you set PROXY_TOKEN)" autocomplete="off">
       <button class="testbtn" id="proxyTest">Test</button>
     </div>
+    <label class="remember-row"><input type="checkbox" id="proxyRemember"> Remember the proxy URL and token in this browser</label>
     <div class="teststatus" id="proxyStatus"></div>`;
   const purl = proxyCard.querySelector("#proxyUrl");
   const ptok = proxyCard.querySelector("#proxyToken");
+  const prem = proxyCard.querySelector("#proxyRemember");
   const pstat = proxyCard.querySelector("#proxyStatus");
   purl.value = CONFIG.proxy.url;
   ptok.value = CONFIG.proxy.token;
-  purl.addEventListener("input", () => { CONFIG.proxy.url = purl.value; refreshDots(); });
-  ptok.addEventListener("input", () => { CONFIG.proxy.token = ptok.value; });
+  prem.checked = proxyRemembered;
+  purl.addEventListener("input", () => { CONFIG.proxy.url = purl.value; saveProxy(); refreshDots(); });
+  ptok.addEventListener("input", () => { CONFIG.proxy.token = ptok.value; saveProxy(); });
+  prem.addEventListener("change", () => { proxyRemembered = prem.checked; saveProxy(); });
   proxyCard.querySelector("#proxyTest").addEventListener("click", async () => {
-    CONFIG.proxy.url = purl.value; CONFIG.proxy.token = ptok.value;
+    CONFIG.proxy.url = purl.value; CONFIG.proxy.token = ptok.value; saveProxy();
     if (!proxyOn()) { pstat.className = "teststatus err"; pstat.textContent = "No proxy URL entered."; return; }
     pstat.className = "teststatus"; pstat.textContent = "Testing…";
-    const results = [];
-    for (const id of Object.keys(P)) {
+    /* all providers at once: one slow provider no longer holds up the rest */
+    const results = await Promise.all(Object.keys(P).map(async id => {
       try {
         await callModel(id, P[id].fast, [{ role: "user", content: "Reply with the single word: ready" }], 10);
-        results.push("✓ " + P[id].label);
-      } catch (e) { results.push("✗ " + P[id].label + " (" + e.message.slice(0, 80) + ")"); }
-    }
+        return "✓ " + P[id].label;
+      } catch (e) { return "✗ " + P[id].label + " (" + e.message.slice(0, 80) + ")"; }
+    }));
     const allOk = results.every(r => r.startsWith("✓"));
     pstat.className = "teststatus " + (allOk ? "ok" : "err");
     pstat.textContent = results.join("  ·  ");
@@ -2585,7 +2625,7 @@ function renderCustomProviderList() {
    if you already know Anthropic's endpoint shape by heart. Picking one
    pre-fills the form (including the request-shape selector below) — you
    still paste your own key, and it's used directly, never through this
-   app's built-in proxy (which only knows the seven free routes). */
+   app's built-in proxy (which only knows its own fixed routes). */
 const CUSTOM_PROVIDER_PRESETS = {
   claude: { label: "Claude (my own key)", url: "https://api.anthropic.com/v1/messages", model: "claude-sonnet-5", family: "anthropic" },
   openai: { label: "ChatGPT (my own key)", url: "https://api.openai.com/v1/chat/completions", model: "gpt-4o-mini", family: "" },
@@ -2815,6 +2855,7 @@ function buildAbout() {
 }
 
 loadProviderKeys();
+loadProxy();
 loadMemory();
 loadChats();
 buildSettings();

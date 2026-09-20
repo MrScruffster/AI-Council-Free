@@ -15,7 +15,7 @@
  *
  * Secrets (set with `wrangler secret put NAME`, all optional — set only the
  * providers you use):
- *   GROQ_API_KEY  GEMINI_API_KEY  OPENROUTER_API_KEY  CEREBRAS_API_KEY
+ *   GROQ_API_KEY  GEMINI_API_KEY  OPENROUTER_API_KEY
  *   COHERE_API_KEY  SAMBANOVA_API_KEY  MISTRAL_API_KEY
  *   PROXY_TOKEN     — if set, callers must send it as the X-Proxy-Token header
  *                     (paste the same value into the app's ⚙ Keys → proxy card)
@@ -29,7 +29,6 @@ const PROVIDERS = {
   groq:       { url: "https://api.groq.com/openai/v1/chat/completions",                          secret: "GROQ_API_KEY" },
   gemini:     { url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", secret: "GEMINI_API_KEY" },
   openrouter: { url: "https://openrouter.ai/api/v1/chat/completions",                            secret: "OPENROUTER_API_KEY" },
-  cerebras:   { url: "https://api.cerebras.ai/v1/chat/completions",                              secret: "CEREBRAS_API_KEY" },
   cohere:     { url: "https://api.cohere.ai/compatibility/v1/chat/completions",                  secret: "COHERE_API_KEY" },
   sambanova:  { url: "https://api.sambanova.ai/v1/chat/completions",                             secret: "SAMBANOVA_API_KEY" },
   mistral:    { url: "https://api.mistral.ai/v1/chat/completions",                               secret: "MISTRAL_API_KEY" }
