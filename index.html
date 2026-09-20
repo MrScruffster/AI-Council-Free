@@ -1051,6 +1051,8 @@ pip install requests oss2 pyspark</code></pre>
       key you type directly into a provider card below is used instead of the built-in proxy for
       that provider, and stays in this browser only if you tick "Remember this key".
     </p>
+    <div class="section-label">Local browser runner</div>
+    <div id="runnerSettings"></div>
     <!-- provider cards injected here -->
     <div class="section-label" id="customSectionLabel">Custom providers</div>
     <div id="customProviderList"></div>
@@ -1590,6 +1592,60 @@ async function callModelRaw(providerId, model, messages, maxTokens, onDelta, opt
    generate() falls back to the next available provider, same as elsewhere
    in this app. This is best-effort, not a guarantee every provider here
    supports tool calling. */
+const RUNNER_KEY = "aicouncil-runner-v1";
+const runner = { url: "http://127.0.0.1:8787", token: "", domains: [], remembered: false, taskId: "" };
+function loadRunnerConfig() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(RUNNER_KEY) || "null");
+    if (saved) Object.assign(runner, saved);
+  } catch (_) {}
+  runner.domains = Array.isArray(runner.domains) ? runner.domains.filter(Boolean).slice(0, 20) : [];
+}
+function saveRunnerConfig() {
+  try {
+    if (runner.remembered) localStorage.setItem(RUNNER_KEY, JSON.stringify({ url: runner.url, token: runner.token, domains: runner.domains, remembered: true }));
+    else localStorage.removeItem(RUNNER_KEY);
+  } catch (_) {}
+}
+async function runnerRequest(path, options = {}) {
+  if (!runner.url || !runner.token) throw new Error("Set the runner URL and token in Settings first.");
+  let endpoint;
+  try { endpoint = new URL(runner.url); } catch (_) { throw new Error("Runner URL is invalid."); }
+  if (!["http:", "https:"].includes(endpoint.protocol) || !["127.0.0.1", "localhost", "::1"].includes(endpoint.hostname)) {
+    throw new Error("For safety, the browser runner must be on this computer (localhost).");
+  }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000);
+  try {
+    const response = await fetch(runner.url.replace(/\/+$/, "") + path, {
+      ...options, signal: controller.signal,
+      headers: { "Content-Type": "application/json", "X-AI-Council-Token": runner.token, ...(options.headers || {}) }
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || `Runner returned HTTP ${response.status}.`);
+    return body;
+  } finally { clearTimeout(timeout); }
+}
+async function testRunner() {
+  return runnerRequest("/health");
+}
+async function ensureRunnerTask() {
+  if (runner.taskId && runner.domains.length) return runner.taskId;
+  if (!runner.domains.length) throw new Error("Approve at least one browser domain in Settings first.");
+  const result = await runnerRequest("/v1/tasks", { method: "POST", body: JSON.stringify({ domains: runner.domains }) });
+  runner.taskId = result.taskId;
+  return runner.taskId;
+}
+async function runRunnerAction(command, input) {
+  const taskId = await ensureRunnerTask();
+  return runnerRequest(`/v1/tasks/${encodeURIComponent(taskId)}/action`, { method: "POST", body: JSON.stringify({ command, ...input }) });
+}
+async function stopRunnerTask() {
+  if (!runner.taskId) return;
+  const id = runner.taskId; runner.taskId = "";
+  try { await runnerRequest(`/v1/tasks/${encodeURIComponent(id)}/stop`, { method: "POST" }); } catch (_) {}
+}
+
 const TOOLS = {
   calculate: {
     description: "Evaluate a basic arithmetic expression. Only digits, + - * / ( ) and decimals — no variables or functions.",
@@ -1638,6 +1694,18 @@ const TOOLS = {
       return r;
     }
   },
+  browser_open: {
+    description: "Open an HTTPS page in the user's approved isolated browser. Never use for login, purchases, submissions or other side effects.",
+    parameters: { type: "object", properties: { url: { type: "string", description: "HTTPS URL on an approved domain" } }, required: ["url"] },
+    available: () => Boolean(runner.token && runner.domains.length),
+    run: args => runRunnerAction("open", { url: String(args?.url || "") })
+  },
+  browser_extract: {
+    description: "Extract visible text from the currently open page in the user's approved isolated browser.",
+    parameters: { type: "object", properties: {} },
+    available: () => Boolean(runner.token && runner.domains.length),
+    run: () => runRunnerAction("extract", {})
+  },
   /* The two page tools below only exist for a model when their key is set (and, for Bright Data, the user has ticked it in ⚙ Keys):
      see `available`, which callModelWithToolsRaw() checks both when it lists the tools and when it runs one. */
   fetch_live_page: {
@@ -1676,7 +1744,7 @@ const AGENT_PLAN_SCHEMA = {
         properties: {
           id: { type: "string", minLength: 1, maxLength: 40 },
           description: { type: "string", minLength: 1, maxLength: 300 },
-          tool: { type: "string", enum: ["calculate", "current_datetime", "web_search"] },
+          tool: { type: "string", enum: ["calculate", "current_datetime", "web_search", "browser_open", "browser_extract"] },
           input: { type: "object" },
           risk: { type: "string", enum: ["low", "medium", "high"] },
           requires_confirmation: { type: "boolean" },
@@ -1705,9 +1773,10 @@ function agentPlanFromText(raw, goal) {
   const steps = parsed.steps.map((s, i) => {
     if (!s || typeof s !== "object") throw new Error(`Task step ${i + 1} is invalid.`);
     const tool = String(s.tool || "");
-    if (!Object.prototype.hasOwnProperty.call(TOOLS, tool) || !["calculate", "current_datetime", "web_search"].includes(tool)) {
+    if (!Object.prototype.hasOwnProperty.call(TOOLS, tool) || !["calculate", "current_datetime", "web_search", "browser_open", "browser_extract"].includes(tool)) {
       throw new Error(`Task step ${i + 1} requested an unsupported tool.`);
     }
+    if (TOOLS[tool].available && !TOOLS[tool].available()) throw new Error(`Task step ${i + 1} requested ${tool}, but the local runner is not connected or has no approved domains.`);
     const risk = ["low", "medium", "high"].includes(s.risk) ? s.risk : "high";
     return {
       id: String(s.id || `step-${i + 1}`).slice(0, 40),
@@ -1749,8 +1818,8 @@ async function createAgentPlan(goal, ui) {
   const messages = [
     { role: "system", content:
       "You create safe, read-only task plans for an AI assistant. Return ONLY JSON matching the supplied schema. " +
-      "The only executable tools are calculate, current_datetime and web_search. Never request browser control, form submission, messaging, purchases, deletion, file access or side effects. " +
-      "Use low risk only for harmless local calculation/date steps; web search is medium risk and always requires confirmation. " +
+      "The executable tools are calculate, current_datetime, web_search, browser_open and browser_extract. Browser tools are available only when the user has connected a local isolated runner and approved domains. Never request form submission, messaging, purchases, deletion, file access or side effects. " +
+      "Use low risk only for harmless local calculation/date steps; web search and browser tools are medium risk and always require confirmation. " +
       "Keep steps short, concrete and ordered. Include input values for tools when known." },
     { role: "user", content: `Create a safe task plan for this goal:\n${goal.slice(0, 3000)}` }
   ];
@@ -4622,15 +4691,17 @@ async function runAgentTask(goal, ui) {
       }
       if (plan.steps.every(s => ["completed", "rejected", "failed", "stopped"].includes(s.status))) {
         task.done = true;
+        stopRunnerTask();
         stopAgentEl.classList.remove("visible");
         agentRun = null;
       }
       if (task.render) task.render();
     });
     ui.working("Agent plan", plan.steps.map((s, i) => `${i + 1}. ${s.description} [${s.tool}, ${s.risk} risk]`).join("\n"));
-    return "The agent created a plan above. Approve each step to run the permitted read-only tools. Browser actions are not available yet.";
+    return "The agent created a plan above. Approve each step to run the permitted read-only tools. Browser actions require the connected local runner and approved domains shown in Settings.";
   } catch (e) {
     if (task.stopped) {
+      stopRunnerTask();
       agentRun = null;
       stopAgentEl.classList.remove("visible");
       return "The agent was stopped before it could create a plan.";
@@ -4645,6 +4716,7 @@ stopAgentEl.addEventListener("click", () => {
   if (!agentRun) return;
   const task = agentRun;
   task.stopped = true;
+  stopRunnerTask();
   if (task.render) task.render();
   agentRun = null;
   stopAgentEl.classList.remove("visible");
@@ -4881,14 +4953,14 @@ function refreshStructToggle() {
   const council = mode === "council", agent = mode === "agent", blockedByTools = toolsEnabled && !council;
   structToggleEl.disabled = council || agent || blockedByTools;
   structToggleEl.title = council ? "Not available in Council mode. Switch to Fast or Balanced to use structured output."
-    : agent ? "Agent plans use a fixed safety schema."
+    : agent ? "Agent plans use a fixed safety schema and the optional approved local browser runner."
     : blockedByTools ? "Turn off 🔧 Tools first: tool calls need the model to answer in steps, which a JSON-only reply can't do."
     : "Get the answer as JSON in a shape you choose. Paste a JSON Schema or an example object; the reply is checked against it. Best-effort: how strictly it is enforced depends on the provider. Fast/Balanced only. In Balanced the plain-English rewrite is skipped.";
   structToggleEl.classList.toggle("active", structEnabled && !council);
   structToggleEl.textContent = "🧩 JSON: " + (structEnabled && !council ? "on" : "off");
   structPanelEl.hidden = !structActive();
   toggleNoteEl.textContent = council ? "🔧 Tools and 🧩 Structured output work with a single model: switch to Fast or Balanced to use them."
-    : agent ? "Agent mode creates a validated plan and requires approval before each permitted read-only step. Browser automation is not connected yet."
+    : agent ? "Agent mode creates a validated plan and requires approval before each permitted read-only step. Browser actions require the optional local runner and approved domains."
     : structActive() ? "🔧 Tools is unavailable while 🧩 Structured output is on: the reply has to be JSON only, and tool calls need the model to answer in steps."
     : blockedByTools ? "🧩 Structured output is unavailable while 🔧 Tools is on: tool calls need the model to answer in steps, which a JSON-only reply can't do. Turn Tools off to use it."
     : "";
@@ -5224,6 +5296,40 @@ document.getElementById("provDots").addEventListener("click", () => verifyProvid
 function buildSettings() {
   const body = document.getElementById("settingsBody");
   const anchor = document.getElementById("customSectionLabel");
+
+  const runnerCard = document.createElement("div");
+  runnerCard.className = "prov-card";
+  runnerCard.innerHTML = `
+    <h3>🧭 Isolated browser runner — optional</h3>
+    <div class="hint">Connect only to a runner you started locally. Agent browser actions are limited to these approved HTTPS domains and never receive provider keys.</div>
+    <div class="keyrow" style="margin-bottom:8px"><input type="url" id="runnerUrl" placeholder="http://127.0.0.1:8787" autocomplete="off"></div>
+    <div class="keyrow" style="margin-bottom:8px"><input type="password" id="runnerToken" placeholder="Runner token" autocomplete="off"><button class="testbtn" id="runnerTest">Test</button></div>
+    <div class="keyrow"><input type="text" id="runnerDomains" placeholder="Approved domains, comma-separated (example.com, docs.example.com)" autocomplete="off"></div>
+    <label class="remember-row"><input type="checkbox" id="runnerRemember"> Remember runner settings in this browser</label>
+    <div class="teststatus" id="runnerStatus"></div>`;
+  document.getElementById("runnerSettings").appendChild(runnerCard);
+  const rurl = runnerCard.querySelector("#runnerUrl");
+  const rtok = runnerCard.querySelector("#runnerToken");
+  const rdom = runnerCard.querySelector("#runnerDomains");
+  const rrem = runnerCard.querySelector("#runnerRemember");
+  const rstat = runnerCard.querySelector("#runnerStatus");
+  rurl.value = runner.url; rtok.value = runner.token; rdom.value = runner.domains.join(", "); rrem.checked = runner.remembered;
+  const updateRunner = () => {
+    runner.url = rurl.value.trim().replace(/\/+$/, "");
+    runner.token = rtok.value.trim();
+    runner.domains = rdom.value.split(",").map(x => x.trim().toLowerCase().replace(/^\*\./, "")).filter(Boolean).slice(0, 20);
+    runner.remembered = rrem.checked; runner.taskId = ""; saveRunnerConfig();
+  };
+  [rurl, rtok, rdom].forEach(el => el.addEventListener("input", updateRunner));
+  rrem.addEventListener("change", updateRunner);
+  runnerCard.querySelector("#runnerTest").addEventListener("click", async () => {
+    updateRunner(); rstat.className = "teststatus"; rstat.textContent = "Testing…";
+    try {
+      const result = await testRunner();
+      rstat.className = "teststatus ok"; rstat.textContent = `✓ Connected (${result.service || "runner"})`;
+    } catch (e) { rstat.className = "teststatus err"; rstat.textContent = "✗ " + e.message.slice(0, 160); }
+  });
+  body.insertBefore(runnerCard, anchor);
 
   /* --- proxy card (keyless mode) --- */
   const proxyCard = document.createElement("div");
@@ -6051,6 +6157,7 @@ loadSearchKey();
 loadMemory();
 loadFolders();
 loadChats();
+loadRunnerConfig();
 buildSettings();
 buildAbout();
 renderEmptyState(true);
