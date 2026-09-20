@@ -16,6 +16,8 @@ test("frontend contains the critical startup controls", async () => {
   }
   assert.match(html, /loadRunnerConfig\(\)/);
   assert.match(html, /COUNCIL_DECISION_SCHEMA/);
+  assert.match(html, /data-mode="evidence"/);
+  assert.match(html, /Evidence unavailable/);
 });
 
 test("all inline frontend scripts pass Node syntax validation", async () => {
