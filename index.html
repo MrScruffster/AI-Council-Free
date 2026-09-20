@@ -17,6 +17,12 @@
 <meta property="og:description" content="Ask several AI models at once, with cross-model checking and disagreements flagged.">
 <meta property="og:url" content="https://www.ai-council.co.uk/">
 <meta name="theme-color" content="#171a23">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="AI Council">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%234a67e8'/%3E%3Ctext x='50' y='67' font-size='54' font-weight='700' font-family='Arial,sans-serif' text-anchor='middle' fill='white'%3EAI%3C/text%3E%3C/svg%3E">
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5031821812267596"
      crossorigin="anonymous"></script>
@@ -251,6 +257,70 @@
   .json-note, .json-tier { font-size: .74rem; color: var(--text-dim); margin-top: 6px; }
   .json-rawd { margin-top: 8px; } .json-rawd summary { cursor: pointer; font-size: .76rem; color: var(--text-dim); }
   .json-rawd pre { margin: 6px 0 0; max-height: 240px; overflow: auto; white-space: pre-wrap; word-break: break-word; font-size: .76rem; }
+  /* chat folders, tags and search (sidebar) + the open-chat bar (folder / tags / export / print) */
+  #chatFind { padding: 0 12px 6px; }
+  #chatSearch { width: 100%; background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 6px 9px; font-family: inherit; font-size: .8rem; outline: none; }
+  #chatSearch:focus { border-color: var(--accent); }
+  #folderBar { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 12px 8px; }
+  .fchip { background: var(--panel-2); color: var(--text-dim); border: 1px solid var(--border); border-radius: 999px; padding: 2px 9px; font-size: .72rem; font-family: inherit; cursor: pointer; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fchip:hover { border-color: var(--accent); color: var(--text); }
+  .fchip.active { border-color: var(--accent); color: var(--accent); }
+  .fchip.fadd, .fchip.fact { padding: 2px 8px; }
+  .fchip.fdel:hover { border-color: var(--err); color: var(--err); }
+  .chat-item .cmain { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .chat-item .cmeta { display: flex; flex-wrap: wrap; gap: 3px; font-size: .66rem; }
+  .chat-item .ctag, .chat-item .cfolder { border-radius: 999px; padding: 0 6px; border: 1px solid var(--border); color: var(--text-dim); background: none; font-family: inherit; font-size: inherit; cursor: pointer; }
+  .chat-item .ctag:hover { border-color: var(--accent); color: var(--accent); }
+  .chat-item .cfolder { cursor: default; opacity: .8; }
+  .chat-item .cmv { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: .8rem; padding: 0 2px; visibility: hidden; flex: none; }
+  .chat-item:hover .cmv, .chat-item .cmv:focus-visible { visibility: visible; }
+  @media (hover: none) { .chat-item .cmv, .chat-item .cx { visibility: visible; } }
+  .list-empty { font-size: .76rem; color: var(--text-dim); padding: 8px 10px; }
+  .move-menu { position: fixed; z-index: 60; min-width: 160px; max-width: 240px; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 4px; box-shadow: 0 8px 24px rgba(0,0,0,.45); }
+  .move-menu button { display: block; width: 100%; text-align: left; background: none; border: none; color: var(--text); padding: 6px 10px; border-radius: 6px; font-family: inherit; font-size: .8rem; cursor: pointer; }
+  .move-menu button:hover { background: var(--panel-2); }
+  .move-menu .mm-head { font-size: .68rem; color: var(--text-dim); padding: 4px 10px 2px; }
+  #chatBar { display: none; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 6px max(16px, env(safe-area-inset-right)) 6px max(16px, env(safe-area-inset-left)); background: var(--panel); border-bottom: 1px solid var(--border); font-size: .76rem; color: var(--text-dim); }
+  #chatBar.on { display: flex; }
+  #layout.about-mode #chatBar { display: none; }
+  #chatBar select, #chatBar input { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 3px 6px; font-family: inherit; font-size: .76rem; outline: none; max-width: 150px; }
+  #chatBar input { width: 110px; }
+  #chatBar select:focus, #chatBar input:focus { border-color: var(--accent); }
+  #cbTags { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+  .cbtag { display: inline-flex; align-items: center; gap: 3px; border: 1px solid var(--border); border-radius: 999px; padding: 0 4px 0 8px; color: var(--text); }
+  .cbtag button { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: .8rem; padding: 0 3px; }
+  .cbtag button:hover { color: var(--err); }
+  #chatBar .cb-btn { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 3px 9px; font-family: inherit; font-size: .76rem; cursor: pointer; }
+  #chatBar .cb-btn:hover { border-color: var(--accent); }
+  #chatBar .cb-gap { flex: 1; }
+
+  /* starter prompt templates on the empty-chat screen */
+  .es-tpl-head { font-size: .78rem; color: var(--text-dim); margin: 14px 0 6px; }
+  .es-tpls { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .es-tpl { display: flex; flex-direction: column; align-items: center; gap: 4px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 6px; color: var(--text); cursor: pointer; font-family: inherit; font-size: .78rem; text-align: center; }
+  .es-tpl:hover { border-color: var(--accent); }
+  .es-tpl .ti { font-size: 1.3rem; line-height: 1; }
+  @media (max-width: 640px) { .es-tpls { grid-template-columns: repeat(2, 1fr); } }
+
+  /* shown when the browser is offline (the app shell still loads; AI answers need a connection) */
+  #offlineBar { display: none; background: rgba(229, 181, 103, .12); border-bottom: 1px solid rgba(229, 181, 103, .4); color: var(--warn); font-size: .76rem; padding: 5px 16px; text-align: center; }
+  #offlineBar.on { display: block; }
+
+  /* Print / Save as PDF: only the conversation, on white paper */
+  @media print {
+    html, body { height: auto !important; overflow: visible !important; background: #fff !important; color: #111 !important; display: block !important; }
+    header, #sidebar, #composer, #chatBar, #toggleNote, #structPanel, #micStatus, #offlineBar, #aboutView, .es, .workings, .read-aloud, .run-bar, .run-out, .json-copy, .msg .pipeline, .toast, #welcome { display: none !important; }
+    #layout { display: block !important; height: auto !important; overflow: visible !important; }
+    #maincol, #chat { display: block !important; overflow: visible !important; height: auto !important; padding: 0 !important; }
+    .msg { break-inside: avoid-page; max-width: 100% !important; margin: 0 0 12px !important; align-self: auto !important; }
+    .msg .bubble { background: #fff !important; color: #111 !important; border: 1px solid #ccc !important; box-shadow: none !important; }
+    .msg.user .bubble { background: #eef1f8 !important; }
+    .msg a { color: #1a3fb0 !important; }
+    pre, .diagram, .json-viewer, .sources-box, .disagreement-box, .caution-box { background: #f6f7fa !important; color: #111 !important; border-color: #ccc !important; }
+    details.tech > summary { display: none; }
+    details.tech:not([open]) > .tech-body { display: block; }
+  }
+
   /* token usage table in the Keys drawer */
   .tok-table { border-collapse: collapse; width: 100%; font-size: .74rem; }
   .tok-table th, .tok-table td { text-align: right; padding: 5px 6px; border-bottom: 1px solid var(--border); white-space: nowrap; }
@@ -591,6 +661,7 @@
 </head>
 <body>
 
+<div id="offlineBar" role="status">You're offline. The app itself still loads, but AI answers need an internet connection.</div>
 <header>
   <button class="icon-btn" id="sidebarBtn" title="Hide the chat list" aria-label="Chat list" aria-controls="sidebar" aria-expanded="true">☰</button>
   <h1>AI <span>Council</span></h1>
@@ -614,6 +685,8 @@
 <div id="layout">
   <nav id="sidebar">
     <button id="newChat">＋ New chat</button>
+    <div id="chatFind"><input id="chatSearch" type="search" placeholder="Search chats…" aria-label="Search chats by title, tag or content" autocomplete="off"></div>
+    <div id="folderBar" aria-label="Folders"></div>
     <div id="chatList"></div>
     <div class="global-count" id="globalCount" hidden role="group" aria-label="Questions asked on AI Council by everyone">
       <div class="gc-num" id="gcNum" aria-hidden="true">—</div>
@@ -627,6 +700,14 @@
     <div class="sidebar-note">Your chats and memory stay in this browser only. Use Export to keep a backup — clearing site data erases them.</div>
   </nav>
   <div id="maincol">
+    <div id="chatBar" role="toolbar" aria-label="This chat">
+      <label>📁 <select id="cbFolder" aria-label="Folder for this chat"></select></label>
+      <span id="cbTags"></span>
+      <input id="cbTagInput" type="text" maxlength="24" placeholder="＋ tag" aria-label="Add a tag to this chat (press Enter)">
+      <span class="cb-gap"></span>
+      <button type="button" class="cb-btn" id="cbExport" title="Download this chat as one self-contained HTML file (no scripts, no API keys)">⬇ Export as HTML</button>
+      <button type="button" class="cb-btn" id="cbPrint" title="Print this chat, or choose “Save as PDF” in the print dialog">🖨 Print / Save as PDF</button>
+    </div>
     <main id="chat"><!-- the welcome / starter-question panel is rendered by renderEmptyState() --></main>
     <div id="toggleNote" role="status" aria-live="polite"></div>
     <div id="structPanel" hidden>
@@ -1029,6 +1110,20 @@ const CONFIG = {
    provider is added or removed, and everything downstream reads from it.
    ===================================================================== */
 let customProviders = [];   // [{id, label, url, key, workhorse, fast, keyUrl, remember}]
+/* Starter prompt templates shown as cards on the empty-chat screen. To add one, add a { icon, label, prompt } line: put
+   [square-bracket placeholders] in the prompt where the user should type something. Clicking a card only pre-fills the
+   message box (and selects the first placeholder); it never sends anything. */
+const STARTER_TEMPLATES = [
+  { icon: "✉️", label: "Draft an email",   prompt: "Write a [friendly / formal] email to [recipient] about [topic]. Keep it under [150] words and end with a clear next step." },
+  { icon: "📝", label: "Summarise text",   prompt: "Summarise the following in [5] bullet points for [audience]:\n\n[paste text here]" },
+  { icon: "🐛", label: "Debug my code",    prompt: "This [language] code should [what it should do] but instead [what happens]. Find the bug and explain the fix:\n\n[paste code here]" },
+  { icon: "🎓", label: "Explain simply",   prompt: "Explain [topic] to me as if I were [a 12-year-old / a beginner / a busy manager]. Use one everyday analogy." },
+  { icon: "⚖️", label: "Compare options",  prompt: "Compare [option A] and [option B] for [my situation]. Give a short list of pros and cons for each, then a recommendation." },
+  { icon: "🗓️", label: "Make a plan",      prompt: "Make a [number]-step plan to [goal] by [deadline], given that [constraints]." },
+  { icon: "🔍", label: "Fact-check a claim", prompt: "Fact-check this claim, say how confident you are, and say what sources would settle it: [paste claim here]" },
+  { icon: "🌍", label: "Translate",        prompt: "Translate the following into [language], keeping a [formal / casual] tone:\n\n[paste text here]" }
+];
+
 let P = {};
 
 function rebuildRegistry() {
@@ -2462,7 +2557,7 @@ function saveChats() {
 function persistCurrentChat(firstQuestion) {
   if (currentChatId === null) {
     currentChatId = String(Date.now());
-    chats.push({ id: currentChatId, title: firstQuestion.slice(0, 60), history: [], updatedAt: Date.now() });
+    chats.push({ id: currentChatId, title: firstQuestion.slice(0, 60), history: [], updatedAt: Date.now(), folder: userFolders.includes(activeFolder) ? activeFolder : DEFAULT_FOLDER, tags: [] });
   }
   const chat = chats.find(c => c.id === currentChatId);
   if (!chat) return;
@@ -2514,25 +2609,268 @@ function deleteChat(id) {
   else renderChatList();
 }
 
+/* ---------- folders, tags and search ----------
+   Each chat may carry an optional { folder, tags } (additive: chats saved before this feature have neither and simply
+   count as "General" with no tags, so nothing needs migrating). The list of folders the user created is kept apart under
+   FOLDERS_KEY; "General" always exists. Search is a plain client-side substring match over title, tags, folder and messages. */
+const FOLDERS_KEY = "aicouncil-folders-v1";
+const DEFAULT_FOLDER = "General";
+const MAX_TAGS = 8;
+let userFolders = [];        // folders the user created, in creation order (General is implied)
+let activeFolder = "*";      // "*" = All chats, otherwise a folder name
+let chatQuery = "";
+function cleanFolderName(s) { return String(s || "").replace(/\s+/g, " ").trim().slice(0, 30); }
+function cleanTag(s) { return String(s || "").replace(/[\s,#]+/g, " ").trim().slice(0, 24).toLowerCase(); }
+function loadFolders() {
+  try {
+    const a = JSON.parse(localStorage.getItem(FOLDERS_KEY));
+    if (Array.isArray(a)) userFolders = a.map(cleanFolderName).filter((n, i, arr) => n && n.toLowerCase() !== DEFAULT_FOLDER.toLowerCase() && arr.indexOf(n) === i).slice(0, 50);
+  } catch (_) {}
+}
+function saveFolders() { try { localStorage.setItem(FOLDERS_KEY, JSON.stringify(userFolders)); } catch (_) {} }
+function allFolders() { return [DEFAULT_FOLDER, ...userFolders]; }
+function folderOf(chat) { return chat && chat.folder && allFolders().includes(chat.folder) ? chat.folder : DEFAULT_FOLDER; }
+function tagsOf(chat) { return chat && Array.isArray(chat.tags) ? chat.tags : []; }
+function createFolder(name) {
+  name = cleanFolderName(name);
+  if (!name) return null;
+  const existing = allFolders().find(f => f.toLowerCase() === name.toLowerCase());
+  if (existing) return existing;
+  if (userFolders.length >= 50) { flashSideNote("That's the maximum of 50 folders."); return null; }
+  userFolders.push(name); saveFolders();
+  return name;
+}
+function moveChatToFolder(chat, folder) {
+  if (!chat || !allFolders().includes(folder)) return;
+  chat.folder = folder;
+  saveChats(); renderChatList();
+}
+function setChatTags(chat, tags) {
+  chat.tags = [...new Set(tags.map(cleanTag).filter(Boolean))].slice(0, MAX_TAGS);
+  saveChats(); renderChatList();
+}
+function renameFolder(oldName, newName) {
+  newName = cleanFolderName(newName);
+  if (!newName || newName === oldName || !userFolders.includes(oldName)) return;
+  if (allFolders().some(f => f.toLowerCase() === newName.toLowerCase() && f !== oldName)) { flashSideNote("A folder with that name already exists."); return; }
+  userFolders = userFolders.map(f => f === oldName ? newName : f); saveFolders();
+  for (const c of chats) if (c.folder === oldName) c.folder = newName;
+  if (activeFolder === oldName) activeFolder = newName;
+  saveChats(); renderChatList();
+}
+function deleteFolder(name) {
+  if (!userFolders.includes(name)) return;
+  userFolders = userFolders.filter(f => f !== name); saveFolders();
+  for (const c of chats) if (c.folder === name) c.folder = DEFAULT_FOLDER;   // the chats themselves are never deleted
+  if (activeFolder === name) activeFolder = "*";
+  saveChats(); renderChatList();
+}
+function chatMatches(chat, q) {
+  const hay = [chat.title || "", folderOf(chat), tagsOf(chat).join(" "), ...(chat.history || []).map(m => m.content)].join("\n").toLowerCase();
+  return q.toLowerCase().split(/\s+/).filter(Boolean).every(t => hay.includes(t));
+}
+
+let moveMenuEl = null;
+function closeMoveMenu() { if (moveMenuEl) { moveMenuEl.remove(); moveMenuEl = null; } }
+function openMoveMenu(chat, anchor) {
+  closeMoveMenu();
+  const m = document.createElement("div");
+  m.className = "move-menu"; m.setAttribute("role", "menu");
+  const head = document.createElement("div"); head.className = "mm-head"; head.textContent = "Move to folder"; m.appendChild(head);
+  for (const f of allFolders()) {
+    const b = document.createElement("button"); b.type = "button"; b.setAttribute("role", "menuitem"); b.dataset.folder = f;
+    b.textContent = (folderOf(chat) === f ? "✓ " : "") + f;
+    b.addEventListener("click", e => { e.stopPropagation(); moveChatToFolder(chat, f); closeMoveMenu(); });
+    m.appendChild(b);
+  }
+  const nb = document.createElement("button"); nb.type = "button"; nb.setAttribute("role", "menuitem"); nb.dataset.new = "1"; nb.textContent = "＋ New folder…";
+  nb.addEventListener("click", e => { e.stopPropagation(); closeMoveMenu(); const n = createFolder(prompt("Name for the new folder:") || ""); if (n) moveChatToFolder(chat, n); });
+  m.appendChild(nb);
+  document.body.appendChild(m); moveMenuEl = m;
+  const r = anchor.getBoundingClientRect();
+  m.style.left = Math.max(8, Math.min(r.left, window.innerWidth - m.offsetWidth - 8)) + "px";
+  m.style.top = Math.max(8, Math.min(r.bottom + 4, window.innerHeight - m.offsetHeight - 8)) + "px";
+}
+document.addEventListener("click", e => { if (moveMenuEl && !moveMenuEl.contains(e.target)) closeMoveMenu(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeMoveMenu(); });
+
+function renderFolderBar() {
+  const bar = document.getElementById("folderBar");
+  bar.innerHTML = "";
+  const count = f => chats.filter(c => f === "*" || folderOf(c) === f).length;
+  const chip = (label, folder, cls) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "fchip" + (cls ? " " + cls : "") + (folder !== undefined && folder === activeFolder && !chatQuery ? " active" : "");
+    b.textContent = label;
+    if (folder !== undefined) { b.dataset.folder = folder; b.addEventListener("click", () => { activeFolder = folder; chatQuery = ""; document.getElementById("chatSearch").value = ""; renderChatList(); }); }
+    bar.appendChild(b); return b;
+  };
+  chip("All chats (" + count("*") + ")", "*");
+  for (const f of allFolders()) chip(f + " (" + count(f) + ")", f).title = "Show only chats in " + f;
+  const add = chip("＋ Folder", undefined, "fadd"); add.title = "Create a folder";
+  add.addEventListener("click", () => { const n = createFolder(prompt("Name for the new folder:") || ""); if (n) { activeFolder = n; chatQuery = ""; document.getElementById("chatSearch").value = ""; renderChatList(); } });
+  if (userFolders.includes(activeFolder) && !chatQuery) {
+    const ren = chip("✎ Rename", undefined, "fact"); ren.title = "Rename this folder";
+    ren.addEventListener("click", () => { const n = prompt("Rename folder “" + activeFolder + "” to:", activeFolder); if (n) renameFolder(activeFolder, n); });
+    const del = chip("🗑 Delete", undefined, "fact fdel"); del.title = "Delete this folder (its chats move to General; no chat is deleted)";
+    del.addEventListener("click", () => { if (confirm("Delete the folder “" + activeFolder + "”? Its chats are kept and move to General.")) deleteFolder(activeFolder); });
+  }
+}
+
 function renderChatList() {
   const list = document.getElementById("chatList");
+  renderFolderBar();
   list.innerHTML = "";
-  [...chats].sort((a, b) => b.updatedAt - a.updatedAt).forEach(chat => {
+  const q = chatQuery.trim();
+  const shown = [...chats].filter(c => q ? chatMatches(c, q) : (activeFolder === "*" || folderOf(c) === activeFolder)).sort((a, b) => b.updatedAt - a.updatedAt);
+  if (!shown.length) {
+    const e = document.createElement("div"); e.className = "list-empty";
+    e.textContent = q ? "No chats match “" + q + "”." : activeFolder === "*" ? "No chats yet." : "No chats in this folder yet.";
+    list.appendChild(e);
+  }
+  shown.forEach(chat => {
     const item = document.createElement("div");
     item.className = "chat-item" + (chat.id === currentChatId ? " active" : "");
+    item.dataset.chat = chat.id;
+    const main = document.createElement("div"); main.className = "cmain";
     const title = document.createElement("span");
     title.className = "ct";
     title.textContent = chat.title || "Untitled";
+    main.appendChild(title);
+    const tags = tagsOf(chat), showFolder = (activeFolder === "*" || q) && folderOf(chat) !== DEFAULT_FOLDER;
+    if (tags.length || showFolder) {
+      const meta = document.createElement("div"); meta.className = "cmeta";
+      if (showFolder) { const f = document.createElement("span"); f.className = "cfolder"; f.textContent = "📁 " + folderOf(chat); meta.appendChild(f); }
+      for (const t of tags) {
+        const tb = document.createElement("button"); tb.type = "button"; tb.className = "ctag"; tb.textContent = "#" + t; tb.title = "Search for this tag";
+        tb.addEventListener("click", e => { e.stopPropagation(); chatQuery = t; document.getElementById("chatSearch").value = t; renderChatList(); });
+        meta.appendChild(tb);
+      }
+      main.appendChild(meta);
+    }
+    const mv = document.createElement("button");
+    mv.className = "cmv"; mv.type = "button"; mv.textContent = "📁"; mv.title = "Move to a folder"; mv.setAttribute("aria-label", "Move chat to a folder");
+    mv.addEventListener("click", e => { e.stopPropagation(); openMoveMenu(chat, mv); });
     const del = document.createElement("button");
     del.className = "cx";
     del.textContent = "✕";
     del.title = "Delete chat";
     del.addEventListener("click", e => { e.stopPropagation(); deleteChat(chat.id); });
-    item.appendChild(title);
+    item.appendChild(main);
+    item.appendChild(mv);
     item.appendChild(del);
     item.addEventListener("click", () => loadChat(chat.id));
     list.appendChild(item);
   });
+  refreshChatBar();
+}
+let searchTimer = null;
+document.getElementById("chatSearch").addEventListener("input", e => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => { chatQuery = e.target.value; renderChatList(); }, 120);
+});
+
+/* ---------- the bar above an open chat: folder, tags, Export HTML, Print / PDF ---------- */
+function currentChat() { return currentChatId === null ? null : chats.find(c => c.id === currentChatId) || null; }
+function refreshChatBar() {
+  const bar = document.getElementById("chatBar"), chat = currentChat();
+  const on = !!(chat && chat.history && chat.history.length);
+  bar.classList.toggle("on", on);
+  if (!on) return;
+  const sel = document.getElementById("cbFolder");
+  sel.innerHTML = "";
+  for (const f of allFolders()) { const o = document.createElement("option"); o.value = f; o.textContent = f; sel.appendChild(o); }
+  const no = document.createElement("option"); no.value = "\__new__"; no.textContent = "＋ New folder…"; sel.appendChild(no);
+  sel.value = folderOf(chat);
+  const tagsEl = document.getElementById("cbTags");
+  tagsEl.innerHTML = "";
+  for (const t of tagsOf(chat)) {
+    const s = document.createElement("span"); s.className = "cbtag"; s.appendChild(document.createTextNode("#" + t));
+    const x = document.createElement("button"); x.type = "button"; x.textContent = "✕"; x.title = "Remove tag " + t; x.setAttribute("aria-label", "Remove tag " + t);
+    x.addEventListener("click", () => setChatTags(chat, tagsOf(chat).filter(y => y !== t)));
+    s.appendChild(x); tagsEl.appendChild(s);
+  }
+  document.getElementById("cbTagInput").disabled = tagsOf(chat).length >= MAX_TAGS;
+}
+document.getElementById("cbFolder").addEventListener("change", e => {
+  const chat = currentChat(); if (!chat) return;
+  if (e.target.value === "\__new__") {
+    const n = createFolder(prompt("Name for the new folder:") || "");
+    if (n) moveChatToFolder(chat, n); else refreshChatBar();
+  } else moveChatToFolder(chat, e.target.value);
+});
+document.getElementById("cbTagInput").addEventListener("keydown", e => {
+  if (e.key !== "Enter" && e.key !== ",") return;
+  e.preventDefault();
+  const chat = currentChat(), t = cleanTag(e.target.value);
+  if (chat && t) setChatTags(chat, [...tagsOf(chat), t]);
+  e.target.value = "";
+});
+document.getElementById("cbExport").addEventListener("click", () => { const c = currentChat(); if (c) exportChatHtml(c); });
+document.getElementById("cbPrint").addEventListener("click", () => printChat());
+
+/* ---------- Export as HTML / Print to PDF ----------
+   The export is ONE static file: the app's own stylesheet inlined, the conversation rendered with the same renderer the app uses,
+   and nothing else. No script, no external request, no key. The workings panels are left out (they name providers and models) and
+   assertNoSecrets() refuses to produce a file if any key this browser holds, or anything shaped like one, ends up in it. */
+const SECRET_SHAPES = [/\bgsk_[A-Za-z0-9]{16,}/, /\bsk-[A-Za-z0-9_-]{16,}/, /\bAIza[0-9A-Za-z_-]{20,}/, /\btvly-[A-Za-z0-9_-]{8,}/, /\bhf_[A-Za-z0-9]{20,}/, /\bBearer\s+[A-Za-z0-9._~+\/-]{20,}/i];
+function heldSecrets() {
+  const out = [];
+  const add = v => { v = String(v || "").trim(); if (v.length >= 8) out.push(v); };
+  for (const p of Object.values(CONFIG.providers || {})) add(p.key);
+  for (const p of Object.values(P || {})) add(p.key);
+  add(CONFIG.proxy && CONFIG.proxy.token);
+  try { add(searchKey); } catch (_) {}
+  try { const s = JSON.parse(localStorage.getItem(PROVKEYS_KEY) || "null"); if (s && s.rememberedKeys) Object.values(s.rememberedKeys).forEach(add); if (s && Array.isArray(s.customProviders)) s.customProviders.forEach(c => add(c && c.key)); } catch (_) {}
+  return [...new Set(out)];
+}
+function assertNoSecrets(html) {
+  for (const s of heldSecrets()) if (html.includes(s)) throw new Error("This chat contains one of your API keys, so it wasn't exported.");
+  for (const re of SECRET_SHAPES) if (re.test(html)) throw new Error("Part of this chat looks like an API key, so it wasn't exported. Remove it from the chat first.");
+  if (/<(script|link|img|iframe|object|embed|base|form|video|audio|source)\b|@import|url\s*\(|\ssrc\s*=|\ssrcset\s*=|\son[a-z]+\s*=/i.test(html)) throw new Error("The export wasn't self-contained, so it wasn't created.");
+}
+const EXPORT_EXTRA_CSS = "body{display:block;height:auto;overflow:auto;padding:24px 16px}#chat.export{display:flex;flex-direction:column;gap:14px;max-width:820px;margin:0 auto;overflow:visible;height:auto;padding:0}.ex-head h1{font-size:1.3rem;margin-bottom:4px}.ex-head p,.ex-foot{font-size:.78rem;color:var(--text-dim)}.ex-foot{margin-top:10px;border-top:1px solid var(--border);padding-top:10px}";
+function buildExportHtml(chat) {
+  const prev = codeRunEnabled;
+  codeRunEnabled = false;   // no Run buttons in a static file
+  let msgs;
+  try {
+    msgs = chat.history.map(m => m.role === "user"
+      ? '<div class="msg user"><div class="bubble">' + escapeHtml(m.content) + "</div></div>"
+      : '<div class="msg ai"><div class="bubble"><div class="answer">' + renderMarkdown(m.content) + "</div></div></div>").join("\n");
+  } finally { codeRunEnabled = prev; }
+  const t = document.createElement("template");
+  t.innerHTML = msgs;
+  t.content.querySelectorAll("button, .run-bar, .run-out, .json-src, script").forEach(n => n.remove());
+  t.content.querySelectorAll("details.tech").forEach(d => d.setAttribute("open", ""));
+  t.content.querySelectorAll("*").forEach(n => { for (const a of [...n.attributes]) if (/^on/i.test(a.name)) n.removeAttribute(a.name); });
+  const css = [...document.querySelectorAll("style")].map(s => s.textContent).join("\n") + "\n" + EXPORT_EXTRA_CSS;
+  const title = chat.title || "Chat";
+  const when = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+  const div = document.createElement("div"); div.appendChild(t.content);
+  return '<!DOCTYPE html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">' +
+    '<meta name="robots" content="noindex"><title>' + escapeHtml(title) + " — AI Council</title><style>" + css + "</style></head><body>" +
+    '<main id="chat" class="export"><div class="ex-head"><h1>' + escapeHtml(title) + "</h1><p>A read-only copy exported from AI Council on " + when + ".</p></div>\n" +
+    div.innerHTML + '\n<div class="ex-foot">Static copy: it contains no scripts, no external requests and no API keys.</div></main></body></html>';
+}
+function exportChatHtml(chat) {
+  let html;
+  try { html = buildExportHtml(chat); assertNoSecrets(html); }
+  catch (e) { flashSideNote(e.message || "Couldn't export this chat."); return; }
+  const slug = (chat.title || "chat").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 50) || "chat";
+  const url = URL.createObjectURL(new Blob([html], { type: "text/html" }));
+  const a = document.createElement("a");
+  a.href = url; a.download = "ai-council-" + slug + ".html";
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  flashSideNote("Exported “" + (chat.title || "chat") + "” as a single HTML file.");
+}
+function printChat() {
+  const chat = currentChat(), old = document.title;
+  if (chat) document.title = (chat.title || "AI Council chat") + " — AI Council";   // becomes the suggested PDF file name
+  const restore = () => { document.title = old; window.removeEventListener("afterprint", restore); };
+  window.addEventListener("afterprint", restore);
+  window.print();
 }
 
 /* =====================================================================
@@ -3908,6 +4246,14 @@ function runExample(text) {
   if (availableProviders().length === 0) { openWelcome(); return; }   // brand-new visitor: get a key first; the question stays typed
   onSend();
 }
+/* Pre-fills the message box from a template and selects the first [placeholder] so typing replaces it. Never sends. */
+function fillTemplate(prompt) {
+  if (busy) return;
+  inputEl.value = prompt; autoGrow();
+  inputEl.focus();
+  const a = prompt.indexOf("["), b = a < 0 ? -1 : prompt.indexOf("]", a);
+  if (a >= 0 && b > a) inputEl.setSelectionRange(a, b + 1);
+}
 function renderEmptyState(first) {
   chatEl.innerHTML = "";
   const wrap = document.createElement("div");
@@ -3939,6 +4285,22 @@ function renderEmptyState(first) {
     ? "Every call counts against your free-plan limits, so Fast stretches them furthest. Answers come back in plain English with a simple diagram where it helps; the full technical answer is one click below (switch off with 🗣 Plain)."
     : "Every call counts against your free-plan limits, so Fast stretches them furthest.";
   wrap.appendChild(hint);
+  const tplHead = document.createElement("p");
+  tplHead.className = "es-tpl-head";
+  tplHead.textContent = "Or start from a template (fills in the message box; nothing is sent until you press Send):";
+  wrap.appendChild(tplHead);
+  const tpls = document.createElement("div");
+  tpls.className = "es-tpls";
+  for (const t of STARTER_TEMPLATES) {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "es-tpl"; b.title = t.prompt;
+    b.innerHTML = '<span class="ti"></span><span class="tl"></span>';
+    b.querySelector(".ti").textContent = t.icon;
+    b.querySelector(".tl").textContent = t.label;
+    b.addEventListener("click", () => fillTemplate(t.prompt));
+    tpls.appendChild(b);
+  }
+  wrap.appendChild(tpls);
   const tryRow = document.createElement("div");
   tryRow.className = "es-try";
   tryRow.setAttribute("aria-label", "Example questions");
@@ -4496,7 +4858,7 @@ function flashSideNote(msg) {
   sideNoteTimer = setTimeout(() => { sideNoteEl.textContent = sideNoteDefault; }, 7000);
 }
 function exportBackup() {
-  const payload = { app: "ai-council", version: 1, exportedAt: new Date().toISOString(), chats, memory };
+  const payload = { app: "ai-council", version: 1, exportedAt: new Date().toISOString(), chats, folders: userFolders, memory };
   const blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -4518,21 +4880,26 @@ function cleanImportedChat(c) {
     hist.push(out);
   }
   if (!hist.length) return null;
-  return {
+  const out2 = {
     id: String(c.id || Date.now() + Math.random()).slice(0, 40),
     title: String(c.title || "Imported chat").slice(0, 120),
     history: hist,
     updatedAt: Number.isFinite(c.updatedAt) ? c.updatedAt : Date.now()
   };
+  const fo = cleanFolderName(c.folder); if (fo) out2.folder = fo;   // optional: older backups have neither folder nor tags
+  if (Array.isArray(c.tags)) out2.tags = [...new Set(c.tags.map(cleanTag).filter(Boolean))].slice(0, MAX_TAGS);
+  return out2;
 }
 function importBackup(text) {
   let data;
   try { data = JSON.parse(text); } catch (_) { flashSideNote("That file isn't valid JSON, so nothing was imported."); return; }
   if (!data || data.app !== "ai-council" || !Array.isArray(data.chats)) { flashSideNote("That isn't an AI Council backup file, so nothing was imported."); return; }
   let added = 0, updated = 0;
+  for (const f of (Array.isArray(data.folders) ? data.folders : []).slice(0, 50)) createFolder(f);
   for (const raw of data.chats.slice(0, 300)) {
     const c = cleanImportedChat(raw);
     if (!c) continue;
+    if (c.folder) c.folder = createFolder(c.folder) || DEFAULT_FOLDER;
     const i = chats.findIndex(x => x.id === c.id);
     if (i === -1) { chats.push(c); added++; }
     else if (c.updatedAt > chats[i].updatedAt) { chats[i] = c; updated++; }
@@ -4700,6 +5067,7 @@ loadProviderKeys();
 loadProxy();
 loadSearchKey();
 loadMemory();
+loadFolders();
 loadChats();
 buildSettings();
 buildAbout();
@@ -4718,6 +5086,20 @@ inputEl.focus();
   try { never = localStorage.getItem(WELCOME_KEY) === "never"; } catch (_) {}
   if (availableProviders().length === 0 && !never && !aboutOn()) openWelcome();
 })();
+
+/* =====================================================================
+   Installable app shell (PWA). manifest.json + sw.js make the UI installable ("Add to Home screen" / "Install app") and let the
+   page itself load with no connection. It is NOT an offline chat: every AI answer still needs the network and an API key, and
+   the service worker deliberately never touches API calls (/api/* or any other origin). While offline a notice says so.
+   ===================================================================== */
+if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
+  window.addEventListener("load", () => { navigator.serviceWorker.register("sw.js").catch(() => {}); });
+}
+const offlineBarEl = document.getElementById("offlineBar");
+function refreshOfflineBar() { offlineBarEl.classList.toggle("on", navigator.onLine === false); }
+window.addEventListener("online", refreshOfflineBar);
+window.addEventListener("offline", refreshOfflineBar);
+refreshOfflineBar();
 </script>
 </body>
 </html>
