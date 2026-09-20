@@ -103,14 +103,40 @@ These are **not interchangeable kinds of trust**, and the box labels each source
 | **historical** | `loc.gov` and `chroniclingamerica.loc.gov` (Library of Congress archives and digitised newspapers), plus my addition `archives.gov` (US National Archives) | a digitised primary record, e.g. what a 1920s newspaper printed | rights vary item by item; the Library of Congress publishes a rights statement per item |
 | **scientific** | `pubmed.ncbi.nlm.nih.gov` and `www.ncbi.nlm.nih.gov` (NIH/NLM), `doaj.org` (Directory of Open Access Journals) | a real paper or record in an index with a genuine vetting step: PubMed only indexes journals that pass an editorial selection process, and DOAJ is a curated whitelist built to screen out predatory journals. This is the strongest signal of the static groups, and it is *still* about the journal, not about each paper being right | PubMed abstracts stay under their publishers' copyright; DOAJ lists open-access journals, each with its own licence |
 | **fact-check** (IFCN) | the ~150 *verified* signatories of the International Fact-Checking Network, refreshed weekly | an organisation whose fact-checking practice was independently assessed against the IFCN code of principles. **This is the only group that reports a claim's truth** (a fact-checker's verdict), and it is that organisation's assessment, not a settled fact. Being a signatory doesn't mean everything the outlet publishes has been fact-checked | the public directory; only domain names are stored |
-| **us-federal** (CISA) | a small slice of CISA's registry of federal `.gov` domains, refreshed weekly | a real US federal site for a science, health, statistics, law or records agency | public domain (CC0) |
+| **government** (government / regulator) | two parts: **(1)** a small slice of CISA's registry of federal `.gov` domains, refreshed weekly from KV; **(2)** `KNOWN_REGULATOR_DOMAINS`, a short curated list of statutory and regulatory bodies that are *not* on a `.gov` domain (see below) | a real site of a public authority: a department, agency or regulator. It says who published the page, not that a particular page is right | CISA data: public domain (CC0). The regulator list is just domain names |
 
-The honest distinction: **general, legislative, historical, scientific and us-federal** confirm that a page *really is a
+The honest distinction: **general, legislative, historical, scientific and government** confirm that a page *really is a
 document from that institution*. Only **fact-check** is about a claim having been *checked and found true or false*, and
 only in that fact-checker's judgement. A statute site tells you what the law's text says, not that an AI's summary of it is
 right; a journal index tells you a paper exists in a vetted journal, not that its finding is true. The source check shows
 what the documents say and leaves the conclusion to you. Nothing is stored or republished: only the search snippets Tavily
 returns are shown, with a link.
+
+### The "Government / Regulator source" label
+
+Government sources are also marked with a small violet **🏛️ Government / Regulator source** pill next to the individual citation,
+in the source list under the source-check summary and in the Web search list under an answer that used the 🔧 web search tool
+(and in text form in the tool-calls part of the workings). It is a citation-level tag, deliberately a different colour from the
+amber "models disagreed" box and the green "source check" box, and it is applied **automatically when a result's own domain
+matches**, whether the search was trusted-only or open. That is deterministic matching against the lists, never a guess, and a
+result on no list carries no label at all. A domain that is both a `.gov` site and in the general group (`cdc.gov`, `nih.gov`) is
+reported as government, the more specific description.
+
+What counts as government / regulator here is exactly:
+
+- **the CISA-derived `.gov` domains** (the federal science, health, statistics, law and records slice held in KV), and
+- **`KNOWN_REGULATOR_DOMAINS`** in `worker/src/index.js` (mirrored in `index.html`): UK `fca.org.uk`, `ico.org.uk`, `ofcom.org.uk`,
+  `cqc.org.uk`, `gmc-uk.org`, `nmc.org.uk`, `sra.org.uk`, `frc.org.uk`, `bankofengland.co.uk`, `electoralcommission.org.uk`; EU agencies
+  `ema`, `efsa`, `esma`, `eba`, `edpb` and `ecb` on `europa.eu`; and `cnil.fr`, `dataprotection.ie`, `priv.gc.ca`, `asic.gov.au`,
+  `accc.gov.au`, `tga.gov.au`, `oaic.gov.au`.
+
+**That regulator list is a starting point, not a complete or authoritative register.** It is short, leans towards the UK, EU and
+Commonwealth, and will miss regulators and public bodies that matter in your own jurisdiction or field, and `.gov` only covers the
+US. A missing regulator simply shows as an unverified source, so if this matters to you, **extend the list** for your jurisdiction
+(add the domain to `KNOWN_REGULATOR_DOMAINS` in the Worker and to the copy in `index.html`, which the tests compare). Only add real
+public authorities, not trade bodies or self-regulating clubs, and remember that a badge means "published by an authority", not
+"correct". Other badges (fact-checker, legislative and so on) can be added later by adding an entry to `SOURCE_LABELS` in `index.html`
+and a colour; the underlying categories already exist.
 
 **Left out on purpose: Crossref.** It is a metadata-only API (DOIs, titles, reference lists) with no browsable content of its
 own, so a search restricted to it would return nothing readable, and a DOI just points at whichever publisher hosts the paper,

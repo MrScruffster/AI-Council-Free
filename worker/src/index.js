@@ -143,13 +143,17 @@ async function handleTranscribe(request, env, cors) {
    browser with their own Tavily key; this Worker only supplies the list (GET /trusted-domains). Two kinds of list feed it:
      1. the static groups below: small, fixed, human-curated, edited here and redeployed;
      2. two lists refreshed weekly by the cron job into KV: IFCN fact-checkers and a slice of CISA's .gov registry.
-   Hosts are listed with and without "www." where a site answers on both. I have not verified whether Tavily's
-   include_domains also matches subdomains, so nothing here relies on it.
+   Tavily's include_domains does match subdomains (tested: "nih.gov" returned pubmed.ncbi.nlm.nih.gov), so a bare domain
+   is enough. The older groups also list a "www." twin; that is harmless, and newer lists don't bother. A search restricted
+   to these domains can still return an off-list host now and then (an "nih.gov" search also returned youtube.com), so
+   every result is categorised by its ACTUAL hostname, never by what was searched for.
 
-   These lists are NOT interchangeable kinds of trust, and the app labels each source with its kind:
-     general / legislative / historical / scientific / us-federal : a real document published by that institution
+   These lists are NOT interchangeable kinds of trust, and the app labels each source with its category:
+     general / legislative / historical / scientific / government : a real document published by that institution
      fact-check (IFCN)                                            : an organisation whose fact-checking practice has been
                                                                     audited. Still not "every page there is true".
+   "government" = the CISA-derived .gov domains (from KV) plus KNOWN_REGULATOR_DOMAINS below. A domain that is in both this and
+   "general" (cdc.gov, nih.gov...) is reported as government, the more specific description.
    None of them makes a page correct; they narrow the search to places where a wrong page is less likely. */
 
 /* General: official statistics, health, science and intergovernmental bodies. */
@@ -178,12 +182,28 @@ const SCIENTIFIC_TRUSTED_DOMAINS = [
   "pubmed.ncbi.nlm.nih.gov", "www.ncbi.nlm.nih.gov",   // NIH/NLM. PubMed only indexes journals that pass an editorial selection process
   "doaj.org"                                            // Directory of Open Access Journals: a curated whitelist built to screen out predatory journals
 ];
+/* Government / regulator, the non-.gov part. Statutory or regulatory bodies whose domains are not on the US ".gov" TLD, which is
+   what CISA's registry (fed from KV) covers. A small, non-exhaustive STARTER SET, not a complete or authoritative register: it
+   leans UK / EU / Commonwealth because that is who is likely to use this, and it will miss bodies that matter in your own
+   jurisdiction or field. Operators should extend it. Only add a domain when it is genuinely a public authority (a regulator,
+   commission, central bank or data-protection authority), not a trade body or a self-regulating club. Bare domains are enough,
+   since subdomains match. Keep the badge in step: the page has its own copy (KNOWN_REGULATOR_DOMAINS in index.html). */
+const KNOWN_REGULATOR_DOMAINS = [
+  // UK
+  "fca.org.uk", "ico.org.uk", "ofcom.org.uk", "cqc.org.uk", "gmc-uk.org", "nmc.org.uk", "sra.org.uk", "frc.org.uk",
+  "bankofengland.co.uk", "electoralcommission.org.uk",
+  // EU agencies (on europa.eu, whose general entry would otherwise call them just "official body")
+  "ema.europa.eu", "efsa.europa.eu", "esma.europa.eu", "eba.europa.eu", "edpb.europa.eu", "ecb.europa.eu",
+  // other jurisdictions' data-protection, financial and medicines regulators
+  "cnil.fr", "dataprotection.ie", "priv.gc.ca", "asic.gov.au", "accc.gov.au", "tga.gov.au", "oaic.gov.au"
+];
 /* Deliberately NOT here: Crossref. It is a metadata-only API (DOIs, titles, reference lists) with no browsable
    content of its own, so a search restricted to it would return nothing readable, and a DOI merely resolves to
    whichever publisher hosts the paper, which is a different question from whether that publisher is reliable. */
 const STATIC_TRUSTED_GROUPS = [
   ["general", GENERAL_TRUSTED_DOMAINS], ["legislative", LEGISLATIVE_TRUSTED_DOMAINS],
-  ["historical", HISTORICAL_TRUSTED_DOMAINS], ["scientific", SCIENTIFIC_TRUSTED_DOMAINS]
+  ["historical", HISTORICAL_TRUSTED_DOMAINS], ["scientific", SCIENTIFIC_TRUSTED_DOMAINS],
+  ["government", KNOWN_REGULATOR_DOMAINS]
 ];
 
 const TRUSTED_CAP = 300;                    // Tavily's limit on include_domains
@@ -287,12 +307,15 @@ async function loadTrusted(env) {
   const add = (list, kind) => {
     for (const raw of Array.isArray(list) ? list : []) {
       const d = String(raw).trim().toLowerCase();
-      if (d && !kinds.has(d)) { kinds.set(d, kind); order.push(d); }
+      if (!d) continue;
+      // already listed: only the more specific "government" may replace the broad "general"; other categories keep the first
+      if (kinds.has(d)) { if (kind === "government" && kinds.get(d) === "general") kinds.set(d, "government"); continue; }
+      kinds.set(d, kind); order.push(d);
     }
   };
   for (const [kind, list] of STATIC_TRUSTED_GROUPS) add(list, kind);
   add(ifcn, "fact-check");
-  add(cisa, "us-federal");
+  add(cisa, "government");
   const counts = {};
   for (const k of kinds.values()) counts[k] = (counts[k] || 0) + 1;
   let domains = order;

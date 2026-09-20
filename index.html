@@ -194,6 +194,12 @@
   .sources-box > .sb-head { color: var(--ok); font-weight: 600; font-size: .85rem; margin-bottom: 6px; }
   .sources-box p:first-of-type { margin-top: 0; }
   .sources-box ol { margin-bottom: 6px; }
+  /* citation-level label on one source (not a whole-answer callout): a small violet pill, distinct from the amber
+     .disagreement-box and the green .sources-box. Per-category colours hang off [data-cat] when more badges are added. */
+  .source-label { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; padding: 1px 9px; border-radius: 999px; font-size: .7rem; font-weight: 600; line-height: 1.5; white-space: nowrap; vertical-align: 1px;
+    background: rgba(139, 108, 255, .16); border: 1px solid rgba(139, 108, 255, .5); color: #c4b5ff; }
+  .source-label[data-cat="government"] { background: rgba(139, 108, 255, .16); border-color: rgba(139, 108, 255, .5); color: #c4b5ff; }
+  .source-label .sl-icon { font-size: .8rem; }
   /* token usage table in the Keys drawer */
   .tok-table { border-collapse: collapse; width: 100%; font-size: .74rem; }
   .tok-table th, .tok-table td { text-align: right; padding: 5px 6px; border-bottom: 1px solid var(--border); white-space: nowrap; }
@@ -1436,10 +1442,15 @@ const TRUSTED_STATIC = [
     "who.int", "www.who.int", "un.org", "www.un.org", "europa.eu", "ec.europa.eu", "oecd.org", "www.oecd.org", "worldbank.org", "www.worldbank.org", "imf.org", "www.imf.org"]],
   ["legislative", ["congress.gov", "www.congress.gov", "legislation.gov.uk", "www.legislation.gov.uk", "govinfo.gov", "www.govinfo.gov", "eur-lex.europa.eu"]],
   ["historical", ["loc.gov", "www.loc.gov", "chroniclingamerica.loc.gov", "archives.gov", "www.archives.gov"]],
-  ["scientific", ["pubmed.ncbi.nlm.nih.gov", "www.ncbi.nlm.nih.gov", "doaj.org"]]
+  ["scientific", ["pubmed.ncbi.nlm.nih.gov", "www.ncbi.nlm.nih.gov", "doaj.org"]],
+  /* government / regulator, the non-.gov part (the .gov part comes from the Worker's CISA list). A small non-exhaustive STARTER
+     SET, identical to KNOWN_REGULATOR_DOMAINS in the Worker; see the comment there. Extend it for your own jurisdiction. */
+  ["government", ["fca.org.uk", "ico.org.uk", "ofcom.org.uk", "cqc.org.uk", "gmc-uk.org", "nmc.org.uk", "sra.org.uk", "frc.org.uk", "bankofengland.co.uk", "electoralcommission.org.uk",
+    "ema.europa.eu", "efsa.europa.eu", "esma.europa.eu", "eba.europa.eu", "edpb.europa.eu", "ecb.europa.eu",
+    "cnil.fr", "dataprotection.ie", "priv.gc.ca", "asic.gov.au", "accc.gov.au", "tga.gov.au", "oaic.gov.au"]]
 ];
 const TRUSTED_CAP = 300;   // Tavily's limit on include_domains
-let trustedExtras = null;  // [[host, kind]] fetched from the Worker (only "fact-check" and "us-federal" are used)
+let trustedExtras = null;  // [[host, kind]] fetched from the Worker (only "fact-check" and "government" are used)
 let trustedExtrasTry = 0;  // when it was last attempted
 async function clientTrusted() {
   if (!(trustedExtras && trustedExtras.length) && CONFIG.trustedUrl && Date.now() - trustedExtrasTry > 10 * 60 * 1000) {
@@ -1448,12 +1459,18 @@ async function clientTrusted() {
     const timer = setTimeout(() => ctrl.abort(), 5000);
     try {
       const res = await fetch(CONFIG.trustedUrl, { signal: ctrl.signal });
-      if (res.ok) { const j = await res.json(); if (Array.isArray(j.domains)) trustedExtras = j.domains.filter(p => Array.isArray(p) && /^(fact-check|us-federal)$/.test(p[1])); }
+      if (res.ok) { const j = await res.json(); if (Array.isArray(j.domains)) trustedExtras = j.domains.filter(p => Array.isArray(p) && /^(fact-check|government|us-federal)$/.test(p[1])).map(([d, k]) => [d, k === "us-federal" ? "government" : k]); }
     } catch (_) { /* unreachable: static groups only */ }
     finally { clearTimeout(timer); }
   }
   const kinds = new Map(), order = [];
-  const add = (host, kind) => { const h = String(host).trim().toLowerCase(); if (h && !kinds.has(h)) { kinds.set(h, kind); order.push(h); } };
+  const add = (host, kind) => {
+    const h = String(host).trim().toLowerCase();
+    if (!h) return;
+    // already listed: only the more specific "government" may replace the broad "general" (same rule as the Worker)
+    if (kinds.has(h)) { if (kind === "government" && kinds.get(h) === "general") kinds.set(h, "government"); return; }
+    kinds.set(h, kind); order.push(h);
+  };
   for (const [kind, list] of TRUSTED_STATIC) list.forEach(h => add(h, kind));
   for (const [h, kind] of (trustedExtras || [])) add(h, kind);
   if (order.length > TRUSTED_CAP) console.warn(`Trusted domains: ${order.length} is over Tavily's ${TRUSTED_CAP} limit; dropping the last ${order.length - TRUSTED_CAP}.`);
@@ -1472,8 +1489,17 @@ function clientKindOf(url, trusted) {   // the result's host, its www/bare twin,
 }
 const SOURCE_KIND_LABEL = {
   general: "official body", legislative: "law text", historical: "historical record", scientific: "scientific index",
-  "fact-check": "IFCN fact-checker", "us-federal": "US federal site", untrusted: "not on the trusted list (unverified)"
+  "fact-check": "IFCN fact-checker", government: "government / regulator", untrusted: "not on the trusted list (unverified)"
 };
+/* Citation-level badges. Only "government" has one for now. Adding a badge for another category (fact-check, legislative...)
+   is one more entry here plus a [data-cat] colour in the CSS; nothing else has to change. */
+const SOURCE_LABELS = {
+  government: { icon: "🏛️", text: "Government / Regulator source" }
+};
+function sourceBadgeHtml(category) {
+  const l = SOURCE_LABELS[category];
+  return l ? `<span class="source-label" data-cat="${category}"><span class="sl-icon" aria-hidden="true">${l.icon}</span> ${l.text}</span>` : "";
+}
 /* One line describing a result's source, for the model and for the UI */
 function sourceTrustNote(kind) { return kind && kind !== "untrusted" ? "trusted (" + (SOURCE_KIND_LABEL[kind] || kind) + ")" : "NOT on the trusted-source list (unverified)"; }
 
@@ -1502,7 +1528,8 @@ async function webSearchDirect(query, restrict) {
     if (searchStatus().state !== "ok") setSearchHealth("ok", "Connected — last search succeeded");
     return { results: (Array.isArray(data.results) ? data.results : []).slice(0, 5).map(r => {
       const item = { title: String(r.title || "").slice(0, 200), url: String(r.url || "").slice(0, 500), content: String(r.content || "").slice(0, 800) };
-      item.kind = clientKindOf(item.url, t) || "untrusted";
+      item.category = clientKindOf(item.url, t) || null;   // matched by the result's real hostname; null when it is on no list
+      item.kind = item.category || "untrusted";
       return item;
     }) };
   } catch (e) {
@@ -1632,6 +1659,20 @@ async function callModelWithToolsRaw(providerId, model, messages) {
     }
   }
   return failOrFallBack(new Error(`${prov.label} gave up after repeated tool calls without a final answer`));
+}
+
+/* One line per tool call for the workings panel. A web_search is listed result by result with the same citation label as under the
+   answer (labelled by each result's hostname, so it applies whether the search was open or trusted-only). */
+function formatToolCall(t) {
+  if (t.name === "web_search" && t.result && Array.isArray(t.result.results)) {
+    const rows = t.result.results.map(r => {
+      const tag = r.category && SOURCE_LABELS[r.category] ? SOURCE_LABELS[r.category].icon + " " + SOURCE_LABELS[r.category].text
+        : r.kind && r.kind !== "untrusted" ? SOURCE_KIND_LABEL[r.kind] || r.kind : "⚠ not on the trusted list (unverified)";
+      return `  [${tag}] ${r.title} — ${r.url}`;
+    });
+    return `web_search(${JSON.stringify(t.args || {})}) → ${rows.length} result${rows.length === 1 ? "" : "s"}:\n` + rows.join("\n");
+  }
+  return `${t.name}(${JSON.stringify(t.args || {})}) → ${JSON.stringify(t.result)}`;
 }
 
 /* =====================================================================
@@ -1890,8 +1931,7 @@ async function generate(spec, category, history, ui) {
       try {
         const { text, toolCallsUsed, gaveUp } = await callModelWithTools(provId, P[provId].workhorse, msgs);
         if (toolCallsUsed.length > 0) {
-          ui.working(`🔧 Tool calls — ${P[provId].label}`,
-            toolCallsUsed.map(t => `${t.name}(${JSON.stringify(t.args || {})}) → ${JSON.stringify(t.result)}`).join("\n"));
+          ui.working(`🔧 Tool calls — ${P[provId].label}`, toolCallsUsed.map(formatToolCall).join("\n"));
         }
         ui.stage("gen", gaveUp ? "warn" : "done",
           `Generated · ${P[provId].label} (${P[provId].workhorse})${toolCallsUsed.length ? ` · 🔧 ${toolCallsUsed.length} tool call${toolCallsUsed.length > 1 ? "s" : ""}` : ""}${gaveUp ? " · gave up, showing raw tool results" : ""}`);
@@ -2505,7 +2545,11 @@ function mdLinkSafe(title, url) {   // keeps a hostile title or URL from breakin
 }
 /* numbered list of sources; an unverified one is marked so it can't be mistaken for a vetted source */
 function sourceListMd(results) {
-  return results.map((r, i) => `${i + 1}. ${mdLinkSafe(r.title, r.url)} — ${r.kind === "untrusted" || !r.kind ? "⚠ " : ""}${SOURCE_KIND_LABEL[r.kind] || SOURCE_KIND_LABEL.untrusted}`).join("\n");
+  return results.map((r, i) => {
+    const link = `${i + 1}. ${mdLinkSafe(r.title, r.url)}`;
+    if (r.category && SOURCE_LABELS[r.category]) return link + ` [[badge:${r.category}]]`;   // rendered as a .source-label pill by renderMarkdown()
+    return link + ` — ${r.kind === "untrusted" || !r.kind ? "⚠ " : ""}${SOURCE_KIND_LABEL[r.kind] || SOURCE_KIND_LABEL.untrusted}`;
+  }).join("\n");
 }
 async function sourceCheck(question, disagreement, ui) {
   if (!searchAvailable()) { ui.stage("src", "skipped", "Source check · needs your Tavily key"); return ""; }
@@ -2545,7 +2589,7 @@ async function sourceCheck(question, disagreement, ui) {
         "QUESTION:\n" + question.slice(0, 1500) + "\n\nPOINTS WHERE THE MODELS DISAGREED:\n" + disagreement.slice(0, 2500) +
         "\n\nSOURCES:\n" + results.map((r, i) => `[${i + 1}] ${sourceTrustNote(r.kind)}\n${r.title}\n${r.url}\n${r.content}`).join("\n\n") }
     ], 500, undefined, ui, "source check", { temperature: CONFIG.temperatures.judge });
-    summary = text.replace(/^:::.*$/gm, "").trim();
+    summary = text.replace(/^:::.*$/gm, "").replace(/\[\[/g, "[ [").trim();   // no block markers, and no forged [[badge:...]] tokens
   } catch (e) {
     ui.working("Source check summary", describeError(e));
   }
@@ -2583,6 +2627,8 @@ async function answer(question, ui) {
     toolSources = toolSources || [];
   }
 
+  draft = stripBlockMarkers(draft);
+  disagreement = stripBlockMarkers(disagreement).trim();
   let final = draft;
   if (mode !== "fast") {
     /* 4 — PIPELINE: independent critique, then revision if needed */
@@ -2590,7 +2636,7 @@ async function answer(question, ui) {
     const crit = await critique(draft, question, genProvId, ui);
     if (!crit.approved && crit.text) {
       ui.working(`Critique — ${P[crit.provId].label}`, crit.text);
-      final = await revise(genProvId, category, question, draft, crit.text, ui);
+      final = stripBlockMarkers(await revise(genProvId, category, question, draft, crit.text, ui));
     } else {
       ui.stage("rev", "skipped", "Revision · not needed");
     }
@@ -2629,8 +2675,8 @@ async function answer(question, ui) {
     try {
       ui.setStream("plain");
       const pl = await plainify(originalQuestion, body, disagreement, category, ui);
-      let plainMd = pl.plain;
-      if (pl.disagreement) plainMd += "\n\n:::disagreement\n" + pl.disagreement + "\n:::";
+      let plainMd = stripBlockMarkers(pl.plain);
+      if (stripBlockMarkers(pl.disagreement).trim()) plainMd += "\n\n:::disagreement\n" + stripBlockMarkers(pl.disagreement).trim() + "\n:::";
       else if (disagreement) plainMd += "\n\n:::disagreement\n" + disagreement + "\n:::";
       // Code answers keep the technical section open — the code is usually the point.
       final = plainMd + sourceMd + cautionMd + "\n\n:::technical" + (category === "code" ? "-open" : "") + "\n" + technical + "\n:::end-technical";
@@ -2700,13 +2746,17 @@ function stripOpenFence(s) {
 /* The plain-language stage saves "<plain answer> :::technical … :::end-technical".
    Models should only ever see the technical part. */
 const TECH_RE = /\n*:::technical(-open)?\n([\s\S]*?)\n:::end-technical\s*$/;
+/* Model output is untrusted. The ":::name" lines that build the disagreement / source-check / caution / technical boxes must come only
+   from this app, so any that a model (or a web page it read) writes are dropped before its text is used. Otherwise a model could
+   forge a "Source check" box, badges included. */
+function stripBlockMarkers(text) { return String(text || "").replace(/^[ \t]*:::.*$/gm, ""); }
 function forModel(content) {
   const m = String(content).match(TECH_RE);
   /* the UI-only "general information" note and source-check box are never fed back to a model */
   return m ? m[2] : String(content).replace(/\n*:::(caution|sources)[^\n]*\n[\s\S]*?\n:::/g, "");
 }
 
-function renderMarkdown(md) {
+function renderMarkdown(md, allowBadges) {
   const techM = md.match(TECH_RE);
   if (techM) {
     return `<div class="plain-body">${renderMarkdown(md.slice(0, techM.index))}</div>` +
@@ -2722,7 +2772,7 @@ function renderMarkdown(md) {
   });
 
   md = md.replace(/:::sources(?: ([^\n]+))?\n([\s\S]*?)\n:::/g, (_, title, inner) => {
-    disagreementBlocks.push(`<div class="sources-box"><div class="sb-head">🔎 ${title ? escapeHtml(title) : "Source check"}</div>${renderMarkdown(inner.trim())}</div>`);
+    disagreementBlocks.push(`<div class="sources-box"><div class="sb-head">🔎 ${title ? escapeHtml(title) : "Source check"}</div>${renderMarkdown(inner.trim(), true)}</div>`);
     return "\u0000DB" + (disagreementBlocks.length - 1) + "\u0000";
   });
 
@@ -2738,6 +2788,9 @@ function renderMarkdown(md) {
     return "\u0000CB" + (codeBlocks.length - 1) + "\u0000";
   });
   let html = escapeHtml(md);
+  /* [[badge:category]] is written by sourceListMd() alone, and only honoured inside the source box it builds (allowBadges). Anywhere
+     else (a model's answer, a page title) it stays literal text, so model or web content can't dress up a claim as "Government". */
+  if (allowBadges) html = html.replace(/\[\[badge:([a-z-]+)\]\]/g, (_, cat) => sourceBadgeHtml(cat));
   html = html.replace(/`([^`\n]+)`/g, (_, c) => `<code>${c}</code>`);
   html = html.replace(/^###\s+(.+)$/gm, "<h3>$1</h3>");
   html = html.replace(/^##\s+(.+)$/gm, "<h2>$1</h2>");
