@@ -115,6 +115,14 @@
   .chat-item:hover .cx { visibility: visible; }
   .chat-item .cx:hover { color: var(--err); }
   .sidebar-note { font-size: .7rem; color: var(--text-dim); padding: 8px 14px; border-top: 1px solid var(--border); }
+  /* running total of questions asked by all users (see the "global question counter" script section) */
+  .global-count { display: flex; align-items: center; gap: 10px; margin: 0 12px 10px; padding: 10px 12px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; }
+  .global-count[hidden] { display: none; }
+  .gc-num { flex: none; white-space: nowrap; font-size: 1.4rem; font-weight: 650; line-height: 1.1; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .gc-label { flex: 1; min-width: 0; font-size: .72rem; line-height: 1.3; color: var(--text-dim); }
+  .gc-num.bump { animation: gcbump .5s ease; }
+  @keyframes gcbump { 0% { transform: scale(1); } 40% { transform: scale(1.2); } 100% { transform: scale(1); } }
+  @media (prefers-reduced-motion: reduce) { .gc-num.bump { animation: none; } }
   @media (min-width: 761px) { #layout.sidebar-collapsed #sidebar { display: none; } }   /* desktop only: on phones the sidebar is a drawer */
   @media (max-width: 760px) {
     #sidebar {
@@ -482,7 +490,11 @@
   <nav id="sidebar">
     <button id="newChat">＋ New chat</button>
     <div id="chatList"></div>
-    <div class="sidebar-note">Chats &amp; memory are saved in this browser when the file is opened locally.</div>
+    <div class="global-count" id="globalCount" hidden role="group" aria-label="Questions asked on AI Council by everyone">
+      <div class="gc-num" id="gcNum" aria-hidden="true">—</div>
+      <div class="gc-label">questions asked by everyone, worldwide</div>
+    </div>
+    <div class="sidebar-note">Your chats and memory stay in this browser only.</div>
   </nav>
   <div id="maincol">
     <main id="chat">
@@ -515,7 +527,7 @@
       <p>A user submits a natural-language prompt. The orchestrator (a) classifies its intent, (b) selects a specialist model, (c) generates a draft, (d) has an independent model audit the draft, (e) conditionally revises it, and (f) in <b>Council</b> mode first queries every connected provider in parallel and reconciles their answers, explicitly flagging factual conflicts. The output can then be projected into plain language, with the full technical answer retained beneath it.</p>
       <ul>
         <li><b>Provider-agnostic.</b> Any endpoint that speaks the OpenAI-compatible <code>chat/completions</code> schema can be used. Five are built in and custom endpoints can be added under ⚙&nbsp;Keys.</li>
-        <li><b>Zero-backend.</b> The application is a single static HTML document; orchestration executes in the visitor's browser.</li>
+        <li><b>Zero-backend orchestration.</b> The application is a single static HTML document and all orchestration executes in the visitor's browser. The only server-side piece is a tiny anonymous question counter (see Architecture).</li>
         <li><b>Bring-your-own-key (BYOK).</b> Requests travel browser&nbsp;→&nbsp;provider using the visitor's own API key.</li>
         <li><b>Observable.</b> Every intermediate artefact is inspectable in the "Show the council's workings" panel.</li>
       </ul>
@@ -529,6 +541,7 @@
         <li><b>Token budget.</b> <code>max_tokens</code> has a floor of 512. Reasoning-tuned models spend part of the budget on hidden chain-of-thought, and a very small cap would otherwise yield an empty completion.</li>
         <li><b>Persistence.</b> <code>localStorage</code> holds chats (including their saved workings), long-term memory and preferences. API keys, and the proxy access token, are stored only when "Remember" is ticked.</li>
         <li><b>Optional key-holding proxy.</b> A reverse proxy (Cloudflare Worker) can hold provider keys server-side, guarded by an origin allow-list, a shared-secret header and a fixed provider allow-list. It is disabled by default and is not used by visitors.</li>
+        <li><b>Global question counter.</b> The sidebar shows a running total of questions asked by all users, abbreviated with <code>K</code> (thousand), <code>Mi</code> (million) and <code>Bi</code> (billion), truncated to one decimal so it never overstates. Each question sends one anonymous <code>POST</code> (no body, no custom headers, no question text) to a counter endpoint on the same Worker, which increments a single integer held in a <b>Durable Object</b>. Because a Durable Object serialises access to its storage, simultaneous increments cannot be lost. The page reads the total on load, after each of its own questions and once a minute while the tab is visible, and hides the box if the counter is unreachable. Per-IP (20 a minute) and global (600 a minute) rate limits stop one client from inflating it, so treat the figure as indicative, not audited.</li>
       </ul>
       <h3>Providers and roles</h3>
       <div class="ab-scroll" tabindex="0" role="region" aria-label="Providers and their roles (scrollable table)"><table class="ab-table" id="abProviders"><thead><tr><th>Provider</th><th>Workhorse model</th><th>Fast model</th><th>Roles</th></tr></thead><tbody></tbody></table></div>
@@ -543,7 +556,7 @@
         <span class="dgroup"><span class="darrow">→</span><span class="dstep"><span class="dnum">5</span>Plain-language projection</span></span>
       </div>
       <ol class="ab-steps">
-        <li><b>Intent routing (zero-shot classification).</b> A fast model labels the prompt as <code>CODE</code>, <code>CREATIVE</code>, <code>REASONING</code> or <code>FACTUAL</code> with a one-word constrained output that is regex-parsed. The default on any failure is <code>FACTUAL</code>, a fail-safe class. Each label maps to a specialist provider, and the system prompt is conditioned per class: step-by-step derivation for <code>REASONING</code>, and an explicit instruction to state uncertainty for <code>FACTUAL</code>.</li>
+        <li><b>Intent routing (zero-shot classification).</b> A fast model labels the prompt as <code>CODE</code>, <code>CREATIVE</code>, <code>REASONING</code> or <code>FACTUAL</code> with a one-word constrained output that is regex-parsed. Routing has a <b>fallback chain</b>: if a provider errors, exceeds its <span data-cfg="routeS">5</span>&nbsp;s deadline or returns an unusable reply, the next-healthiest provider is tried (up to <span data-cfg="routeN">3</span> in all); if none succeeds, a local weighted keyword classifier decides, so later stages always receive a meaningful class. The pipeline bar and the workings state which path was used. Each label maps to a specialist provider, and the system prompt is conditioned per class: step-by-step derivation for <code>REASONING</code>, and an explicit instruction to state uncertainty for <code>FACTUAL</code>.</li>
         <li><b>Specialist generation.</b> The routed provider produces a draft over the last <span data-cfg="historyLimit">8</span> messages, plus a rolling summary and extracted user facts injected as a system-prompt preamble (see Memory). If tools are enabled, generation runs a bounded function-calling loop (see mechanism 4).</li>
         <li><b>Cross-model critique (LLM-as-a-judge).</b> A <em>different</em> provider from the generator is chosen, preferring one that is not currently failing or rate-limited. It must reply with the literal token <code>APPROVED</code> or a bulleted defect list, and is instructed <em>not</em> to rewrite the answer. Separating the verifier from the author avoids self-confirmation.</li>
         <li><b>Conditional revision.</b> Only if defects were reported does the original generator revise the draft conditioned on the critique. Otherwise the stage is skipped, which saves latency and tokens.</li>
@@ -596,8 +609,9 @@
 
       <h2 id="ab-data">7. Data handling</h2>
       <ul>
-        <li><b>Storage.</b> Keys and the proxy token (only if remembered), chats, workings, memory and preferences live in this browser's <code>localStorage</code>. There is no AI Council server that receives them.</li>
+        <li><b>Storage.</b> Keys and the proxy token (only if remembered), chats, workings, memory and preferences live in this browser's <code>localStorage</code>. There is no AI Council server that receives your prompts, keys, chats or memory.</li>
         <li><b>What leaves the browser.</b> Your prompts, the recent conversation and the memory preamble are sent to the providers you have connected, under those providers' terms and retention policies. Use only providers whose terms you accept.</li>
+        <li><b>The question counter.</b> The only thing this site itself sends to a server of its own is one anonymous "+1" per question, with no prompt, key, chat or memory content in it. As with any web request, your IP address reaches that server; it is held in memory only, to apply the rate limit, and is not stored or logged by the counter's own code. (Cloudflare, which hosts the Worker, handles requests under its own terms.)</li>
         <li><b>Advertising (Google AdSense).</b> This site loads Google's advertising script. In testing, a plain visit contacted Google's ad and consent-messaging servers (<code>pagead2.googlesyndication.com</code>, <code>fundingchoicesmessages.google.com</code>) and set one Google consent cookie on this domain. AI Council does not pass your keys, prompts or chats to that script. Like any third-party script, though, it executes in the same browsing context as the page, and Google's own privacy terms govern what it collects.</li>
         <li><b>Erasure.</b> Delete a chat with ✕ in the sidebar, clear memory with "Forget everything", and remove a key by clearing its field in ⚙&nbsp;Keys (untick "Remember" to avoid storing one).</li>
       </ul>
@@ -832,7 +846,16 @@ const CONFIG = {
 
   /* Council mode races every available provider in parallel — one hanging-but-not-
      erroring provider shouldn't stall the whole fanout. See withCouncilTimeout(). */
-  councilTimeoutMs: 30000
+  councilTimeoutMs: 30000,
+
+  /* Routing (the "what kind of question is this?" step) must never hold the answer up: each attempt gets a
+     short deadline, a failed attempt moves on to another provider, and after routeMaxAttempts the local
+     keyword classifier (heuristicCategory) decides. See routeQuestion(). */
+  routeTimeoutMs: 5000,   // a routing call normally takes about 1 s; 5 s per attempt caps the worst case at 15 s
+  routeMaxAttempts: 3,
+
+  /* Global question counter shown at the bottom of the sidebar. Empty url = the counter is switched off and hidden. */
+  stats: { url: "https://ai-council-proxy.o-t-dowling.workers.dev/count", pollMs: 60000 }
 };
 
 /* =====================================================================
@@ -1278,6 +1301,7 @@ function describeError(err, tail) {
   else if (/network error/i.test(raw)) s = `Couldn't reach ${who}`;
   else if (/blocked|CORS/i.test(raw)) s = `${who} blocked the request from the browser`;
   else if (/empty (streamed )?response/i.test(raw)) s = `${who} sent an empty reply`;
+  else if (/unclear routing reply/i.test(raw)) s = `${who} gave an unclear routing answer`;
   else if (code) s = `${who} returned an error (${code})`;
   else s = `${who} had a problem`;
   return { summary: tail ? `${s}, ${tail}` : s, raw };
@@ -1334,29 +1358,103 @@ async function callWithFallback(preferredId, messages, maxTokens, onDelta, ui, n
    Pipeline stages
    ===================================================================== */
 
-/* Stage: ROUTE (technique 5) — a fast model classifies the question. */
-async function routeQuestion(question, ui) {
-  const provId = pickProvider("groq");
-  if (!provId) throw new Error("no providers");
-  ui.stage("route", "running", `Routing · ${P[provId].label}`);
-  let category = "factual";
-  try {
-    const raw = await callModel(provId, P[provId].fast, [
-      { role: "system", content:
-        "Classify the user's request into exactly one category. Reply with ONE WORD only, chosen from: " +
-        "CODE (programming, debugging, scripts, technical how-to), " +
-        "CREATIVE (stories, poems, brainstorming, copywriting, names), " +
-        "REASONING (maths, logic puzzles, step-by-step planning, analysis), " +
-        "FACTUAL (everything else: facts, explanations, summaries, chat)." },
-      { role: "user", content: question.slice(0, 2000) }
-    ], 10);
-    const word = raw.toUpperCase().match(/CODE|CREATIVE|REASONING|FACTUAL/);
-    if (word) category = word[0].toLowerCase();
-    ui.stage("route", "done", `Routed: ${category} · ${P[provId].label}`);
-  } catch (e) {
-    ui.stage("route", "error", "Routing failed → factual");
-    ui.working("Routing note", describeError(e));
+/* Rejects if `promise` has not settled within `ms`. The underlying request is not cancelled (it still ends at
+   its own timeout); its late result is simply ignored, exactly as withCouncilTimeout() does for Council members. */
+function withDeadline(promise, ms, label) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label}: no response within ${ms / 1000}s`)), ms);
+    promise.then(v => { clearTimeout(timer); resolve(v); }, e => { clearTimeout(timer); reject(e); });
+  });
+}
+
+/* Local, network-free fallback classifier: the last line of defence when no model could route the question.
+   Each pattern carries a weight (strong signals 2-3, weak ones 1); a category must reach 2 to beat FACTUAL, so a
+   stray word like "class" in "What class of animal is a whale?" does not send a fact question to CODE. */
+const ROUTE_HINTS = {
+  code: [
+    [/```/, 3],
+    [/\b(python|javascript|typescript|java|c\+\+|c#|golang|rust|php|ruby|kotlin|swift|sql|html|css|regex|bash|powershell|json|yaml|xml|node\.?js|react|vue|angular|django|flask|docker|kubernetes|git|npm|pip)\b/i, 2],
+    [/\b(debug|debugging|bug|compile|compiler|stack ?trace|traceback|exception|syntax|refactor|unit test|segfault|null pointer|undefined is not)\b/i, 2],
+    [/\b(code|coding|script|program|programming|function|variable|array|class|method|algorithm|api|endpoint|repository|library|framework)\b/i, 1],
+    [/=>|\(\)|\{\s*\}|;\s*$/m, 1]
+  ],
+  reasoning: [
+    [/\b(solve|calculate|compute|prove|proof|derive|equation|integral|derivative|probability|step[- ]by[- ]step|puzzle|riddle|deduce)\b/i, 2],
+    [/\d+\s*[-+*\/^×÷=]\s*\d+/, 2],
+    [/\b(how many|how much|logic|logical|infer|optimi[sz]e|estimate|schedule|trade-?offs?|pros and cons|strategy|analy[sz]e|analysis|reasoning|percentage)\b/i, 1],
+    [/\d+(\.\d+)?\s*%/, 1]
+  ],
+  creative: [
+    [/\b(write|compose|draft|create|make)\b[^.?!]{0,40}\b(story|poem|song|lyrics|haiku|limerick|sonnet|essay|letter|speech|slogan|tagline|dialogue|blog post|caption|joke|toast|scene)\b/i, 3],
+    [/\b(story|poem|lyrics|haiku|limerick|brainstorm|slogan|tagline|names? for|name ideas|fiction|fictional|rhyme)\b/i, 2],
+    [/\b(catchy|imagine|character|plot|fantasy|creative)\b/i, 1]
+  ]
+};
+function heuristicCategory(question) {
+  const q = String(question).slice(0, 2000);
+  let best = "factual", bestScore = 1;   // needs a score of 2 or more to beat the default
+  for (const cat of ["code", "reasoning", "creative"]) {   // this order also breaks ties
+    let score = 0;
+    for (const [re, w] of ROUTE_HINTS[cat]) if (re.test(q)) score += w;
+    if (score > bestScore) { best = cat; bestScore = score; }
   }
+  return best;
+}
+
+/* Routing order: Groq's fast model first (the usual router), then the other connected providers. Providers the
+   header dots currently mark as failing or rate-limited go to the back, so a known-bad one isn't tried first. */
+function routeCandidates() {
+  const avail = availableProviders();
+  if (!avail.length) return [];
+  const first = pickProvider("groq");
+  const order = [first, ...avail.filter(id => id !== first)];
+  const healthy = id => !["fail", "limited"].includes(providerStatus(id).state);
+  return [...order.filter(healthy), ...order.filter(id => !healthy(id))];
+}
+
+/* Stage: ROUTE (technique 5) — decide what kind of question this is.
+   1. Ask a fast model. If that provider errors, times out (routeTimeoutMs) or gives an unusable reply, ask the
+      next one — up to routeMaxAttempts providers in all.
+   2. If none of them can, classify locally with keywords, so the later steps still get a sensible category
+      instead of a blanket "factual" (and the pipeline never stops here).
+   The stage bar and the workings say which path was used, and why any provider was skipped. */
+const ROUTE_LABEL_RE = /CODE|CREATIVE|REASONING|FACTUAL/;
+async function routeQuestion(question, ui) {
+  const order = routeCandidates().slice(0, CONFIG.routeMaxAttempts);
+  ui.stage("route", "running", order.length ? `Routing · ${P[order[0]].label}` : "Routing");
+  const failures = [];   // [{ id, d: describeError() }]
+  for (const id of order) {
+    try {
+      const raw = await withDeadline(callModel(id, P[id].fast, [
+        { role: "system", content:
+          "Classify the user's request into exactly one category. Reply with ONE WORD only, chosen from: " +
+          "CODE (programming, debugging, scripts, technical how-to), " +
+          "CREATIVE (stories, poems, brainstorming, copywriting, names), " +
+          "REASONING (maths, logic puzzles, step-by-step planning, analysis), " +
+          "FACTUAL (everything else: facts, explanations, summaries, chat)." },
+        { role: "user", content: question.slice(0, 2000) }
+      ], 10), CONFIG.routeTimeoutMs, P[id].label);
+      const word = String(raw).toUpperCase().match(ROUTE_LABEL_RE);
+      if (!word) throw new Error(`${P[id].label}: unclear routing reply`);
+      const category = word[0].toLowerCase();
+      if (failures.length) {
+        ui.stage("route", "done", `Routed: ${category} · ${P[id].label} (backup router)`);
+        ui.working("Routing fallback", describeError(failures[0].e, `used ${P[id].label} instead`));
+      } else {
+        ui.stage("route", "done", `Routed: ${category} · ${P[id].label}`);
+      }
+      return category;
+    } catch (e) {
+      failures.push({ id, e });
+    }
+  }
+  const category = heuristicCategory(question);
+  ui.stage("route", "warn", `Routed: ${category} · keyword fallback`);
+  const ds = failures.map(f => describeError(f.e).summary);
+  ui.working("Routing fallback", {
+    summary: (ds.length ? `Model routing was unavailable (${ds.join("; ")}), so` : "No provider was available for routing, so") + ` the question was routed by keywords as “${category}”.`,
+    raw: failures.map(f => `${P[f.id] ? P[f.id].label : f.id}: ${describeError(f.e).raw}`).join("\n") || "(no providers)"
+  });
   return category;
 }
 
@@ -2300,6 +2398,7 @@ async function onSend() {
   inputEl.value = ""; autoGrow();
   busy = true; sendEl.disabled = true;
   addUserBubble(q);
+  tickGlobalCount();   // one anonymous +1 to the global counter (no question text is sent)
   const ui = addAiBubble();
   try {
     const final = await answer(q, ui);
@@ -2800,6 +2899,77 @@ document.addEventListener("keydown", e => {
 });
 
 /* =====================================================================
+   Global question counter — the running total of questions asked by all users, at the bottom of the sidebar.
+   The total lives in the site's Worker (a Durable Object, see worker/src/index.js). Each question sends ONE
+   anonymous POST with no body, no custom headers and no question text; the page reads the total on load, after
+   each of its own questions, and every CONFIG.stats.pollMs while the tab is visible. If the counter can't be
+   reached the box simply stays hidden (or keeps its last value); it never affects asking a question.
+   ===================================================================== */
+/* 999 → "999", 1,234 → "1.2K", 12,345 → "12.3K", 1,234,567 → "1.2Mi", 2,500,000,000 → "2.5Bi".
+   K = thousand, Mi = million, Bi = billion. Truncated to one decimal (never rounded up), so it can't overstate. */
+function formatCount(n) {
+  if (typeof n !== "number" || !isFinite(n) || n < 0) return "—";
+  n = Math.floor(n);
+  if (n < 1000) return String(n);
+  for (const [suffix, size] of [["Bi", 1e9], ["Mi", 1e6], ["K", 1e3]]) {
+    if (n >= size) {
+      const tenths = Math.floor(n / (size / 10));   // whole-number maths: no floating-point surprises
+      return (tenths % 10 === 0 ? String(tenths / 10) : (tenths / 10).toFixed(1)) + suffix;
+    }
+  }
+  return String(n);
+}
+
+const gcEl = document.getElementById("globalCount");
+const gcNum = document.getElementById("gcNum");
+let globalTotal = null;      // null until the counter has answered at least once
+let lastTickAt = 0;
+
+function renderGlobalCount(bump) {
+  if (globalTotal === null) return;
+  gcEl.hidden = false;
+  gcNum.textContent = formatCount(globalTotal);
+  const exact = globalTotal.toLocaleString("en-GB");
+  gcEl.title = exact + " questions asked on AI Council by everyone so far";
+  gcEl.setAttribute("aria-label", "Questions asked on AI Council by everyone: " + exact);
+  if (bump) { gcNum.classList.remove("bump"); void gcNum.offsetWidth; gcNum.classList.add("bump"); }
+}
+
+async function fetchGlobalCount() {
+  if (!CONFIG.stats.url) return;
+  try {
+    const r = await fetch(CONFIG.stats.url);
+    if (!r.ok) return;
+    const j = await r.json();
+    if (!Number.isFinite(j.total)) return;
+    // A read can be a few seconds stale; don't let it move the number backwards right after our own +1.
+    if (globalTotal !== null && Date.now() - lastTickAt < 20000 && j.total < globalTotal) return;
+    const grew = globalTotal !== null && j.total > globalTotal;
+    globalTotal = j.total;
+    renderGlobalCount(grew);
+  } catch (_) { /* offline or blocked: leave the box as it is */ }
+}
+
+async function tickGlobalCount() {
+  if (!CONFIG.stats.url) return;
+  try {
+    const r = await fetch(CONFIG.stats.url, { method: "POST" });   // no body, no headers: a "simple" cross-origin request
+    lastTickAt = Date.now();
+    const j = await r.json().catch(() => null);
+    if (j && Number.isFinite(j.total)) { globalTotal = j.total; renderGlobalCount(r.ok); }   // even when rate-limited (429) the true total is shown
+    else if (r.ok && globalTotal !== null) { globalTotal += 1; renderGlobalCount(true); }
+  } catch (_) { /* never let the counter get in the way of asking a question */ }
+}
+
+function pollGlobalCount() { if (!document.hidden) fetchGlobalCount(); }
+function startGlobalCount() {
+  if (!CONFIG.stats.url) return;
+  fetchGlobalCount();
+  setInterval(pollGlobalCount, CONFIG.stats.pollMs);
+  document.addEventListener("visibilitychange", pollGlobalCount);   // catch up as soon as the tab is looked at again
+}
+
+/* =====================================================================
    About tab. A second view in the same page (#about), toggled from the header.
    The numbers quoted in the text are filled in from the live settings, so the
    page cannot drift out of step with what the code actually does. The provider
@@ -2836,7 +3006,7 @@ document.querySelectorAll(".ab-toc a").forEach(a => a.addEventListener("click", 
 }));
 
 function buildAbout() {
-  const cfg = { historyLimit: CONFIG.historyLimit, timeoutS: CONFIG.timeoutMs / 1000, councilS: CONFIG.councilTimeoutMs / 1000, ttlDays: FACT_TTL_DAYS };
+  const cfg = { historyLimit: CONFIG.historyLimit, timeoutS: CONFIG.timeoutMs / 1000, councilS: CONFIG.councilTimeoutMs / 1000, ttlDays: FACT_TTL_DAYS, routeS: CONFIG.routeTimeoutMs / 1000, routeN: CONFIG.routeMaxAttempts };
   aboutView.querySelectorAll("[data-cfg]").forEach(el => { if (cfg[el.dataset.cfg] !== undefined) el.textContent = cfg[el.dataset.cfg]; });
   const tbody = aboutView.querySelector("#abProviders tbody");
   tbody.innerHTML = "";
@@ -2864,6 +3034,7 @@ refreshDots();
 verifyProviders();   // dots go green only once a provider has actually answered
 renderMemoryPanel();
 renderChatList();
+startGlobalCount();
 if (location.hash === "#about") setAbout(true, { fromHistory: true });
 inputEl.focus();
 

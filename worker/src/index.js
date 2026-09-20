@@ -23,6 +23,14 @@
  * Variables (wrangler.toml [vars]):
  *   ALLOWED_ORIGIN  — the exact site origin(s) allowed to call this Worker,
  *                     comma-separated, e.g. https://mrscruffster.github.io,https://www.ai-council.co.uk
+ *
+ * Global question counter (no token needed by visitors, no personal data stored):
+ *   GET  /count   → { total }      read the running total (browser, allowed origin)
+ *   POST /count   → { total }      add one — called once per question asked on the site
+ *   PUT  /count   → { total }      OWNER ONLY (X-Proxy-Token): set the total, e.g. {"total":0} to reset
+ * The total lives in a Durable Object (class Counter, binding COUNTER), so simultaneous
+ * increments from many visitors can never be lost. Per-IP and global rate limits stop one
+ * client from inflating it; the IP is used only in memory for that and is never stored.
  */
 
 const PROVIDERS = {
@@ -44,7 +52,7 @@ function corsHeaders(origin, env) {
   return ok
     ? {
         "Access-Control-Allow-Origin": origin,
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
         "Access-Control-Allow-Headers": "Content-Type, X-Proxy-Token",
         "Access-Control-Max-Age": "86400",
         "Vary": "Origin"
@@ -59,6 +67,91 @@ function json(status, obj, cors) {
   });
 }
 
+/* ---------- global question counter ---------- */
+const RATE_PER_IP_PER_MIN = 20;      // increments one IP address may add per minute
+const RATE_GLOBAL_PER_MIN = 600;     // ...and everyone together (protects the free Durable Objects quota)
+const COUNT_CACHE_MS = 15000;        // GETs are answered from memory for a few seconds, so polling stays cheap
+let countCache = { at: 0, total: null };
+
+function plain(status, obj) {
+  return new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json" } });
+}
+
+/* One instance holds the single running total; a Durable Object handles one request at a time
+   for its storage, so read-add-write can never lose a count to a race. */
+export class Counter {
+  constructor(state) {
+    this.state = state;
+    this.hits = new Map();           // ip -> recent increment timestamps (memory only, never stored)
+    this.minute = { start: 0, n: 0 };
+  }
+  async fetch(request) {
+    const total = (await this.state.storage.get("total")) || 0;
+    if (request.method === "GET") return plain(200, { total });
+    if (request.method === "PUT") {
+      let n = NaN;
+      try { n = Math.floor(Number((await request.json()).total)); } catch (_) { /* falls through to the 400 */ }
+      if (!Number.isFinite(n) || n < 0 || n > 1e15) return plain(400, { error: { message: "Send {\"total\": <whole number>}." } });
+      await this.state.storage.put("total", n);
+      return plain(200, { total: n });
+    }
+    if (request.method === "POST") {
+      const now = Date.now();
+      if (now - this.minute.start >= 60000) this.minute = { start: now, n: 0 };
+      const ip = request.headers.get("X-Client-IP") || "unknown";
+      const recent = (this.hits.get(ip) || []).filter(t => now - t < 60000);
+      if (recent.length >= RATE_PER_IP_PER_MIN || this.minute.n >= RATE_GLOBAL_PER_MIN) {
+        this.hits.set(ip, recent);
+        return plain(429, { total, limited: true });
+      }
+      recent.push(now);
+      this.hits.set(ip, recent);
+      this.minute.n++;
+      if (this.hits.size > 5000) for (const [k, v] of this.hits) if (!v.some(t => now - t < 60000)) this.hits.delete(k);
+      const next = total + 1;
+      await this.state.storage.put("total", next);
+      return plain(200, { total: next });
+    }
+    return plain(405, { error: { message: "GET, POST or PUT only." } });
+  }
+}
+
+async function handleCount(request, env, cors) {
+  if (!env.COUNTER) return json(503, { error: { message: "The counter is not configured on this Worker." } }, cors);
+  const stub = env.COUNTER.get(env.COUNTER.idFromName("global"));
+  const out = (r, extra) => new Response(r.body, { status: r.status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store", ...cors, ...(extra || {}) } });
+
+  if (request.method === "PUT") {   // owner only: seed or reset the total. Needs the secret token, no browser origin.
+    if (!env.PROXY_TOKEN || request.headers.get("X-Proxy-Token") !== env.PROXY_TOKEN) {
+      return json(401, { error: { message: "Owner token required." } }, cors);
+    }
+    const r = await stub.fetch("https://counter/", { method: "PUT", body: await request.text() });
+    countCache = { at: 0, total: null };
+    return out(r);
+  }
+
+  // GET and POST are for the website only: a browser always sends Origin on these cross-origin calls.
+  if (!cors["Access-Control-Allow-Origin"]) return json(403, { error: { message: "Origin not allowed." } }, cors);
+
+  if (request.method === "GET") {
+    const now = Date.now();
+    if (countCache.total !== null && now - countCache.at < COUNT_CACHE_MS) return json(200, { total: countCache.total }, { ...cors, "Cache-Control": "no-store" });
+    const r = await stub.fetch("https://counter/", { method: "GET" });
+    if (r.ok) { const j = await r.clone().json(); countCache = { at: now, total: j.total }; }   // fresh from storage: authoritative
+    return out(r);
+  }
+  if (request.method === "POST") {
+    const r = await stub.fetch("https://counter/", { method: "POST", headers: { "X-Client-IP": request.headers.get("CF-Connecting-IP") || "unknown" } });
+    if (r.ok) {
+      /* Simultaneous increments finish in any order, so only ever move the cached total FORWARD. */
+      const j = await r.clone().json();
+      if (countCache.total === null || j.total > countCache.total) countCache = { at: Date.now(), total: j.total };
+    }
+    return out(r);
+  }
+  return json(405, { error: { message: "GET or POST only." } }, cors);
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -68,6 +161,8 @@ export default {
     if (request.method === "OPTIONS") {
       return new Response(null, { status: cors["Access-Control-Allow-Origin"] ? 204 : 403, headers: cors });
     }
+
+    if (/^\/count\/?$/.test(url.pathname)) return handleCount(request, env, cors);
 
     const m = url.pathname.match(/^\/api\/([a-z0-9_-]+)\/?$/i);
     if (!m) return json(404, { error: { message: "Not found. Use POST /api/<provider>." } }, cors);

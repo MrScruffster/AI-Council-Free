@@ -3,6 +3,15 @@ name = "ai-council-proxy"
 main = "src/index.js"
 compatibility_date = "2025-01-01"
 
+# Global question counter: one Durable Object (SQLite-backed, available on the free plan) holds the total.
+[[durable_objects.bindings]]
+name = "COUNTER"
+class_name = "Counter"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Counter"]
+
 [vars]
 # The exact origin(s) of the page that calls this Worker (no trailing slash, no path),
 # comma-separated.
