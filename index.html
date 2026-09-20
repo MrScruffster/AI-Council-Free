@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>AI Council — multi-model orchestrator</title>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5031821812267596"
      crossorigin="anonymous"></script>
@@ -28,15 +28,19 @@
     color: var(--text);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
     height: 100vh;
+    height: 100dvh;   /* phones: the visible area, not the size behind the address bar */
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    overscroll-behavior: none;
+    -webkit-text-size-adjust: 100%;
   }
 
   /* ---------- Header ---------- */
   header {
     display: flex; align-items: center; gap: 12px;
-    padding: 10px 16px;
+    /* keep clear of a phone's notch / status bar (all zero on desktop) */
+    padding: max(10px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left));
     background: var(--panel);
     border-bottom: 1px solid var(--border);
     flex-wrap: wrap;
@@ -198,7 +202,8 @@
 
   /* ---------- Composer ---------- */
   #composer {
-    display: flex; gap: 10px; padding: 12px 16px 16px;
+    display: flex; gap: 10px;
+    padding: 12px max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
     background: var(--panel); border-top: 1px solid var(--border);
   }
   #input {
@@ -221,7 +226,7 @@
   }
   #overlay.open { display: block; }
   .drawer {
-    position: fixed; top: 0; right: 0; height: 100%; width: min(420px, 100%);
+    position: fixed; top: 0; bottom: 0; right: 0; width: min(420px, 100%);
     background: var(--panel); border-left: 1px solid var(--border);
     transform: translateX(100%); transition: transform .25s ease; z-index: 11;
     display: flex; flex-direction: column;
@@ -298,7 +303,7 @@
   #welcome { position: fixed; inset: 0; z-index: 30; display: none; align-items: center; justify-content: center; padding: 16px; background: rgba(6, 8, 14, .72); }
   #welcome.open { display: flex; }
   .wl-card {
-    width: 100%; max-width: 580px; max-height: calc(100vh - 32px); overflow-y: auto;
+    width: 100%; max-width: 580px; max-height: calc(100vh - 32px); max-height: calc(100dvh - 32px); overflow-y: auto;
     background: var(--panel); border: 1px solid var(--border); border-radius: 16px;
     padding: 24px 24px 20px; box-shadow: 0 20px 60px rgba(0, 0, 0, .55); position: relative;
   }
@@ -347,6 +352,38 @@
   .wl-done { background: var(--panel-2); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 8px 16px; cursor: pointer; font-family: inherit; font-size: .84rem; }
   .wl-done.primary { background: var(--ok); border-color: var(--ok); color: #0b1a13; font-weight: 650; }
   @media (max-width: 520px) { .wl-card { padding: 20px 16px 16px; } .wl-paste select { flex: 1 1 100%; } .wl-prov { flex-wrap: wrap; } .wl-get { width: 100%; text-align: center; } }
+  #welcome { padding-top: max(16px, env(safe-area-inset-top)); padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+
+  /* ---------- Phones ----------
+     The header has ~10 controls. Lay them out as: title + Help + Keys on the
+     first row, the provider dots as one swipeable line, the mode picker across
+     the full width, then the three toggles — instead of a tall wrapped block.
+     Text boxes are 16px so iPhones don't zoom in (and leave the page shifted)
+     when one is tapped. */
+  @media (max-width: 760px) {
+    header { gap: 6px 8px; padding-bottom: 8px; }
+    header h1 { font-size: 1rem; order: 2; }
+    #sidebarBtn { order: 1; }
+    header .spacer { order: 3; }
+    #helpBtn { order: 4; }
+    #settingsBtn { order: 5; }
+    .provider-dots { order: 6; flex: 1 0 100%; flex-wrap: nowrap; overflow-x: auto; gap: 12px; font-size: .7rem; padding: 2px 0; -webkit-overflow-scrolling: touch; }
+    .provider-dots > span { flex: none; white-space: nowrap; }
+    .mode-picker { order: 7; flex: 1 0 100%; }
+    .mode-picker button { flex: 1; padding: 7px 4px; }
+    #plainToggle { order: 8; }
+    #toolsToggle { order: 9; }
+    #memoryBtn { order: 10; }
+    #plainToggle, #toolsToggle, #memoryBtn { flex: 1 1 0; min-width: 0; padding: 6px 4px; font-size: .78rem; white-space: nowrap; }
+    header .icon-btn { padding: 6px 10px; }
+    #chat { padding: 14px 12px; gap: 14px; }
+    .msg.user { max-width: 92%; }
+    .msg.ai .bubble { padding: 12px; }
+    #composer { gap: 8px; }
+    #send { padding: 0 16px; }
+    #input, .keyrow input, .custom-form input, .wl-paste input, .wl-paste select { font-size: 16px; }
+  }
+  @media (max-width: 400px) { .hb-text { display: none; } }
 </style>
 </head>
 <body>
@@ -364,7 +401,7 @@
   <button class="icon-btn active" id="plainToggle" title="Explain answers in plain, everyday language (with a simple diagram where it helps). The full technical answer stays one click away.">🗣 Plain: on</button>
   <button class="icon-btn" id="toolsToggle" title="Let a model use a small built-in toolset (calculator, current date/time) while drafting — Fast/Balanced modes only.">🔧 Tools: off</button>
   <button class="icon-btn" id="memoryBtn">🧠 Memory</button>
-  <button class="icon-btn" id="helpBtn" title="How to get set up: it takes about 2 minutes and needs no credit card">❓ How to start</button>
+  <button class="icon-btn" id="helpBtn" title="How to get set up: it takes about 2 minutes and needs no credit card" aria-label="How to start">❓<span class="hb-text"> How to start</span></button>
   <button class="icon-btn" id="settingsBtn">⚙ Keys</button>
 </header>
 
