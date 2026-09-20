@@ -46,3 +46,25 @@ Both page tools only exist for the model when their key is set, work in Fast/Bal
 - **▶ Run code** – Python and JavaScript code blocks get a Run button. Everything executes inside your browser in a sandbox (a sandboxed iframe / Web Worker; Python via Pyodide, downloaded only on your first Python run). Nothing is sent anywhere, and the code can't see this page or your API keys.
 - **🧩 Structured (JSON) output** – ask for the answer in a JSON shape you choose (a JSON Schema or a small example) in Fast/Balanced mode. It uses each provider's native JSON mode where one exists and falls back to instructions; enforcement is best-effort and depends on provider support, and the reply is always validated in your browser, with a clear warning if it doesn't match.
 - **🤖 Agent mode (safe first phase)** – the council creates a validated task plan, shows risks and expected results, and requires approval before each permitted read-only step. Approved steps can use the existing calculator, date/time and web-search tools; every action appears in an audit history and the persistent Stop agent control cancels the task. Browser automation and form submission are intentionally not connected yet.
+- **🌐 Local browser runner (optional, first phase)** – `runner/` contains an authenticated Playwright companion service for isolated, task-scoped browser contexts. It supports approved HTTPS navigation, visible-text extraction, screenshots and form filling; private addresses, non-allowlisted domains and form submission are blocked. See `runner/README.md`; the frontend does not send provider keys to the runner.
+
+## Local browser runner
+
+The runner is deliberately separate from the static website. It listens only on
+`127.0.0.1`, requires an `AIC_RUNNER_TOKEN`, creates a fresh browser context per
+task, expires tasks after ten minutes, and closes a context when stopped. It
+accepts only HTTPS URLs in the task allowlist and blocks localhost, private,
+link-local and cloud-metadata addresses.
+
+```powershell
+cd runner
+npm install
+npx playwright install chromium
+$env:AIC_RUNNER_TOKEN = "use-a-long-random-local-token"
+npm start
+```
+
+The runner API is intended for a future frontend integration. It does not
+receive provider API keys and its first release does not submit forms, execute
+shell commands, access files, or control the desktop. Run its security tests
+with `npm test`.
