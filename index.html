@@ -5359,6 +5359,42 @@ const CUSTOM_PROVIDER_PRESETS = {
 const EXTRA_PRESET_IDS = ["alibaba", "meta", "hf", "pollinations", "bazaarlink"];
 const DEFAULT_URL_LABEL = "Chat-completions URL", DEFAULT_KEY_LABEL = "API key";
 
+function normalizeCustomProviderUrl(raw) {
+  const value = String(raw || "").trim();
+  if (!value) return { ok: false, reason: "Enter the provider's HTTPS URL." };
+  try {
+    const u = new URL(value);
+    if (u.protocol !== "https:") return { ok: false, reason: "Only HTTPS provider URLs are accepted so the key isn't sent over an unencrypted connection." };
+    const host = u.hostname.toLowerCase();
+    if (host === "localhost" || host.endsWith(".local") || host.endsWith(".internal") || /^(127\.|10\.|192\.168\.|169\.254\.|0\.)/.test(host) || /^172\.(1[6-9]|2\d|3[01])\./.test(host) || host === "[::1]") {
+      return { ok: false, reason: "Private or local addresses are rejected for custom endpoints. Use a public HTTPS URL." };
+    }
+    return { ok: true, url: u.href.replace(/\/+$/, "") };
+  } catch (_) {
+    return { ok: false, reason: "That URL isn't valid. Use a full HTTPS URL, for example https://api.example.com/v1/chat/completions" };
+  }
+}
+
+function validateCustomProviderInput({ label, url, model, key, needsKey }) {
+  const cleanLabel = String(label || "").trim();
+  if (!cleanLabel) return { ok: false, reason: "Name is required." };
+  const cleanModel = String(model || "").trim();
+  if (!cleanModel) return { ok: false, reason: "Model ID is required." };
+  if (/^https?:\/\//i.test(cleanModel)) return { ok: false, reason: "The model box is for the model ID, not a URL. Paste the model name only (for example gpt-4o-mini or claude-sonnet-4)." };
+  const urlCheck = normalizeCustomProviderUrl(url);
+  if (!urlCheck.ok) return urlCheck;
+  if (needsKey && !String(key || "").trim()) return { ok: false, reason: "This provider requires an API key. Paste it in the key box." };
+  if (String(key || "").trim() && /^https?:\/\//i.test(String(key || "").trim())) {
+    return { ok: false, reason: "That looks like a web address, not a key. The endpoint URL goes in the URL box above; the key box is for the secret API key only." };
+  }
+  const duplicate = customProviders.some(cp =>
+    cp.label.trim().toLowerCase() === cleanLabel.toLowerCase() ||
+    (cp.url.toLowerCase() === urlCheck.url.toLowerCase() && cp.workhorse.trim().toLowerCase() === cleanModel.toLowerCase())
+  );
+  if (duplicate) return { ok: false, reason: "A provider with that name or the same URL + model already exists. Remove it or rename this one." };
+  return { ok: true, url: urlCheck.url, label: cleanLabel, model: cleanModel };
+}
+
 function showAddProviderForm() {
   const host = document.getElementById("customProviderForm");
   if (host.childElementCount) { host.innerHTML = ""; return; }   // toggle closed if already open
@@ -5413,34 +5449,24 @@ function showAddProviderForm() {
 
   form.querySelector(".cf-cancel").addEventListener("click", () => { host.innerHTML = ""; });
   form.querySelector(".cf-save").addEventListener("click", () => {
-    const label = form.querySelector("#cfLabel").value.trim();
-    const url = form.querySelector("#cfUrl").value.trim();
-    const model = form.querySelector("#cfModel").value.trim();
+    const label = form.querySelector("#cfLabel").value;
+    const url = form.querySelector("#cfUrl").value;
+    const model = form.querySelector("#cfModel").value;
     const key = form.querySelector("#cfKey").value;
     const family = form.querySelector("#cfFamily").value;
     const statusEl = form.querySelector("#cfStatus");
-    if (!label || !url || !model) {
-      statusEl.className = "teststatus err"; statusEl.textContent = "Name, URL and model are all required.";
-      return;
-    }
-    if (!/^https:\/\//i.test(url)) {
-      statusEl.className = "teststatus err"; statusEl.textContent = "The URL must start with https:// — plain http:// endpoints are rejected so a key can't leak over an unencrypted connection.";
-      return;
-    }
-    if (/^https?:\/\//i.test(key.trim())) {   // an endpoint pasted into the key box (easy to do with per-workspace URLs)
-      statusEl.className = "teststatus err"; statusEl.textContent = "That looks like a web address, not a key. The endpoint URL goes in the URL box above; this box is for the secret API key.";
-      return;
-    }
     const needsKey = !!activePreset && !activePreset.keyOptional;
-    if (needsKey && !key.trim()) {
-      statusEl.className = "teststatus err"; statusEl.textContent = "This one needs your own API key. Paste it in the key box.";
+    const valid = validateCustomProviderInput({ label, url, model, key, needsKey });
+    if (!valid.ok) {
+      statusEl.className = "teststatus err"; statusEl.textContent = valid.reason;
       return;
     }
     /* A pasted base URL such as .../compatible-mode/v1 gets the standard chat path added. */
-    const finalUrl = /\/v1\/?$/i.test(url) ? url.replace(/\/+$/, "") + "/chat/completions" : url;
-    const id = "custom-" + label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") + "-" + Date.now().toString(36).slice(-4);
+    let finalUrl = valid.url;
+    if (/\/v1\/?$/i.test(finalUrl)) finalUrl = finalUrl.replace(/\/+$/, "") + "/chat/completions";
+    const id = "custom-" + valid.label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") + "-" + Date.now().toString(36).slice(-4);
     /* No key typed and none required (a preset marked optional, or a hand-filled form such as a local Ollama): keyOptional, so it still works. */
-    addCustomProvider({ id, label, url: finalUrl, key, workhorse: model, fast: model, keyUrl: "", family: family || undefined, keyOptional: !key.trim() && !needsKey ? true : undefined });
+    addCustomProvider({ id, label: valid.label, url: finalUrl, key: key.trim(), workhorse: valid.model, fast: valid.model, keyUrl: "", family: family || undefined, keyOptional: !key.trim() && !needsKey ? true : undefined });
     host.innerHTML = "";
     renderCustomProviderList();
     refreshDots();
