@@ -10,6 +10,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>AI Council — multi-model orchestrator</title>
+<meta name="description" content="AI Council asks several AI models at once, has a second model check the answer, and flags where they disagree. Free to use with your own API keys.">
+<link rel="canonical" href="https://www.ai-council.co.uk/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="AI Council — multi-model orchestrator">
+<meta property="og:description" content="Ask several AI models at once, with cross-model checking and disagreements flagged.">
+<meta property="og:url" content="https://www.ai-council.co.uk/">
+<meta name="theme-color" content="#171a23">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%234a67e8'/%3E%3Ctext x='50' y='67' font-size='54' font-weight='700' font-family='Arial,sans-serif' text-anchor='middle' fill='white'%3EAI%3C/text%3E%3C/svg%3E">
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5031821812267596"
      crossorigin="anonymous"></script>
 <style>
@@ -22,6 +30,8 @@
     --text-dim: #9aa1b2;
     --accent: #6c8cff;
     --accent-2: #8b6cff;
+    --accent-strong: #4a67e8;     /* blue behind white text: 4.8:1 contrast (the light --accent is only 3.1:1) */
+    --accent-2-strong: #6a4be0;   /* 5.7:1 */
     --ok: #4cc38a;
     --warn: #e5b567;
     --err: #e5735f;
@@ -59,7 +69,7 @@
     background: none; border: none; color: var(--text-dim);
     padding: 6px 14px; cursor: pointer; font-size: .85rem; font-family: inherit;
   }
-  .mode-picker button.active { background: var(--accent); color: #fff; }
+  .mode-picker button.active { background: var(--accent-strong); color: #fff; }
   .icon-btn {
     background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
     border-radius: 8px; padding: 6px 10px; cursor: pointer; font-size: .85rem; font-family: inherit;
@@ -105,6 +115,7 @@
   .chat-item:hover .cx { visibility: visible; }
   .chat-item .cx:hover { color: var(--err); }
   .sidebar-note { font-size: .7rem; color: var(--text-dim); padding: 8px 14px; border-top: 1px solid var(--border); }
+  @media (min-width: 761px) { #layout.sidebar-collapsed #sidebar { display: none; } }   /* desktop only: on phones the sidebar is a drawer */
   @media (max-width: 760px) {
     #sidebar {
       position: absolute; left: 0; top: 0; bottom: 0; z-index: 6;
@@ -123,7 +134,7 @@
   .msg { max-width: 100%; }
   .msg.user { align-self: flex-end; max-width: 80%; }
   .msg.user .bubble {
-    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    background: linear-gradient(135deg, var(--accent-strong), var(--accent-2-strong));
     color: #fff; padding: 10px 14px; border-radius: var(--radius);
     border-bottom-right-radius: 4px; white-space: pre-wrap; word-wrap: break-word;
   }
@@ -182,7 +193,7 @@
   .diagram { margin: 4px 0 14px; padding: 14px; background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius); }
   .diagram.flow, .diagram.cycle { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .dstep { display: inline-flex; align-items: center; gap: 8px; background: var(--panel); border: 1px solid var(--accent); border-radius: 10px; padding: 8px 12px; font-size: .9rem; line-height: 1.3; }
-  .dnum { flex: none; width: 20px; height: 20px; border-radius: 50%; background: var(--accent); color: #fff; font-size: .72rem; display: inline-flex; align-items: center; justify-content: center; }
+  .dnum { flex: none; width: 20px; height: 20px; border-radius: 50%; background: var(--accent-strong); color: #fff; font-size: .72rem; display: inline-flex; align-items: center; justify-content: center; }
   .dgroup { display: inline-flex; align-items: center; gap: 8px; }
   .darrow { color: var(--accent); font-size: 1.1rem; }
   .dloop { flex-basis: 100%; color: var(--text-dim); font-size: .78rem; padding-left: 4px; }
@@ -200,7 +211,7 @@
   .xexamine-form { margin-top: 8px; display: none; gap: 6px; }
   .xexamine-form.open { display: flex; flex-wrap: wrap; }
   .xexamine-form input { flex: 1; min-width: 140px; background: #10131a; border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; color: var(--text); font-size: .8rem; font-family: inherit; }
-  .xexamine-form button { background: var(--accent); border: none; color: #fff; border-radius: 6px; padding: 6px 12px; font-size: .78rem; cursor: pointer; font-family: inherit; }
+  .xexamine-form button { background: var(--accent-strong); border: none; color: #fff; border-radius: 6px; padding: 6px 12px; font-size: .78rem; cursor: pointer; font-family: inherit; }
   /* Hidden until an answer (or error) arrives; the JS then adds .open. Rendered as markdown, so no pre-wrap. */
   .xexamine-reply { margin-top: 8px; background: #10131a; border: 1px dashed var(--border); border-radius: 8px; padding: 8px 10px; font-size: .82rem; color: var(--text); line-height: 1.5; word-wrap: break-word; display: none; }
   .xexamine-reply.open { display: block; }
@@ -232,7 +243,7 @@
   }
   #input:focus { border-color: var(--accent); }
   #send {
-    background: var(--accent); color: #fff; border: none; border-radius: var(--radius);
+    background: var(--accent-strong); color: #fff; border: none; border-radius: var(--radius);
     padding: 0 22px; font-size: .95rem; cursor: pointer; font-family: inherit; font-weight: 600;
   }
   #send:disabled { opacity: .5; cursor: not-allowed; }
@@ -311,7 +322,7 @@
   }
   .custom-form input:focus { border-color: var(--accent); }
   .custom-form .cf-actions { display: flex; gap: 8px; margin-top: 12px; }
-  .custom-form .cf-save { background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 7px 14px; cursor: pointer; font-family: inherit; font-size: .8rem; }
+  .custom-form .cf-save { background: var(--accent-strong); color: #fff; border: none; border-radius: 8px; padding: 7px 14px; cursor: pointer; font-family: inherit; font-size: .8rem; }
   .custom-form .cf-cancel { background: none; border: 1px solid var(--border); color: var(--text-dim); border-radius: 8px; padding: 7px 14px; cursor: pointer; font-family: inherit; font-size: .8rem; }
   .custom-card .cf-remove { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: .8rem; float: right; }
   .custom-card .cf-remove:hover { color: var(--err); }
@@ -331,7 +342,7 @@
   .wl-lead { color: var(--text-dim); font-size: .92rem; line-height: 1.55; margin-bottom: 18px; }
   .wl-lead b { color: var(--text); }
   .wl-step { display: flex; gap: 12px; margin-bottom: 16px; }
-  .wl-num { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: #fff; font-size: .82rem; font-weight: 650; display: inline-flex; align-items: center; justify-content: center; margin-top: 1px; }
+  .wl-num { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--accent-strong); color: #fff; font-size: .82rem; font-weight: 650; display: inline-flex; align-items: center; justify-content: center; margin-top: 1px; }
   .wl-step-body { flex: 1; min-width: 0; }
   .wl-step h3 { font-size: .98rem; margin-bottom: 2px; }
   .wl-step p { font-size: .82rem; color: var(--text-dim); line-height: 1.5; }
@@ -341,7 +352,7 @@
   .wl-prov .wl-pname b { display: block; font-size: .92rem; }
   .wl-prov .wl-pname small { color: var(--text-dim); font-size: .74rem; }
   .wl-badge { display: inline-block; background: rgba(76, 195, 138, .15); color: var(--ok); border-radius: 999px; font-size: .66rem; padding: 1px 8px; margin-left: 6px; vertical-align: 1px; font-weight: 600; }
-  .wl-get { flex: none; background: var(--accent); color: #fff; text-decoration: none; border-radius: 8px; padding: 7px 12px; font-size: .8rem; white-space: nowrap; }
+  .wl-get { flex: none; background: var(--accent-strong); color: #fff; text-decoration: none; border-radius: 8px; padding: 7px 12px; font-size: .8rem; white-space: nowrap; }
   .wl-get:hover { filter: brightness(1.12); }
   .wl-more { margin-top: 8px; }
   .wl-more summary { cursor: pointer; font-size: .8rem; color: var(--text-dim); user-select: none; }
@@ -354,7 +365,7 @@
   .wl-paste select { flex: 0 0 140px; }
   .wl-paste input { flex: 1 1 180px; min-width: 0; font-family: ui-monospace, monospace; font-size: .8rem; }
   .wl-paste select:focus, .wl-paste input:focus { border-color: var(--accent); }
-  .wl-connect { flex: none; background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 9px 16px; cursor: pointer; font-family: inherit; font-size: .84rem; font-weight: 600; }
+  .wl-connect { flex: none; background: var(--accent-strong); color: #fff; border: none; border-radius: 8px; padding: 9px 16px; cursor: pointer; font-family: inherit; font-size: .84rem; font-weight: 600; }
   .wl-connect:disabled { opacity: .55; cursor: default; }
   .wl-status { font-size: .82rem; margin-top: 8px; min-height: 1.2em; line-height: 1.45; }
   .wl-status.ok { color: var(--ok); }
@@ -434,7 +445,7 @@
   .ab-table tr:last-child td { border-bottom: none; }
   .ab-steps { list-style: none; margin: 0 0 16px; counter-reset: abs; }
   .ab-steps > li { counter-increment: abs; position: relative; margin: 0 0 12px; padding: 12px 14px 12px 48px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); }
-  .ab-steps > li::before { content: counter(abs); position: absolute; left: 14px; top: 12px; width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: #fff; font-size: .78rem; font-weight: 650; display: flex; align-items: center; justify-content: center; }
+  .ab-steps > li::before { content: counter(abs); position: absolute; left: 14px; top: 12px; width: 24px; height: 24px; border-radius: 50%; background: var(--accent-strong); color: #fff; font-size: .78rem; font-weight: 650; display: flex; align-items: center; justify-content: center; }
   .ab-steps > li b:first-child { display: block; margin-bottom: 2px; }
   .ab-mech { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; margin: 0 0 12px; }
   .ab-mech h3 { margin: 0 0 4px; }
@@ -450,7 +461,7 @@
 <body>
 
 <header>
-  <button class="icon-btn" id="sidebarBtn" title="Chats">☰</button>
+  <button class="icon-btn" id="sidebarBtn" title="Hide the chat list" aria-label="Chat list" aria-controls="sidebar" aria-expanded="true">☰</button>
   <h1>AI <span>Council</span></h1>
   <div class="provider-dots" id="provDots"></div>
   <div class="spacer"></div>
@@ -479,13 +490,13 @@
       <b>Fast</b> = routing only · <b>Balanced</b> = routing + critique loop · <b>Council</b> = everything: ensemble + synthesis + critique.<br>
       Answers come back in plain English with a simple diagram where it helps — the full technical answer is one click below (switch off with <b>🗣 Plain</b>).</div>
     </main>
-    <div id="composer">
+    <div id="composer" role="region" aria-label="Write a message">
       <textarea id="input" rows="1" placeholder="Ask the council anything…"></textarea>
       <button id="send">Send</button>
     </div>
   </div>
 
-  <section id="aboutView" aria-labelledby="abTitle">
+  <main id="aboutView" aria-labelledby="abTitle">
     <article class="about">
       <p class="ab-kicker">Technical overview</p>
       <h1 id="abTitle">About AI Council</h1>
@@ -503,7 +514,7 @@
       <h2 id="ab-what">1. What it does</h2>
       <p>A user submits a natural-language prompt. The orchestrator (a) classifies its intent, (b) selects a specialist model, (c) generates a draft, (d) has an independent model audit the draft, (e) conditionally revises it, and (f) in <b>Council</b> mode first queries every connected provider in parallel and reconciles their answers, explicitly flagging factual conflicts. The output can then be projected into plain language, with the full technical answer retained beneath it.</p>
       <ul>
-        <li><b>Provider-agnostic.</b> Any endpoint that speaks the OpenAI-compatible <code>chat/completions</code> schema can be used. Six are built in and custom endpoints can be added under ⚙&nbsp;Keys.</li>
+        <li><b>Provider-agnostic.</b> Any endpoint that speaks the OpenAI-compatible <code>chat/completions</code> schema can be used. Five are built in and custom endpoints can be added under ⚙&nbsp;Keys.</li>
         <li><b>Zero-backend.</b> The application is a single static HTML document; orchestration executes in the visitor's browser.</li>
         <li><b>Bring-your-own-key (BYOK).</b> Requests travel browser&nbsp;→&nbsp;provider using the visitor's own API key.</li>
         <li><b>Observable.</b> Every intermediate artefact is inspectable in the "Show the council's workings" panel.</li>
@@ -520,7 +531,7 @@
         <li><b>Optional key-holding proxy.</b> A reverse proxy (Cloudflare Worker) can hold provider keys server-side, guarded by an origin allow-list, a shared-secret header and a fixed provider allow-list. It is disabled by default and is not used by visitors.</li>
       </ul>
       <h3>Providers and roles</h3>
-      <div class="ab-scroll"><table class="ab-table" id="abProviders"><thead><tr><th>Provider</th><th>Workhorse model</th><th>Fast model</th><th>Roles</th></tr></thead><tbody></tbody></table></div>
+      <div class="ab-scroll" tabindex="0" role="region" aria-label="Providers and their roles (scrollable table)"><table class="ab-table" id="abProviders"><thead><tr><th>Provider</th><th>Workhorse model</th><th>Fast model</th><th>Roles</th></tr></thead><tbody></tbody></table></div>
       <p>If a preferred provider has no key or fails, routing falls back to any provider that is available, so the system degrades gracefully instead of failing.</p>
 
       <h2 id="ab-pipe">3. Request pipeline</h2>
@@ -541,7 +552,7 @@
       </ol>
       <h3>Council mode (ensemble + synthesis)</h3>
       <p>Instead of a single generator, the prompt is sent in parallel (<code>Promise.all</code>) to <b>every connected provider</b>. Successful answers are passed to a synthesis model, chosen by the routing table with provider fallback. It merges them, keeping agreed claims, resolving contradictions toward the most plausible one, and emitting a delimited <b>disagreement list</b> of genuinely conflicting factual claims (or <code>None</code>). That list is parsed out <em>before</em> critique and revision and re-attached verbatim, so no later stage can smooth it away. Each member's raw answer stays visible with its own <b>cross-examine</b> form.</p>
-      <div class="ab-scroll"><table class="ab-table">
+      <div class="ab-scroll" tabindex="0" role="region" aria-label="Execution modes (scrollable table)"><table class="ab-table">
         <thead><tr><th>Mode</th><th>Stages</th><th>Approx. model calls</th></tr></thead>
         <tbody>
           <tr><td><b>Fast</b></td><td>route → generate</td><td>2</td></tr>
@@ -587,12 +598,12 @@
       <ul>
         <li><b>Storage.</b> Keys (if remembered), chats, workings, memory and preferences live in this browser's <code>localStorage</code>. There is no AI Council server that receives them.</li>
         <li><b>What leaves the browser.</b> Your prompts, the recent conversation and the memory preamble are sent to the providers you have connected, under those providers' terms and retention policies. Use only providers whose terms you accept.</li>
-        <li><b>Third-party script.</b> The page loads Google's advertising script. Keys are not passed to it, but as with any third-party script on a page, it runs in the same browsing context.</li>
+        <li><b>Advertising (Google AdSense).</b> This site loads Google's advertising script. In testing, a plain visit contacted Google's ad and consent-messaging servers (<code>pagead2.googlesyndication.com</code>, <code>fundingchoicesmessages.google.com</code>) and set one Google consent cookie on this domain. AI Council does not pass your keys, prompts or chats to that script. Like any third-party script, though, it executes in the same browsing context as the page, and Google's own privacy terms govern what it collects.</li>
         <li><b>Erasure.</b> Delete a chat with ✕ in the sidebar, clear memory with "Forget everything", and remove a key by clearing its field in ⚙&nbsp;Keys (untick "Remember" to avoid storing one).</li>
       </ul>
       <p class="ab-foot">AI Council is an independent orchestration front-end and is not affiliated with any of the model providers it can call.</p>
     </article>
-  </section>
+  </main>
 </div>
 
 <div id="overlay"></div>
@@ -629,10 +640,6 @@
           <div class="wl-prov">
             <div class="wl-pname"><b>Mistral</b><small>Choose the free "Experiment" plan when asked</small></div>
             <a class="wl-get" href="https://console.mistral.ai/api-keys" target="_blank" rel="noopener">Get free key ↗</a>
-          </div>
-          <div class="wl-prov">
-            <div class="wl-pname"><b>Cerebras</b><small>Extremely fast · free tier may need account checks</small></div>
-            <a class="wl-get" href="https://cloud.cerebras.ai/platform" target="_blank" rel="noopener">Get free key ↗</a>
           </div>
         </details>
       </div>
@@ -672,7 +679,7 @@
   </div>
 </div>
 
-<aside id="memory" class="drawer">
+<aside id="memory" class="drawer" aria-label="Memory">
   <div class="s-head">
     <h2>🧠 Working memory</h2>
     <button class="icon-btn" id="closeMemory">✕</button>
@@ -695,7 +702,7 @@
   </div>
 </aside>
 
-<aside id="settings" class="drawer">
+<aside id="settings" class="drawer" aria-label="Provider API keys">
   <div class="s-head">
     <h2>Provider API keys</h2>
     <button class="icon-btn" id="closeSettings">✕</button>
@@ -778,16 +785,8 @@ const CONFIG = {
       signIn: "Google · GitHub · Discord · email",
       proxyable: true
     },
-    cerebras: {
-      label: "Cerebras",
-      url: "https://api.cerebras.ai/v1/chat/completions",
-      key: "",                                   // <-- PASTE CEREBRAS KEY HERE (cloud.cerebras.ai)
-      workhorse: "gpt-oss-120b",
-      fast: "qwen-3.8-27b",
-      keyUrl: "https://cloud.cerebras.ai",
-      signIn: "email (fastest inference here — 1M free tokens/day)",
-      proxyable: true
-    },
+    /* Cerebras was removed: its API answers HTTP 402 "payment required" (quota) for the free accounts we
+       tested, so it cannot be relied on as a free provider. */
     cohere: {
       label: "Cohere",
       url: "https://api.cohere.ai/compatibility/v1/chat/completions",
@@ -998,7 +997,7 @@ async function callModelRaw(providerId, model, messages, maxTokens, onDelta) {
     bodyObj = { model, max_tokens: maxTokens || 2048, messages: rest, stream: streaming };
     if (system) bodyObj.system = system;
   } else {
-    /* Reasoning models (e.g. Groq's gpt-oss, Gemini 2.5+, Cerebras/SambaNova reasoning models)
+    /* Reasoning models (e.g. Groq's gpt-oss and Gemini 2.5+)
        spend part of max_tokens on hidden reasoning. With a tiny cap (Test button, router: 10)
        the whole budget goes on reasoning and the visible reply comes back empty, so keep a
        floor. Short answers still stop early; the floor only raises the ceiling. */
@@ -2335,9 +2334,24 @@ document.getElementById("modePicker").addEventListener("click", e => {
 
 /* ---------- sidebar ---------- */
 const sidebarEl = document.getElementById("sidebar");
-document.getElementById("sidebarBtn").addEventListener("click", () => sidebarEl.classList.toggle("open"));
+const sidebarBtnEl = document.getElementById("sidebarBtn");
+/* ☰: on a phone (<=760px) the sidebar is a slide-in drawer, toggled with .open. On desktop it is always
+   on screen, so toggling .open did nothing visible — there it collapses/expands instead. */
+function sidebarIsDrawer() { return !!(window.matchMedia && window.matchMedia("(max-width: 760px)").matches); }   // guarded: a missing matchMedia must never stop the page starting
+function refreshSidebarBtn() {
+  const shown = sidebarIsDrawer() ? sidebarEl.classList.contains("open") : !document.getElementById("layout").classList.contains("sidebar-collapsed");
+  sidebarBtnEl.setAttribute("aria-expanded", String(shown));
+  sidebarBtnEl.title = shown ? "Hide the chat list" : "Show the chat list";
+}
+sidebarBtnEl.addEventListener("click", () => {
+  if (sidebarIsDrawer()) sidebarEl.classList.toggle("open");
+  else document.getElementById("layout").classList.toggle("sidebar-collapsed");
+  refreshSidebarBtn();
+});
+window.addEventListener("resize", refreshSidebarBtn);
+refreshSidebarBtn();
 document.getElementById("newChat").addEventListener("click", startNewChat);
-function closeSidebarOnMobile() { sidebarEl.classList.remove("open"); }
+function closeSidebarOnMobile() { sidebarEl.classList.remove("open"); refreshSidebarBtn(); }
 chatEl.addEventListener("click", closeSidebarOnMobile);
 
 /* ---------- drawers (settings + memory) ---------- */
@@ -2660,7 +2674,7 @@ const wlRemember = document.getElementById("wlRemember");
 let wlLastFocus = null;
 
 /* Key prefixes that identify the service, so pasting a key can pick it automatically. */
-const KEY_PREFIXES = [[/^gsk_/, "groq"], [/^sk-or-/, "openrouter"], [/^csk-/, "cerebras"], [/^(AIza|AQ\.)/, "gemini"]];
+const KEY_PREFIXES = [[/^gsk_/, "groq"], [/^sk-or-/, "openrouter"], [/^(AIza|AQ\.)/, "gemini"]];
 
 function setWelcomeStatus(cls, msg) { wlStatus.className = "wl-status" + (cls ? " " + cls : ""); wlStatus.textContent = msg; }
 
