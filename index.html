@@ -309,7 +309,7 @@
   /* Print / Save as PDF: only the conversation, on white paper */
   @media print {
     html, body { height: auto !important; overflow: visible !important; background: #fff !important; color: #111 !important; display: block !important; }
-    header, #sidebar, #composer, #chatBar, #toggleNote, #structPanel, #micStatus, #offlineBar, #aboutView, .es, .workings, .read-aloud, .run-bar, .run-out, .json-copy, .msg .pipeline, .toast, #welcome { display: none !important; }
+    .ans-tools, .code-head, header, #sidebar, #composer, #chatBar, #toggleNote, #structPanel, #micStatus, #offlineBar, #aboutView, .es, .workings, .read-aloud, .run-bar, .run-out, .json-copy, .msg .pipeline, .toast, #welcome { display: none !important; }
     #layout { display: block !important; height: auto !important; overflow: visible !important; }
     #maincol, #chat { display: block !important; overflow: visible !important; height: auto !important; padding: 0 !important; }
     .msg { break-inside: avoid-page; max-width: 100% !important; margin: 0 0 12px !important; align-self: auto !important; }
@@ -327,6 +327,18 @@
   .cf-help code { font-size: .72rem; word-break: break-all; }
   .cf-caution { font-size: .8rem; line-height: 1.5; color: #f3d9a3; background: rgba(229, 181, 103, .12); border: 1px solid rgba(229, 181, 103, .55); border-left-width: 4px; border-radius: 8px; padding: 9px 12px; margin: 0 0 10px; }
   .cf-caution[hidden], .cf-help[hidden] { display: none; }
+  /* 📋 Copy on code blocks; 📋 Copy answer + 👍/👎 under each answer */
+  .code-head { display: flex; justify-content: flex-end; background: #0d1016; border: 1px solid var(--border); border-bottom: none; border-radius: 8px 8px 0 0; padding: 3px 6px; }
+  .code-head + pre { margin-top: 0; border-top-left-radius: 0; border-top-right-radius: 0; }
+  .copy-btn, .vote-btn { background: var(--panel-2); color: var(--text-dim); border: 1px solid var(--border); border-radius: 6px; padding: 2px 9px; font-size: .72rem; font-family: inherit; cursor: pointer; }
+  .copy-btn:hover, .vote-btn:hover { border-color: var(--accent); color: var(--text); }
+  .copy-btn.done { color: var(--ok); border-color: var(--ok); }
+  .ans-tools { flex-wrap: wrap; align-items: center; }
+  .ans-tools .copy-ans { font-size: .76rem; padding: 4px 10px; }
+  .vote-btns { display: inline-flex; gap: 4px; margin-left: 4px; }
+  .vote-btn { font-size: .85rem; padding: 3px 8px; }
+  .vote-btn.on { border-color: var(--accent); color: var(--accent); background: rgba(108, 140, 255, .14); }
+  .vote-thanks { font-size: .72rem; color: var(--text-dim); }
   /* token usage table in the Keys drawer */
   .tok-table { border-collapse: collapse; width: 100%; font-size: .74rem; }
   .tok-table th, .tok-table td { text-align: right; padding: 5px 6px; border-bottom: 1px solid var(--border); white-space: nowrap; }
@@ -701,6 +713,7 @@
     <div class="side-tools">
       <button id="exportChats" title="Download your chats and memory as a backup file (API keys are never included)">⬇ Export</button>
       <button id="importChats" title="Restore chats from a backup file made with Export">⬆ Import</button>
+      <button id="feedbackCsv" title="Download your 👍/👎 ratings as a CSV (measurements only, no question or answer text). They are stored in this browser and never sent anywhere.">⬇ Ratings</button>
       <input type="file" id="importFile" accept="application/json,.json" hidden>
     </div>
     <div class="sidebar-note">Your chats and memory stay in this browser only. Use Export to keep a backup — clearing site data erases them.</div>
@@ -2601,7 +2614,7 @@ function loadChat(id) {
     const ctx = q && q.role === "user"
       ? [...history.slice(Math.max(0, i - 1 - CONFIG.historyLimit), i - 1), q].map(x => ({ role: x.role, content: forModel(x.content) }))
       : null;
-    addStaticAiBubble(m.content, m.workings, ctx);
+    addStaticAiBubble(m.content, m.workings, ctx, i);
   });
   renderChatList();
   closeSidebarOnMobile();
@@ -3025,6 +3038,7 @@ async function sourceCheck(question, disagreement, ui) {
 }
 
 async function answer(question, ui) {
+  const t0 = performance.now(), tokens0 = totalReportedTokens();   // for the per-answer measurements saved with the reply (latency, tokens reported)
   /* Optional query compression (🗜️). The compressed text stands in for the question through the whole pipeline (routing,
      generation, the Council fanout, critique, source check). The user's ORIGINAL words are still used for what is shown and
      saved in the chat, for the plain-language rewrite (which honours format requests like "one sentence"), for the
@@ -3121,7 +3135,9 @@ async function answer(question, ui) {
   /* The workings are kept with the answer so they survive saving and reloading the chat.
      Models never see them: the history sent to a model is rebuilt from role + content only. */
   const workings = ui.getWorkings ? ui.getWorkings() : [];
-  history.push(workings.length ? { role: "assistant", content: final, workings } : { role: "assistant", content: final });
+  const reply = workings.length ? { role: "assistant", content: final, workings } : { role: "assistant", content: final };
+  reply.meta = { latencyMs: Math.round(performance.now() - t0), mode, category, plain: !!usePlain, structured, apiTokens: totalReportedTokens() - tokens0 };
+  history.push(reply);
 
   /* fire-and-forget: memory updates in the background after the answer shows */
   updateMemory(originalQuestion, technical, ui).catch(() => {});
@@ -3700,7 +3716,7 @@ function stopSpeaking() {
    code, the collapsed "full technical answer", diagrams and emoji. */
 function speechTextFor(answerEl) {
   const c = answerEl.cloneNode(true);
-  c.querySelectorAll("details.tech, .cursor-blink, .diagram, .run-bar, .run-out, .json-viewer").forEach(n => n.remove());
+  c.querySelectorAll("details.tech, .cursor-blink, .diagram, .run-bar, .run-out, .json-viewer, .code-head").forEach(n => n.remove());
   c.querySelectorAll("pre").forEach(n => n.replaceWith(document.createTextNode("(Code block skipped.)\n")));
   c.querySelectorAll("br").forEach(n => n.replaceWith(document.createTextNode("\n")));
   c.querySelectorAll("p, li, h1, h2, h3, div, summary").forEach(n => n.append("\n"));   // textContent alone would run paragraphs together
@@ -3748,17 +3764,157 @@ function toggleSpeak(btn, answerEl) {
     window.speechSynthesis.speak(u);
   });
 }
+/* ---------- 📋 Copy buttons and 👍 / 👎 ratings ----------
+   Every code block gets a 📋 Copy; every finished answer gets 📋 Copy answer and 👍 / 👎. A vote appends one row to a log kept in THIS
+   browser (localStorage; nothing is sent anywhere) which "⬇ Ratings" in the sidebar downloads as a CSV for benchmarking. The log holds
+   measurements only: never the question or the answer text. One row per vote cast; if someone changes their mind a second row is
+   added, so analyse the LAST row for each (session_id, message_id).
+   Columns: timestamp (ISO-8601 UTC), session_id (the chat's id, unique per conversation), message_id (1, 2, 3… per reply in that chat),
+   content_type (code if the answer contains a fenced code block, else text), content_length (characters of the answer's technical text),
+   token_count (an ESTIMATE, characters / 4: a browser can't run tiktoken without a large download; token_count_method says so),
+   vote (up | down), latency_ms (question sent → answer complete, including every pipeline step), mode, category (the routed
+   category), plain_mode, structured, api_tokens_reported (prompt + completion tokens the providers reported while answering; 0 when a
+   provider reports none). There is no embedding_cosine column: this app does not compute embeddings. */
+const FEEDBACK_KEY = "aicouncil-feedback-v1";
+const FEEDBACK_MAX = 5000;
+const FEEDBACK_COLUMNS = ["timestamp", "session_id", "message_id", "content_type", "content_length", "token_count", "token_count_method", "vote", "latency_ms", "mode", "category", "plain_mode", "structured", "api_tokens_reported"];
+function feedbackRows() {
+  try { const a = JSON.parse(localStorage.getItem(FEEDBACK_KEY) || "[]"); return Array.isArray(a) ? a : []; } catch (_) { return []; }
+}
+function saveFeedbackRows(rows) {
+  try { localStorage.setItem(FEEDBACK_KEY, JSON.stringify(rows.slice(-FEEDBACK_MAX))); } catch (_) {}
+}
+function csvCell(v) {
+  if (v === null || v === undefined) return "";
+  let s = String(v);
+  if (/^[=+\-@\t\r]/.test(s) && isNaN(Number(s))) s = "'" + s;   // a spreadsheet must never read a cell as a formula
+  return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function feedbackCsv(rows) {
+  return [FEEDBACK_COLUMNS.join(","), ...rows.map(r => FEEDBACK_COLUMNS.map(c => csvCell(r[c])).join(","))].join("\r\n") + "\r\n";
+}
+function totalReportedTokens() {
+  return Object.values(tokenUsageByProvider).reduce((n, u) => n + (u.promptTokens || 0) + (u.completionTokens || 0), 0);
+}
+/* What "Copy answer" puts on the clipboard: the answer as Markdown text, without the app's own box markers or badge tokens. */
+function copyTextOf(content) {
+  return String(content)
+    .replace(/:::structured\n([^\n]*)\n:::/g, (_, j) => { try { return JSON.parse(j).raw || ""; } catch (_) { return ""; } })
+    .replace(/^[ \t]*:::.*$/gm, "")
+    .replace(/\[\[badge:[a-z-]+\]\]\s*/g, "")
+    .replace(/\n{3,}/g, "\n\n").trim();
+}
+function contentTypeOf(text) { return /```(?!diagram\b)[\w+#.-]*\n/.test(text) ? "code" : "text"; }
+function sanitizeMeta(m) {
+  const out = {};
+  if (Number.isFinite(m.latencyMs)) out.latencyMs = Math.round(m.latencyMs);
+  if (Number.isFinite(m.apiTokens)) out.apiTokens = Math.round(m.apiTokens);
+  for (const k of ["mode", "category"]) if (typeof m[k] === "string") out[k] = m[k].slice(0, 30);
+  for (const k of ["plain", "structured"]) if (typeof m[k] === "boolean") out[k] = m[k];
+  return out;
+}
+function castVote(idx, vote) {
+  const m = history[idx], chat = currentChat();
+  if (!m || m.role !== "assistant" || !chat || m.vote === vote) return false;
+  const replyNo = history.slice(0, idx + 1).filter(x => x.role === "assistant").length;
+  const text = forModel(m.content), meta = m.meta || {};
+  const rows = feedbackRows();
+  rows.push({
+    timestamp: new Date().toISOString(), session_id: chat.id, message_id: replyNo, content_type: contentTypeOf(text),
+    content_length: text.length, token_count: Math.ceil(text.length / 4), token_count_method: "estimate_chars_div_4", vote,
+    latency_ms: Number.isFinite(meta.latencyMs) ? meta.latencyMs : "", mode: meta.mode || "", category: meta.category || "",
+    plain_mode: typeof meta.plain === "boolean" ? meta.plain : "", structured: typeof meta.structured === "boolean" ? meta.structured : "",
+    api_tokens_reported: Number.isFinite(meta.apiTokens) ? meta.apiTokens : ""
+  });
+  saveFeedbackRows(rows);
+  m.vote = vote;
+  chat.history = history.slice(); saveChats();
+  return true;
+}
+function decorateCode(root) {
+  root.querySelectorAll("pre").forEach(pre => {
+    if (pre.dataset.copyDone || pre.closest(".json-viewer")) return;
+    pre.dataset.copyDone = "1";
+    const head = document.createElement("div");
+    head.className = "code-head";
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "copy-btn"; b.textContent = "📋 Copy"; b.setAttribute("aria-label", "Copy this code");
+    head.appendChild(b);
+    pre.before(head);
+  });
+}
+/* Called once an answer is finished (live, or redrawn from a saved chat). idx = the answer's position in `history`. */
+function addAnswerTools(answerEl, idx) {
+  decorateCode(answerEl);
+  let row = answerEl.parentNode.querySelector(".ans-tools");
+  if (!row) { addReadAloud(answerEl); row = answerEl.parentNode.querySelector(".ans-tools"); }
+  if (!row || row.querySelector(".copy-ans")) return;
+  row.dataset.idx = String(idx);
+  const cp = document.createElement("button");
+  cp.type = "button"; cp.className = "icon-btn copy-ans"; cp.textContent = "📋 Copy answer"; cp.title = "Copy this answer as text";
+  row.appendChild(cp);
+  const m = history[idx];
+  if (m && m.role === "assistant") {
+    const box = document.createElement("span");
+    box.className = "vote-btns"; box.setAttribute("role", "group"); box.setAttribute("aria-label", "Rate this answer");
+    for (const [v, icon, tip] of [["up", "👍", "Good answer"], ["down", "👎", "Poor answer"]]) {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "vote-btn" + (m.vote === v ? " on" : ""); b.dataset.vote = v; b.textContent = icon; b.title = tip; b.setAttribute("aria-label", tip);
+      b.setAttribute("aria-pressed", String(m.vote === v));
+      box.appendChild(b);
+    }
+    const thanks = document.createElement("span"); thanks.className = "vote-thanks"; thanks.setAttribute("role", "status");
+    box.appendChild(thanks);
+    row.appendChild(box);
+  }
+}
+document.addEventListener("click", async e => {
+  const t = e.target.closest && e.target.closest(".copy-btn, .copy-ans, .vote-btn");
+  if (!t) return;
+  if (t.classList.contains("vote-btn")) {
+    const row = t.closest(".ans-tools");
+    if (!castVote(+row.dataset.idx, t.dataset.vote)) return;
+    row.querySelectorAll(".vote-btn").forEach(b => { const on = b === t; b.classList.toggle("on", on); b.setAttribute("aria-pressed", String(on)); });
+    const th = row.querySelector(".vote-thanks"); th.textContent = "Thanks: saved in this browser"; setTimeout(() => { th.textContent = ""; }, 2500);
+    return;
+  }
+  let text = "";
+  if (t.classList.contains("copy-ans")) {
+    const row = t.closest(".ans-tools"), m = history[+row.dataset.idx];
+    text = m ? copyTextOf(m.content) : (row.previousElementSibling ? row.previousElementSibling.innerText : "");
+  } else {
+    const pre = t.closest(".code-head").nextElementSibling;
+    text = pre ? (pre.querySelector("code") || pre).textContent : "";
+  }
+  const ok = await copyText(text);
+  const old = t.textContent;
+  t.textContent = ok ? "✓ Copied" : "Couldn't copy"; t.classList.toggle("done", ok);
+  setTimeout(() => { t.textContent = old; t.classList.remove("done"); }, 1500);
+});
+document.getElementById("feedbackCsv").addEventListener("click", () => {
+  const rows = feedbackRows();
+  if (!rows.length) { flashSideNote("No ratings yet. Use 👍 / 👎 under an answer, then download them here."); return; }
+  const url = URL.createObjectURL(new Blob([feedbackCsv(rows)], { type: "text/csv;charset=utf-8" }));
+  const a = document.createElement("a");
+  a.href = url; a.download = "ai-council-ratings-" + new Date().toISOString().slice(0, 10) + ".csv";
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  flashSideNote("Downloaded " + rows.length + " rating" + (rows.length === 1 ? "" : "s") + " as CSV. They contain measurements only, never your questions or the answers.");
+});
+
 /* Adds the 🔊 button under a finished answer (live or reloaded from a saved chat). */
-function addReadAloud(answerEl) {
-  if (!canSpeak || answerEl.parentNode.querySelector(".ans-tools")) return;
+function addReadAloud(answerEl) {   // also creates the row that holds Copy answer and 👍/👎 (see addAnswerTools)
+  if (answerEl.parentNode.querySelector(".ans-tools")) return;
   const row = document.createElement("div");
   row.className = "ans-tools";
-  const btn = document.createElement("button");
-  btn.type = "button"; btn.className = "icon-btn speak-btn";
-  btn.title = "Read this answer aloud using your device's built-in voice";
-  setSpeakBtn(btn, false);
-  btn.addEventListener("click", () => toggleSpeak(btn, answerEl));
-  row.appendChild(btn);
+  if (canSpeak) {
+    const btn = document.createElement("button");
+    btn.type = "button"; btn.className = "icon-btn speak-btn";
+    btn.title = "Read this answer aloud using your device's built-in voice";
+    setSpeakBtn(btn, false);
+    btn.addEventListener("click", () => toggleSpeak(btn, answerEl));
+    row.appendChild(btn);
+  }
   answerEl.after(row);
 }
 window.addEventListener("pagehide", stopSpeaking);   // browsers can keep talking after a reload otherwise
@@ -3863,12 +4019,13 @@ function savedCrossExamine(w, ctx) {
   };
 }
 
-function addStaticAiBubble(markdown, workings, ctx) {
+function addStaticAiBubble(markdown, workings, ctx, histIdx) {
   const div = document.createElement("div");
   div.className = "msg ai";
   div.innerHTML = `<div class="bubble"><div class="answer"></div></div>`;
   div.querySelector(".answer").innerHTML = renderMarkdown(markdown);
   addReadAloud(div.querySelector(".answer"));
+  if (histIdx !== undefined) addAnswerTools(div.querySelector(".answer"), histIdx);
   if (Array.isArray(workings) && workings.length) {
     const d = document.createElement("details");
     d.className = "workings";
@@ -3957,6 +4114,7 @@ function addAiBubble() {
     finish(markdown) {
       answerEl.innerHTML = renderMarkdown(markdown);
       addReadAloud(answerEl);
+      addAnswerTools(answerEl, history.length - 1);   // answer() has already pushed this reply as the last history entry
       chatEl.scrollTop = chatEl.scrollHeight;
     },
     fail(message) {
@@ -4943,6 +5101,7 @@ function cleanImportedChat(c) {
   for (const m of c.history.slice(0, 500)) {
     if (!m || (m.role !== "user" && m.role !== "assistant") || typeof m.content !== "string") continue;
     const out = { role: m.role, content: m.content };
+    if (m.role === "assistant") { if (m.vote === "up" || m.vote === "down") out.vote = m.vote; if (m.meta && typeof m.meta === "object") out.meta = sanitizeMeta(m.meta); }
     if (Array.isArray(m.workings)) {
       const w = m.workings.filter(x => x && typeof x === "object" && typeof x.title === "string" && (typeof x.body === "string" || (x.body && typeof x.body === "object"))).slice(0, 40);
       if (w.length) out.workings = w;

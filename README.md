@@ -23,6 +23,7 @@ For anything not listed, choose "OpenAI-compatible", paste the provider's HTTPS 
 
 ## What's new
 
+- **📋 Copy and 👍/👎 ratings** – every code block has a Copy button; every answer has Copy answer and thumbs up/down. Ratings are logged in this browser only (timestamp, session, message number, code/text, length, estimated tokens, latency, mode) and ⬇ Ratings downloads them as a CSV. Never the question or answer text.
 - **🔌 More one-click providers** – Alibaba Cloud (Qwen), Meta Llama API, Hugging Face, Pollinations (optional key) and BazaarLink (with a visible third-party caution), and custom providers can now genuinely work without a key.
 
 - **📁 Folders, tags and search** – sort chats into your own folders, add free-text tags, and search the sidebar across titles, tags and message text. All in this browser; older chats keep working untouched.
