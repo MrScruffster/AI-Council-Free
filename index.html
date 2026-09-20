@@ -3570,7 +3570,7 @@ function evidenceSummary(results) {
   const trusted = results.filter(r => r.kind !== "untrusted").length;
   return `${results.length} source${results.length === 1 ? "" : "s"} from ${domains.size} domain${domains.size === 1 ? "" : "s"} · ${trusted} trusted, ${results.length - trusted} unverified`;
 }
-async function sourceCheck(question, disagreement, ui) {
+async function sourceCheck(question, disagreement, ui, answerText) {
   if (!searchAvailable()) {
     ui.stage("src", "skipped", "Evidence unavailable · needs your Tavily key");
     return "\n\n:::sources\n**Evidence unavailable.** Add your own Tavily key in ⚙ Keys to retrieve independent sources. The model answer above has not been independently verified.\n:::";
@@ -3608,7 +3608,8 @@ async function sourceCheck(question, disagreement, ui) {
         "A source shows what that document says, not that a claim is true in general, and a fact-checker's verdict is that organisation's assessment. " +
         "At most 120 words, as markdown bullets, no headings." + todayLine() },
       { role: "user", content:
-        "QUESTION:\n" + question.slice(0, 1500) + "\n\nCLAIMS TO CHECK:\n" + (disagreement || "Identify the important factual claims in the question and answer, then report which are supported, unsupported, or unresolved.") .slice(0, 2500) +
+        "QUESTION:\n" + question.slice(0, 1500) + "\n\nANSWER TO CHECK:\n" + String(answerText || "").slice(0, 6000) +
+        "\n\nCLAIMS TO CHECK:\n" + (disagreement || "Identify the important factual claims in the answer, then report which are supported, unsupported, or unresolved.").slice(0, 2500) +
         "\n\nSOURCES:\n" + results.map((r, i) => `[${i + 1}] ${sourceTrustNote(r.kind)}\n${r.title}\n${r.url}\n${r.content}`).join("\n\n") }
     ], 500, undefined, ui, "source check", { temperature: CONFIG.temperatures.judge });
     summary = text.replace(/^:::.*$/gm, "").replace(/\[\[/g, "[ [").trim();   // no block markers, and no forged [[badge:...]] tokens
@@ -3684,7 +3685,7 @@ async function answer(question, ui) {
   /* Council disagreement and Evidence mode: keep retrieved evidence out of model prose. */
   let sourceMd = "";
   if ((mode === "council" && disagreement) || mode === "evidence") {
-    try { sourceMd = await sourceCheck(question, disagreement, ui); }
+    try { sourceMd = await sourceCheck(question, disagreement, ui, final); }
     catch (e) { ui.stage("src", "warn", "Source check unavailable"); ui.working("Source check", describeError(e)); }
   }
   /* web_search tool used (Fast/Balanced): list the results the model could see, unverified ones marked, so a non-trusted
