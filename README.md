@@ -21,9 +21,21 @@ One-click presets (they pre-fill the endpoint, request style and a "where to get
 
 For anything not listed, choose "OpenAI-compatible", paste the provider's HTTPS chat-completions URL, a model ID and your key (leave the key blank only for services that need none, such as a local Ollama). Every message and your saved memory facts are sent to that address, so only add endpoints you trust.
 
+## Optional extras
+
+All bring-your-own-key and client-side: paste a key in ⚙ Keys, it is called straight from your browser (no Worker, no shared secret), and it is only remembered if you tick "Remember". With no key, nothing changes.
+
+- **🔊 ElevenLabs voice (free tier, no card)** – a natural voice for Read aloud, with a voice picker. The free tier is about 10,000 characters a month, so verify the current limits at elevenlabs.io/pricing. If ElevenLabs ever fails or the allowance runs out, the browser's own voice takes over.
+- **🔧 TinyFish "fetch a live page" (free, no card)** – reads one page with real browser rendering, for JavaScript-heavy or bot-protected sites. Free, no card, for their Search/Fetch endpoints as of their public docs; verify this is still accurate before relying on it. It complements Tavily search: search finds pages, this reads one.
+- **💷 Bright Data "fetch a blocked page" (PAID)** – reads a page through Bright Data's Web Unlocker. **This is a paid, metered service billed by Bright Data directly based on your usage; AI Council doesn't track or limit it for you.** Only add a key if you already have a Bright Data account and understand their pricing. It needs an API key *and* a Web Unlocker zone name, and it starts switched off until you tick it.
+
+Both page tools only exist for the model when their key is set, work in Fast/Balanced (never Council), and treat the fetched page as untrusted text.
+
 ## What's new
 
 - **📋 Copy and 👍/👎 ratings** – every code block has a Copy button; every answer has Copy answer and thumbs up/down. Ratings are logged in this browser only (timestamp, session, message number, code/text, length, estimated tokens, latency, mode) and ⬇ Ratings downloads them as a CSV. Never the question or answer text.
+- **🔊 Optional extras** – ElevenLabs voice for Read aloud, TinyFish and Bright Data page-reading tools (Bright Data is paid); see above.
+- **📊 Benchmark on the About page** – what the planned 700-question hallucination benchmark is, with a clearly marked SAMPLE graphic. No benchmark has been run yet.
 - **🔌 More one-click providers** – Alibaba Cloud (Qwen), Meta Llama API, Hugging Face, Pollinations (optional key) and BazaarLink (with a visible third-party caution), and custom providers can now genuinely work without a key.
 
 - **📁 Folders, tags and search** – sort chats into your own folders, add free-text tags, and search the sidebar across titles, tags and message text. All in this browser; older chats keep working untouched.
