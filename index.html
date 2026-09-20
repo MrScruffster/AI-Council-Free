@@ -181,6 +181,37 @@
   .stage.warn .sdot { background: var(--warn); }
   .stage.error .sdot { background: var(--err); }
   .stage.skipped { opacity: .45; }
+  .agent-panel { margin-top: 12px; padding: 12px; background: rgba(108, 140, 255, .07); border: 1px solid rgba(108, 140, 255, .35); border-radius: var(--radius); }
+  .agent-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  .agent-title { font-weight: 650; }
+  .agent-state { font-size: .72rem; border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px; color: var(--text-dim); }
+  .agent-state.running { color: var(--warn); border-color: rgba(229,181,103,.5); }
+  .agent-state.done { color: var(--ok); border-color: rgba(76,195,138,.5); }
+  .agent-state.stopped, .agent-state.failed { color: var(--err); border-color: rgba(229,115,95,.5); }
+  .agent-plan { margin: 8px 0 0 20px; }
+  .agent-step { margin: 8px 0; padding: 8px 10px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; }
+  .agent-step-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .agent-step-title { font-weight: 600; }
+  .agent-step-meta { color: var(--text-dim); font-size: .74rem; }
+  .agent-step-desc { margin-top: 4px; font-size: .86rem; }
+  .agent-step-risk { color: var(--warn); font-size: .74rem; }
+  .agent-step-status { margin-top: 5px; color: var(--text-dim); font-size: .78rem; }
+  .agent-step-actions { display: flex; gap: 6px; margin-top: 7px; flex-wrap: wrap; }
+  .agent-action { background: var(--accent-strong); color: #fff; border: 0; border-radius: 6px; padding: 4px 10px; cursor: pointer; font: inherit; font-size: .76rem; }
+  .agent-action.secondary { background: var(--panel); border: 1px solid var(--border); color: var(--text); }
+  .agent-action:disabled { opacity: .45; cursor: not-allowed; }
+  .agent-history { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 8px; }
+  .agent-history summary { cursor: pointer; color: var(--text-dim); font-size: .78rem; }
+  .agent-history-row { margin-top: 5px; font-size: .75rem; color: var(--text-dim); }
+  .council-decision { margin: 10px 0; padding: 10px 12px; border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 8px; background: var(--panel-2); font-size: .82rem; }
+  .council-decision strong { color: var(--text); }
+  .council-decision ul { margin: 5px 0 0 18px; padding: 0; }
+  .council-decision .decision-muted { color: var(--text-dim); }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
+  }
+  #stopAgent { display: none; border-color: rgba(229,115,95,.65); color: #f0b3a8; }
+  #stopAgent.visible { display: inline-flex; }
   .disagreement-box {
     margin-top: 14px; padding: 10px 14px; border-radius: var(--radius);
     background: rgba(229, 181, 103, .08); border: 1px solid rgba(229, 181, 103, .35);
@@ -704,11 +735,13 @@
     <button data-mode="fast" title="Route to a specialist, answer directly. 2 calls.">Fast</button>
     <button data-mode="balanced" class="active" title="Route → generate → critique → revise. 3–4 calls.">Balanced</button>
     <button data-mode="council" title="All models answer in parallel, one synthesizes, another critiques, then a final revision. 6–7 calls.">Council</button>
+    <button data-mode="agent" title="Create a checked task plan, approve each step, and run only safe built-in tools.">Agent</button>
   </div>
   <button class="icon-btn active" id="plainToggle" title="Explain answers in plain, everyday language (with a simple diagram where it helps). The full technical answer stays one click away.">🗣 Plain: on</button>
   <button class="icon-btn" id="toolsToggle" title="Let a model use a small built-in toolset (calculator, current date/time, web search when you add your own Tavily key, and page-reading tools when you add a TinyFish or Bright Data key in ⚙ Keys) while drafting — Fast/Balanced modes only.">🔧 Tools: off</button>
   <button class="icon-btn" id="structToggle" title="Get the answer as JSON in a shape you choose. Paste a JSON Schema or an example object; the reply is checked against it. Best-effort: how strictly it is enforced depends on the provider. Fast/Balanced only.">🧩 JSON: off</button>
   <button class="icon-btn" id="compressToggle" title="Shorten your question with one extra model call before the council sees it. It costs one extra call per question, so it mostly pays off in Council mode (several models each read the shorter question) and rarely in Fast mode. It can drop something you meant: both versions are shown in the workings.">🗜️ Compress: off</button>
+  <button class="icon-btn" id="stopAgent" type="button" title="Stop the running agent task">⏹ Stop agent</button>
   <button class="icon-btn" id="imageBtn" title="Generate an image with Pollinations. Results are cached in this browser.">🎨 Image</button>
   <button class="icon-btn" id="memoryBtn" title="Working memory: what the council remembers about you" aria-label="Memory">🧠<span class="hb-opt"> Memory</span></button>
   <button class="icon-btn" id="aboutBtn" title="How AI Council works, and how it reduces incorrect answers" aria-label="About AI Council"><span id="abIco">ℹ️</span><span class="hb-text hb-opt" id="abTxt"> About</span></button>
@@ -990,10 +1023,10 @@ pip install requests oss2 pyspark</code></pre>
   </div>
 </div>
 
-<aside id="memory" class="drawer" aria-label="Memory">
+<aside id="memory" class="drawer" aria-label="Memory" role="dialog" aria-modal="true" aria-labelledby="memoryTitle">
   <div class="s-head">
-    <h2>🧠 Working memory</h2>
-    <button class="icon-btn" id="closeMemory">✕</button>
+    <h2 id="memoryTitle">🧠 Working memory</h2>
+    <button class="icon-btn" id="closeMemory" aria-label="Close memory">✕</button>
   </div>
   <div class="s-body">
     <p class="s-note" style="margin-bottom:16px">
@@ -1009,14 +1042,20 @@ pip install requests oss2 pyspark</code></pre>
       <h3>Remembered facts</h3>
       <div id="memFacts"><div class="mem-empty">Nothing remembered yet.</div></div>
     </div>
+    <div class="mem-section">
+      <h3>Task memory</h3>
+      <p class="s-note">Separate, user-managed preferences and recurring workflow notes. These are shown to models when relevant.</p>
+      <div class="keyrow"><input id="taskMemoryInput" type="text" maxlength="240" placeholder="Example: Prefer concise release checklists"><button class="testbtn" id="addTaskMemory">Add</button></div>
+      <div id="taskMemoryList"><div class="mem-empty">Nothing saved yet.</div></div>
+    </div>
     <button class="danger-btn" id="forgetAll">Forget everything</button>
   </div>
 </aside>
 
-<aside id="settings" class="drawer" aria-label="Provider API keys">
+<aside id="settings" class="drawer" aria-label="Provider API keys" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
   <div class="s-head">
-    <h2>Provider API keys</h2>
-    <button class="icon-btn" id="closeSettings">✕</button>
+    <h2 id="settingsTitle">Provider API keys</h2>
+    <button class="icon-btn" id="closeSettings" aria-label="Close provider settings">✕</button>
   </div>
   <div class="s-body" id="settingsBody">
     <p class="s-note" style="margin-bottom:14px">
@@ -1025,6 +1064,8 @@ pip install requests oss2 pyspark</code></pre>
       key you type directly into a provider card below is used instead of the built-in proxy for
       that provider, and stays in this browser only if you tick "Remember this key".
     </p>
+    <div class="section-label">Local browser runner</div>
+    <div id="runnerSettings"></div>
     <!-- provider cards injected here -->
     <div class="section-label" id="customSectionLabel">Custom providers</div>
     <div id="customProviderList"></div>
@@ -1219,10 +1260,12 @@ function proxyOn() { return CONFIG.proxy.url.trim() !== ""; }
 function useProxy(prov) { return proxyOn() && !!prov.proxyable && !prov.key.trim(); }
 
 function availableProviders() {
-  return Object.keys(P).filter(id => {
+  const configured = Object.keys(P).filter(id => {
     if (proxyOn() && P[id].proxyable) return true;   // the Worker holds this one's key
     return P[id].key.trim() !== "" || !!P[id].keyOptional;   // keyOptional: works without a key (e.g. Pollinations, a local Ollama)
   });
+  const usable = configured.filter(id => !providerMetric(id).cooldownUntil || providerMetric(id).cooldownUntil <= Date.now());
+  return usable.length ? usable : configured;
 }
 
 /* Pick the provider for a role; fall back to whatever is available. */
@@ -1256,6 +1299,10 @@ function pickOtherProvider(notThisOne) {
    with (`sig`), so editing a key resets that provider to "unverified".
    ===================================================================== */
 const health = {};   // providerId -> { state, msg, sig, at }
+const providerMetrics = {}; // providerId -> session-only reliability counters
+function providerMetric(id) {
+  return providerMetrics[id] || (providerMetrics[id] = { successes: 0, failures: 0, consecutiveFailures: 0, rateLimits: 0, lastLatencyMs: 0, totalLatencyMs: 0, cooldownUntil: 0 });
+}
 
 function isConfigured(id) {
   const p = P[id];
@@ -1271,18 +1318,32 @@ function providerStatus(id) {
   if (p.corsBlocked && !useProxy(p)) return { state: "fail", msg: "Not connected — this provider blocks direct browser calls; it only works through the proxy" };
   const h = health[id];
   if (!h || h.sig !== healthSig(id)) return { state: "unverified", msg: "Key added but not tested yet" };
-  return h;
+  const m = providerMetric(id);
+  const latency = m.lastLatencyMs ? ` · ${Math.round(m.lastLatencyMs)} ms` : "";
+  return { ...h, msg: h.msg + latency };
 }
 function setHealth(id, state, msg) {
   if (!P[id]) return;
   health[id] = { state, msg, sig: healthSig(id), at: Date.now() };
   if (document.getElementById("provDots")) refreshDots();
 }
-function recordCallResult(id, err) {
+function recordCallResult(id, err, latencyMs) {
   if (!P[id] || !isConfigured(id)) return;
-  if (!err) return setHealth(id, "ok", "Connected — last request succeeded");
+  const metric = providerMetric(id);
+  metric.lastLatencyMs = latencyMs;
+  metric.totalLatencyMs += latencyMs;
+  if (typeof renderProviderReliability === "function") renderProviderReliability();
+  if (!err) {
+    metric.successes++;
+    metric.consecutiveFailures = 0;
+    metric.cooldownUntil = 0;
+    return setHealth(id, "ok", "Connected — last request succeeded");
+  }
   const m = String(err.message || err);
-  if (/rate limit/i.test(m)) return setHealth(id, "limited", "Connected but rate-limited right now");
+  metric.failures++;
+  metric.consecutiveFailures++;
+  if (/rate limit/i.test(m)) { metric.rateLimits++; metric.cooldownUntil = Date.now() + 60000; return setHealth(id, "limited", "Connected but rate-limited right now"); }
+  if (metric.consecutiveFailures >= 3) metric.cooldownUntil = Date.now() + 120000;
   if (/token limit|hidden reasoning/i.test(m)) return setHealth(id, "ok", "Connected");   // reached the model; not a connection problem
   if (/No API key/i.test(m)) return;
   return setHealth(id, "fail", "Not connected — " + m.replace(/\s+/g, " ").slice(0, 160));
@@ -1308,11 +1369,12 @@ function recordUsage(providerId, usage, anthropic) {
 }
 
 async function callModel(providerId, model, messages, maxTokens, onDelta, opts) {
+  const started = performance.now();
   try {
     const out = await callModelRaw(providerId, model, messages, maxTokens, onDelta, opts);
-    recordCallResult(providerId, null);
+    recordCallResult(providerId, null, performance.now() - started);
     return out;
-  } catch (e) { recordCallResult(providerId, e); throw e; }
+  } catch (e) { recordCallResult(providerId, e, performance.now() - started); throw e; }
 }
 
 /* The cheap "is this key accepted?" URL for a provider: its model list (a GET that generates no text and costs no
@@ -1564,6 +1626,60 @@ async function callModelRaw(providerId, model, messages, maxTokens, onDelta, opt
    generate() falls back to the next available provider, same as elsewhere
    in this app. This is best-effort, not a guarantee every provider here
    supports tool calling. */
+const RUNNER_KEY = "aicouncil-runner-v1";
+const runner = { url: "http://127.0.0.1:8787", token: "", domains: [], remembered: false, taskId: "" };
+function loadRunnerConfig() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(RUNNER_KEY) || "null");
+    if (saved) Object.assign(runner, saved);
+  } catch (_) {}
+  runner.domains = Array.isArray(runner.domains) ? runner.domains.filter(Boolean).slice(0, 20) : [];
+}
+function saveRunnerConfig() {
+  try {
+    if (runner.remembered) localStorage.setItem(RUNNER_KEY, JSON.stringify({ url: runner.url, token: runner.token, domains: runner.domains, remembered: true }));
+    else localStorage.removeItem(RUNNER_KEY);
+  } catch (_) {}
+}
+async function runnerRequest(path, options = {}) {
+  if (!runner.url || !runner.token) throw new Error("Set the runner URL and token in Settings first.");
+  let endpoint;
+  try { endpoint = new URL(runner.url); } catch (_) { throw new Error("Runner URL is invalid."); }
+  if (!["http:", "https:"].includes(endpoint.protocol) || !["127.0.0.1", "localhost", "::1"].includes(endpoint.hostname)) {
+    throw new Error("For safety, the browser runner must be on this computer (localhost).");
+  }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000);
+  try {
+    const response = await fetch(runner.url.replace(/\/+$/, "") + path, {
+      ...options, signal: controller.signal,
+      headers: { "Content-Type": "application/json", "X-AI-Council-Token": runner.token, ...(options.headers || {}) }
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || `Runner returned HTTP ${response.status}.`);
+    return body;
+  } finally { clearTimeout(timeout); }
+}
+async function testRunner() {
+  return runnerRequest("/health");
+}
+async function ensureRunnerTask() {
+  if (runner.taskId && runner.domains.length) return runner.taskId;
+  if (!runner.domains.length) throw new Error("Approve at least one browser domain in Settings first.");
+  const result = await runnerRequest("/v1/tasks", { method: "POST", body: JSON.stringify({ domains: runner.domains }) });
+  runner.taskId = result.taskId;
+  return runner.taskId;
+}
+async function runRunnerAction(command, input) {
+  const taskId = await ensureRunnerTask();
+  return runnerRequest(`/v1/tasks/${encodeURIComponent(taskId)}/action`, { method: "POST", body: JSON.stringify({ command, ...input }) });
+}
+async function stopRunnerTask() {
+  if (!runner.taskId) return;
+  const id = runner.taskId; runner.taskId = "";
+  try { await runnerRequest(`/v1/tasks/${encodeURIComponent(id)}/stop`, { method: "POST" }); } catch (_) {}
+}
+
 const TOOLS = {
   calculate: {
     description: "Evaluate a basic arithmetic expression. Only digits, + - * / ( ) and decimals — no variables or functions.",
@@ -1612,6 +1728,31 @@ const TOOLS = {
       return r;
     }
   },
+  browser_open: {
+    description: "Open an HTTPS page in the user's approved isolated browser. Never use for login, purchases, submissions or other side effects.",
+    parameters: { type: "object", properties: { url: { type: "string", description: "HTTPS URL on an approved domain" } }, required: ["url"] },
+    available: () => Boolean(runner.token && runner.domains.length),
+    run: args => runRunnerAction("open", { url: String(args?.url || "") })
+  },
+  browser_extract: {
+    description: "Extract visible text from the currently open page in the user's approved isolated browser.",
+    parameters: { type: "object", properties: {} },
+    available: () => Boolean(runner.token && runner.domains.length),
+    run: () => runRunnerAction("extract", {})
+  },
+  browser_fill: {
+    description: "Fill one form field in the user's approved isolated browser. This changes page state but never submits a form; always request confirmation.",
+    parameters: {
+      type: "object",
+      properties: {
+        selector: { type: "string", description: "CSS selector for the form field" },
+        value: { type: "string", description: "Value to place in the field" }
+      },
+      required: ["selector", "value"]
+    },
+    available: () => Boolean(runner.token && runner.domains.length),
+    run: args => runRunnerAction("fill", { selector: String(args?.selector || ""), value: String(args?.value || "") })
+  },
   /* The two page tools below only exist for a model when their key is set (and, for Bright Data, the user has ticked it in ⚙ Keys):
      see `available`, which callModelWithToolsRaw() checks both when it lists the tools and when it runs one. */
   fetch_live_page: {
@@ -1635,6 +1776,124 @@ const TOOLS = {
     run: args => runFetchBlockedPage(args)
   }
 };
+
+const AGENT_PLAN_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["goal", "steps", "risks", "needs_confirmation", "confidence"],
+  properties: {
+    goal: { type: "string", minLength: 1, maxLength: 500 },
+    steps: {
+      type: "array", minItems: 1, maxItems: 8,
+      items: {
+        type: "object", additionalProperties: false,
+        required: ["id", "description", "tool", "risk", "requires_confirmation", "expected_result"],
+        properties: {
+          id: { type: "string", minLength: 1, maxLength: 40 },
+          description: { type: "string", minLength: 1, maxLength: 300 },
+          tool: { type: "string", enum: ["calculate", "current_datetime", "web_search", "browser_open", "browser_extract", "browser_fill"] },
+          input: { type: "object" },
+          risk: { type: "string", enum: ["low", "medium", "high"] },
+          requires_confirmation: { type: "boolean" },
+          expected_result: { type: "string", minLength: 1, maxLength: 240 }
+        }
+      }
+    },
+    risks: { type: "array", maxItems: 8, items: { type: "string", maxLength: 240 } },
+    needs_confirmation: { type: "boolean" },
+    confidence: { type: "number", minimum: 0, maximum: 1 }
+  }
+};
+const AGENT_MAX_HISTORY = 40;
+let agentRun = null;
+const stopAgentEl = document.getElementById("stopAgent");
+
+function agentPlanFromText(raw, goal) {
+  let parsed;
+  try {
+    const match = String(raw || "").match(/\{[\s\S]*\}/);
+    parsed = JSON.parse(match ? match[0] : raw);
+  } catch (_) { throw new Error("The planning model returned invalid JSON."); }
+  if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.steps) || !parsed.steps.length || parsed.steps.length > 8) {
+    throw new Error("The planning model returned an invalid or empty task plan.");
+  }
+  const steps = parsed.steps.map((s, i) => {
+    if (!s || typeof s !== "object") throw new Error(`Task step ${i + 1} is invalid.`);
+    const tool = String(s.tool || "");
+    if (!Object.prototype.hasOwnProperty.call(TOOLS, tool) || !["calculate", "current_datetime", "web_search", "browser_open", "browser_extract", "browser_fill"].includes(tool)) {
+      throw new Error(`Task step ${i + 1} requested an unsupported tool.`);
+    }
+    if (TOOLS[tool].available && !TOOLS[tool].available()) throw new Error(`Task step ${i + 1} requested ${tool}, but the local runner is not connected or has no approved domains.`);
+    const risk = ["low", "medium", "high"].includes(s.risk) ? s.risk : "high";
+    return {
+      id: String(s.id || `step-${i + 1}`).slice(0, 40),
+      description: String(s.description || "").trim().slice(0, 300),
+      tool,
+      input: s.input && typeof s.input === "object" && !Array.isArray(s.input) ? s.input : {},
+      risk,
+      requires_confirmation: risk !== "low" || s.requires_confirmation !== false,
+      expected_result: String(s.expected_result || "").trim().slice(0, 240),
+      status: "awaiting approval"
+    };
+  });
+  if (steps.some(s => !s.description || !s.expected_result)) throw new Error("The task plan contains a step without a description or expected result.");
+  return {
+    goal: String(parsed.goal || goal).trim().slice(0, 500) || goal.slice(0, 500),
+    steps,
+    risks: Array.isArray(parsed.risks) ? parsed.risks.map(x => String(x).slice(0, 240)).filter(Boolean).slice(0, 8) : [],
+    needs_confirmation: true,
+    confidence: Math.max(0, Math.min(1, Number(parsed.confidence) || 0))
+  };
+}
+
+function agentInputForStep(step) {
+  const input = { ...(step.input || {}) };
+  if (step.tool === "web_search" && !String(input.query || "").trim()) input.query = step.description;
+  if (step.tool === "calculate" && !String(input.expression || "").trim()) input.expression = step.description;
+  return input;
+}
+
+function agentHistoryLine(entry) {
+  const stamp = new Date(entry.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return `${stamp} · ${entry.action} · ${entry.result}`;
+}
+
+async function createAgentPlan(goal, ui) {
+  const order = routeCandidates();
+  if (!order.length) throw new Error("No connected provider is available to create an agent plan.");
+  ui.stage("plan", "running", `Planning · ${P[order[0]].label}`);
+  const messages = [
+    { role: "system", content:
+      "You create safe, read-only task plans for an AI assistant. Return ONLY JSON matching the supplied schema. " +
+      "The executable tools are calculate, current_datetime, web_search, browser_open, browser_extract and browser_fill. Browser tools are available only when the user has connected a local isolated runner and approved domains. Never request form submission, messaging, purchases, deletion, file access or side effects. " +
+      "Use low risk only for harmless local calculation/date steps; web search, browser navigation/extraction, and browser_fill are medium risk and always require confirmation. browser_fill may change a field but must never submit a form. " +
+      "Keep steps short, concrete and ordered. Include input values for tools when known." },
+    { role: "user", content: `Create a safe task plan for this goal:\n${goal.slice(0, 3000)}` }
+  ];
+  let lastErr = null;
+  for (const id of order.slice(0, CONFIG.routeMaxAttempts)) {
+    try {
+      const raw = await callModel(id, P[id].fast || P[id].workhorse, messages, 1200, undefined, { json: { schema: AGENT_PLAN_SCHEMA }, temperature: 0.1 });
+      const plan = agentPlanFromText(raw, goal);
+      ui.stage("plan", "done", `Plan ready · ${P[id].label}`);
+      return plan;
+    } catch (e) {
+      lastErr = e;
+      ui.working("Planning fallback", describeError(e, "trying another provider"));
+    }
+  }
+  ui.stage("plan", "error", "Planning failed");
+  throw lastErr || new Error("No provider could create a task plan.");
+}
+
+async function runAgentStep(step, task, ui) {
+  if (task.stopped) throw new Error("Agent stopped.");
+  const tool = TOOLS[step.tool];
+  if (!tool || (tool.available && !tool.available())) throw new Error(`The ${step.tool} tool is not available.`);
+  const result = await tool.run(agentInputForStep(step));
+  if (task.stopped) throw new Error("Agent stopped.");
+  return result;
+}
 
 /* ---------- web search: everyone uses their OWN Tavily key ----------
    There is no shared key and no proxy route for search: a key pasted in ⚙ Keys is called directly from the browser
@@ -1990,7 +2249,8 @@ async function webSearchDirect(query, restrict) {
     const data = await res.json();
     if (searchStatus().state !== "ok") setSearchHealth("ok", "Connected — last search succeeded");
     return { results: (Array.isArray(data.results) ? data.results : []).slice(0, 5).map(r => {
-      const item = { title: String(r.title || "").slice(0, 200), url: String(r.url || "").slice(0, 500), content: String(r.content || "").slice(0, 800) };
+      const publishedDate = String(r.published_date || r.publishedDate || "").slice(0, 40);
+      const item = { title: String(r.title || "").slice(0, 200), url: String(r.url || "").slice(0, 500), content: String(r.content || "").slice(0, 800), publishedDate };
       item.category = clientKindOf(item.url, t) || null;   // matched by the result's real hostname; null when it is on no list
       item.kind = item.category || "untrusted";
       return item;
@@ -2175,6 +2435,47 @@ function describeError(err, tail) {
    back a marker that is only half-arrived (e.g. "%%%DISAG"), so it never flashes on screen.
    Returns { body, note, found }. */
 const DISAGREE_RE = /%+[\s*_]*DISAGREE(?:MENT)?[\s*_]*%+/i;
+const COUNCIL_DECISION_SCHEMA = {
+  type: "object", additionalProperties: false,
+  required: ["answer", "votes", "disagreements", "confidence"],
+  properties: {
+    answer: { type: "string", minLength: 1, maxLength: 12000 },
+    votes: {
+      type: "array", minItems: 1, maxItems: 12,
+      items: {
+        type: "object", additionalProperties: false,
+        required: ["provider", "position", "confidence"],
+        properties: {
+          provider: { type: "string", maxLength: 100 },
+          position: { type: "string", enum: ["agree", "disagree", "unclear"] },
+          confidence: { type: "number", minimum: 0, maximum: 1 }
+        }
+      }
+    },
+    disagreements: { type: "array", maxItems: 8, items: { type: "string", maxLength: 300 } },
+    confidence: { type: "number", minimum: 0, maximum: 1 }
+  }
+};
+function parseCouncilDecision(raw, good) {
+  let parsed;
+  try {
+    const match = String(raw || "").match(/\{[\s\S]*\}/);
+    parsed = JSON.parse(match ? match[0] : raw);
+  } catch (_) { throw new Error("The council decision was not valid JSON."); }
+  if (!parsed || typeof parsed !== "object" || typeof parsed.answer !== "string" || !parsed.answer.trim() || !Array.isArray(parsed.votes)) {
+    throw new Error("The council decision was missing its answer or votes.");
+  }
+  const names = new Set(good.map(r => P[r.provId].label));
+  const votes = parsed.votes.filter(v => v && names.has(String(v.provider)) && ["agree", "disagree", "unclear"].includes(v.position)).map(v => ({
+    provider: String(v.provider), position: v.position, confidence: Math.max(0, Math.min(1, Number(v.confidence) || 0))
+  }));
+  return {
+    answer: parsed.answer.trim().slice(0, 12000),
+    votes,
+    disagreements: Array.isArray(parsed.disagreements) ? parsed.disagreements.map(x => String(x).trim()).filter(Boolean).slice(0, 8) : [],
+    confidence: Math.max(0, Math.min(1, Number(parsed.confidence) || 0))
+  };
+}
 function splitDisagree(text, opts) {
   const m = text.match(DISAGREE_RE);
   if (m) return { body: text.slice(0, m.index), note: text.slice(m.index + m[0].length), found: true };
@@ -2515,34 +2816,24 @@ async function councilGenerate(category, history, question, ui) {
   const spec = specialistFor(category);
   ui.stage("synth", "running", `Synthesizing · ${P[spec.provId].label}`);
   const labelled = good.map((r, i) => `--- ANSWER ${i + 1} (from ${P[r.provId].label}) ---\n${r.answer}`).join("\n\n");
-  const DISAGREEMENT_MARKER = "%%%DISAGREEMENT%%%";
   const { text: rawDraft, provId } = await callWithFallback(spec.provId, [
     { role: "system", content:
-      "Several AI models independently answered the same question. Merge them into ONE best answer: " +
-      "keep what they agree on, resolve contradictions in favour of the most plausible claim, include the " +
-      "strongest unique points, drop filler. " +
-      "Output only the final merged answer in markdown — do not mention the merging process or the sources. " +
-      "Then, on a new line by itself, write exactly " + DISAGREEMENT_MARKER + " followed by a short markdown " +
-      "bullet list of any point where the source models gave genuinely conflicting factual claims (not just " +
-      "different wording or emphasis) — name which model made which claim when useful. " +
-      "If the models didn't meaningfully disagree on anything, write " + DISAGREEMENT_MARKER + " followed by " +
-      "the single word None." + todayLine() },
+      "Several AI models independently answered the same question. Return ONLY JSON matching the supplied schema. " +
+      "The answer field must be one best markdown answer: keep agreed claims, resolve contradictions cautiously, include strong unique points, and do not mention the merging process. " +
+      "For votes, list each source model by its exact displayed provider name and classify whether its answer agrees with the final answer, disagrees, or is unclear. " +
+      "List only genuine factual conflicts in disagreements, not different wording or emphasis. " + todayLine() },
     { role: "user", content: "QUESTION:\n" + question + "\n\n" + labelled }
-  ], null, ui.stream, ui, "synthesis", { temperature: CONFIG.temperatures.synth });
+  ], null, undefined, ui, "synthesis", { json: { schema: COUNCIL_DECISION_SCHEMA }, temperature: CONFIG.temperatures.synth });
   ui.stage("synth", "done", `Synthesized · ${P[provId].label}`);
 
-  /* Split the merged answer from the disagreement note *before* critique/revise
-     ever sees it, so neither stage can rewrite or drop it — it's re-attached
-     verbatim to whatever the pipeline finally produces (see answer()). */
-  let draft = rawDraft, disagreement = "";
-  const split = splitDisagree(rawDraft);
-  if (split.found) {
-    draft = split.body.trim();
-    const rest = split.note.trim();
-    if (rest && !/^none\.?$/i.test(rest)) disagreement = rest;
-  }
-
-  return { genProvId: provId, draft, disagreement };
+  const decision = parseCouncilDecision(rawDraft, good);
+  ui.councilDecision(decision);
+  ui.working("Structured council decision", {
+    summary: `${decision.votes.filter(v => v.position === "agree").length} agree, ${decision.votes.filter(v => v.position === "disagree").length} disagree, ${decision.votes.filter(v => v.position === "unclear").length} unclear · ${Math.round(decision.confidence * 100)}% confidence`,
+    raw: JSON.stringify(decision)
+  });
+  const disagreement = decision.disagreements.length ? decision.disagreements.map(x => "- " + x).join("\n") : "";
+  return { genProvId: provId, draft: decision.answer, disagreement, decision };
 }
 
 /* Stage: PLAIN ENGLISH — the finished (technical) answer is rewritten for a
@@ -2617,8 +2908,10 @@ let busy = false;
                        persisted to localStorage when the browser allows it
    ===================================================================== */
 const MEMORY_KEY = "aicouncil-memory-v1";
+const TASK_MEMORY_KEY = "aicouncil-task-memory-v1";
 const FACT_TTL_DAYS = 90;   // durable facts quietly expire instead of accumulating forever — see pruneExpiredFacts()
 let memory = { summary: "", facts: [] };   // facts: [{text, addedAt}] — addedAt is unix seconds
+let taskMemory = []; // [{text, addedAt}] — explicitly user-managed, separate from extracted facts
 
 /* Drops facts older than FACT_TTL_DAYS. An unreferenced fact from months
    ago is more likely to be stale or was only ever situational (a one-off
@@ -2653,12 +2946,22 @@ function loadMemory() {
 function saveMemory() {
   try { localStorage.setItem(MEMORY_KEY, JSON.stringify(memory)); } catch (_) {}
 }
+function loadTaskMemory() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(TASK_MEMORY_KEY) || "[]");
+    if (Array.isArray(raw)) taskMemory = raw.map(x => ({ text: String(x.text || "").trim(), addedAt: Number(x.addedAt) || Date.now() })).filter(x => x.text).slice(-40);
+  } catch (_) {}
+}
+function saveTaskMemory() {
+  try { localStorage.setItem(TASK_MEMORY_KEY, JSON.stringify(taskMemory)); } catch (_) {}
+}
 
 /* Injected into every model's system prompt. */
 function memoryPreamble() {
   let s = "";
   if (memory.facts.length) s += "\n\nThings you know about this user from earlier conversations:\n- " + memory.facts.map(f => f.text).join("\n- ");
   if (memory.summary) s += "\n\nSummary of the earlier part of this conversation:\n" + memory.summary;
+  if (taskMemory.length) s += "\n\nUser-approved task preferences and recurring workflow notes:\n- " + taskMemory.map(f => f.text).join("\n- ");
   if (s) s += "\n\nUse this knowledge naturally when relevant; never recite it back unprompted.";
   return s;
 }
@@ -3254,9 +3557,15 @@ function mdLinkSafe(title, url) {   // keeps a hostile title or URL from breakin
 function sourceListMd(results) {
   return results.map((r, i) => {
     const link = `${i + 1}. ${mdLinkSafe(r.title, r.url)}`;
-    if (r.category && SOURCE_LABELS[r.category]) return link + ` [[badge:${r.category}]]`;   // rendered as a .source-label pill by renderMarkdown()
-    return link + ` — ${r.kind === "untrusted" || !r.kind ? "⚠ " : ""}${SOURCE_KIND_LABEL[r.kind] || SOURCE_KIND_LABEL.untrusted}`;
+    const trust = r.category && SOURCE_LABELS[r.category] ? `[[badge:${r.category}]]` : `${r.kind === "untrusted" || !r.kind ? "⚠ " : ""}${SOURCE_KIND_LABEL[r.kind] || SOURCE_KIND_LABEL.untrusted}`;
+    const age = r.publishedDate ? ` · published ${r.publishedDate}` : " · publication date not supplied";
+    return link + ` — ${trust}${age}`;
   }).join("\n");
+}
+function evidenceSummary(results) {
+  const domains = new Set(results.map(r => { try { return new URL(r.url).hostname.replace(/^www\./, ""); } catch (_) { return ""; } }).filter(Boolean));
+  const trusted = results.filter(r => r.kind !== "untrusted").length;
+  return `${results.length} source${results.length === 1 ? "" : "s"} from ${domains.size} domain${domains.size === 1 ? "" : "s"} · ${trusted} trusted, ${results.length - trusted} unverified`;
 }
 async function sourceCheck(question, disagreement, ui) {
   if (!searchAvailable()) { ui.stage("src", "skipped", "Source check · needs your Tavily key"); return ""; }
@@ -3280,7 +3589,7 @@ async function sourceCheck(question, disagreement, ui) {
     return "\n\n:::sources\nNo source turned up for this question, so the disagreement above is **unresolved**. Check it against a primary source yourself.\n:::";
   }
   const trustedN = results.filter(r => r.kind !== "untrusted").length, untrustedN = results.length - trustedN;
-  ui.working("Source check — search results", results.map((r, i) => `[${i + 1}] ${sourceTrustNote(r.kind)}\n${r.title}\n${r.url}\n${r.content}`).join("\n\n"));
+  ui.working("Source check — evidence", `${evidenceSummary(results)}\n\n` + results.map((r, i) => `[${i + 1}] ${sourceTrustNote(r.kind)}\n${r.title}\n${r.url}\n${r.publishedDate ? "Published: " + r.publishedDate + "\n" : ""}${r.content}`).join("\n\n"));
   let summary = "";
   try {
     const { text } = await callWithFallback(pickProvider(CONFIG.specialists.factual), [
@@ -3304,7 +3613,7 @@ async function sourceCheck(question, disagreement, ui) {
   return "\n\n:::sources\n" + (summary || "*The summary couldn't be written; the sources found are listed below.*") +
     (trustedN ? "" : "\n\n**No trusted source turned up. Everything below comes from the wider web and is unverified.**") +
     "\n\n**Sources checked** (trusted sites first; ⚠ marks a source that is not on the trusted list and hasn't been vetted):\n" +
-    sourceListMd(results) +
+    evidenceSummary(results) + "\n\n" + sourceListMd(results) +
     "\n\n*A source shows what that document says, not that a claim is true. Check anything important yourself.*\n:::";
 }
 
@@ -3378,7 +3687,7 @@ async function answer(question, ui) {
     const seenUrl = new Set();
     const uniq = toolSources.filter(r => r.url && !seenUrl.has(r.url) && seenUrl.add(r.url)).sort((a, b) => (a.kind === "untrusted") - (b.kind === "untrusted"));
     sourceMd += "\n\n:::sources Web search\n**Web results the model could see** (⚠ marks a source that is not on the trusted list and hasn't been vetted):\n" +
-      sourceListMd(uniq) + "\n\n*The model was told which sources are unverified. Check anything important yourself.*\n:::";
+      evidenceSummary(uniq) + "\n\n" + sourceListMd(uniq) + "\n\n*The model was told which sources are unverified. Check anything important yourself.*\n:::";
   }
   /* medical / legal / financial: a short "general information only" note, kept out of the technical section */
   const cautionMd = currentSensitive ? "\n\n:::caution\n" + CAUTION_TEXT[currentSensitive] + "\n:::" : "";
@@ -4334,7 +4643,9 @@ function addAiBubble() {
   div.innerHTML = `
     <div class="bubble">
       <div class="pipeline"></div>
+      <div class="council-decision" hidden></div>
       <div class="answer"><span style="color:var(--text-dim)">Working…</span></div>
+      <div class="agent-panel" hidden></div>
       <details class="workings" style="display:none">
         <summary>Show the council's workings</summary>
         <div class="wblocks"></div>
@@ -4344,7 +4655,9 @@ function addAiBubble() {
   chatEl.scrollTop = chatEl.scrollHeight;
 
   const pipelineEl = div.querySelector(".pipeline");
+  const decisionEl = div.querySelector(".council-decision");
   const answerEl = div.querySelector(".answer");
+  const agentPanelEl = div.querySelector(".agent-panel");
   const workingsEl = div.querySelector(".workings");
   const wblocksEl = div.querySelector(".wblocks");
   const stages = {};
@@ -4358,6 +4671,66 @@ function addAiBubble() {
     setStream(m) {
       streamMode = m;
       if (m === "drafting") answerEl.innerHTML = '<span style="color:var(--text-dim)">The council is working on the detailed answer…</span>';
+    },
+    showAgentPlan(plan, task, onStep) {
+      agentPanelEl.hidden = false;
+      const render = () => {
+        agentPanelEl.innerHTML = "";
+        const head = document.createElement("div"); head.className = "agent-head";
+        const title = document.createElement("span"); title.className = "agent-title"; title.textContent = "Agent task plan";
+        const state = document.createElement("span"); state.className = "agent-state " + (task.stopped ? "stopped" : task.done ? "done" : "running");
+        state.textContent = task.stopped ? "Stopped" : task.done ? "Completed" : "Awaiting approval";
+        head.append(title, state); agentPanelEl.appendChild(head);
+        const goal = document.createElement("div"); goal.textContent = "Goal: " + plan.goal; agentPanelEl.appendChild(goal);
+        if (plan.risks.length) {
+          const risks = document.createElement("div"); risks.className = "agent-step-risk"; risks.textContent = "Risks: " + plan.risks.join(" · "); agentPanelEl.appendChild(risks);
+        }
+        const list = document.createElement("ol"); list.className = "agent-plan";
+        plan.steps.forEach((step, i) => {
+          const li = document.createElement("li"); li.className = "agent-step";
+          const h = document.createElement("div"); h.className = "agent-step-head";
+          const st = document.createElement("span"); st.className = "agent-step-title"; st.textContent = `${i + 1}. ${step.description}`;
+          const meta = document.createElement("span"); meta.className = "agent-step-meta"; meta.textContent = `${step.tool} · ${step.risk} risk`;
+          h.append(st, meta); li.appendChild(h);
+          const expected = document.createElement("div"); expected.className = "agent-step-meta"; expected.textContent = "Expected: " + step.expected_result; li.appendChild(expected);
+          const status = document.createElement("div"); status.className = "agent-step-status"; status.textContent = step.status; li.appendChild(status);
+          const actions = document.createElement("div"); actions.className = "agent-step-actions";
+          const approve = document.createElement("button"); approve.type = "button"; approve.className = "agent-action"; approve.textContent = step.status === "awaiting approval" ? "Approve and run" : "Run again";
+          approve.disabled = task.stopped || ["running", "completed"].includes(step.status);
+          approve.addEventListener("click", () => onStep(step, render));
+          const reject = document.createElement("button"); reject.type = "button"; reject.className = "agent-action secondary"; reject.textContent = "Reject";
+          reject.disabled = task.stopped || !["awaiting approval", "failed"].includes(step.status);
+          reject.addEventListener("click", () => { step.status = "rejected"; task.history.push({ at: Date.now(), action: `${step.tool}: rejected`, result: "User rejected this step." }); render(); });
+          actions.append(approve, reject); li.appendChild(actions);
+          list.appendChild(li);
+        });
+        agentPanelEl.appendChild(list);
+        const details = document.createElement("details"); details.className = "agent-history";
+        const summary = document.createElement("summary"); summary.textContent = `Action history (${task.history.length})`; details.appendChild(summary);
+        task.history.forEach(entry => { const row = document.createElement("div"); row.className = "agent-history-row"; row.textContent = agentHistoryLine(entry); details.appendChild(row); });
+        agentPanelEl.appendChild(details);
+      };
+      task.render = render;
+      render();
+    },
+    councilDecision(decision) {
+      decisionEl.hidden = false;
+      decisionEl.innerHTML = "";
+      const heading = document.createElement("strong");
+      const agree = decision.votes.filter(v => v.position === "agree").length;
+      const disagree = decision.votes.filter(v => v.position === "disagree").length;
+      const unclear = decision.votes.filter(v => v.position === "unclear").length;
+      heading.textContent = `Council decision · ${agree} agree · ${disagree} disagree${unclear ? ` · ${unclear} unclear` : ""} · ${Math.round(decision.confidence * 100)}% confidence`;
+      decisionEl.appendChild(heading);
+      if (decision.disagreements.length) {
+        const label = document.createElement("div"); label.className = "decision-muted"; label.textContent = "Reported conflicts:";
+        const list = document.createElement("ul");
+        decision.disagreements.forEach(item => { const li = document.createElement("li"); li.textContent = item; list.appendChild(li); });
+        decisionEl.append(label, list);
+      } else {
+        const note = document.createElement("div"); note.className = "decision-muted"; note.textContent = "No material factual conflict was reported by the synthesis model.";
+        decisionEl.appendChild(note);
+      }
     },
     /* live token stream — throttled re-render so long answers stay smooth */
     stream(accumulated) {
@@ -4414,9 +4787,62 @@ function addAiBubble() {
   };
 }
 
+async function runAgentTask(goal, ui) {
+  const task = { stopped: false, done: false, history: [], render: null };
+  agentRun = task;
+  stopAgentEl.classList.add("visible");
+  stopAgentEl.disabled = false;
+  try {
+    const plan = await createAgentPlan(goal, ui);
+    if (task.stopped) throw new Error("Agent stopped before the plan was ready.");
+    ui.showAgentPlan(plan, task, async (step, render) => {
+      if (task.stopped || agentRun !== task) return;
+      step.status = "running";
+      render();
+      try {
+        const result = await runAgentStep(step, task, ui);
+        step.status = result && result.error ? "failed" : "completed";
+        task.history.push({ at: Date.now(), action: `${step.tool}: ${step.status}`, result: result && result.error ? String(result.error).slice(0, 500) : "Completed with a result." });
+      } catch (e) {
+        step.status = task.stopped ? "stopped" : "failed";
+        task.history.push({ at: Date.now(), action: `${step.tool}: ${step.status}`, result: String(e.message || e).slice(0, 500) });
+      }
+      if (plan.steps.every(s => ["completed", "rejected", "failed", "stopped"].includes(s.status))) {
+        task.done = true;
+        stopRunnerTask();
+        stopAgentEl.classList.remove("visible");
+        agentRun = null;
+      }
+      if (task.render) task.render();
+    });
+    ui.working("Agent plan", plan.steps.map((s, i) => `${i + 1}. ${s.description} [${s.tool}, ${s.risk} risk]`).join("\n"));
+    return "The agent created a plan above. Approve each step to run the permitted read-only tools. Browser actions require the connected local runner and approved domains shown in Settings.";
+  } catch (e) {
+    if (task.stopped) {
+      stopRunnerTask();
+      agentRun = null;
+      stopAgentEl.classList.remove("visible");
+      return "The agent was stopped before it could create a plan.";
+    }
+    agentRun = null;
+    stopAgentEl.classList.remove("visible");
+    throw e;
+  }
+}
+
+stopAgentEl.addEventListener("click", () => {
+  if (!agentRun) return;
+  const task = agentRun;
+  task.stopped = true;
+  stopRunnerTask();
+  if (task.render) task.render();
+  agentRun = null;
+  stopAgentEl.classList.remove("visible");
+});
+
 async function onSend() {
   const q = inputEl.value.trim();
-  if (!q || busy) return;
+  if (!q || busy || agentRun) return;
   if (availableProviders().length === 0) { openSettings(); return; }
   if (structActive()) {   // 🧩 needs a usable schema or example before anything is sent
     const chk = parseStructInput(structSchemaEl.value);
@@ -4428,7 +4854,11 @@ async function onSend() {
   tickGlobalCount();   // one anonymous +1 to the global counter (no question text is sent)
   const ui = addAiBubble();
   try {
-    const final = await answer(q, ui);
+    const final = mode === "agent" ? await runAgentTask(q, ui) : await answer(q, ui);
+    if (mode === "agent") {
+      history.push({ role: "user", content: q });
+      history.push({ role: "assistant", content: final, meta: { mode: "agent", category: "agent", plain: false, structured: true } });
+    }
     ui.finish(final);
     persistCurrentChat(q);
   } catch (e) {
@@ -4601,11 +5031,11 @@ refreshPlainToggle();
 /* ---------- tools toggle ---------- */
 const toolsToggleEl = document.getElementById("toolsToggle");
 function refreshToolsToggle() {
-  const disabledByCouncil = mode === "council";
+  const disabledByCouncil = mode === "council" || mode === "agent";
   const disabledByStruct = structEnabled && !disabledByCouncil;   // 🧩 Structured output and 🔧 Tools can't be combined
   toolsToggleEl.disabled = disabledByCouncil || disabledByStruct;
   toolsToggleEl.title = disabledByCouncil
-    ? "Not available in Council mode. Switch to Fast or Balanced to use tools."
+    ? mode === "agent" ? "Agent mode controls its own read-only tools and permissions." : "Not available in Council mode. Switch to Fast or Balanced to use tools."
     : disabledByStruct ? "Turn off 🧩 Structured output first: it needs the reply to be JSON only, and tool calls need the model to answer in steps."
     : "Let a model use a small built-in toolset (calculator, current date/time, web search when you add your own Tavily key, and page-reading tools when you add a TinyFish or Bright Data key in ⚙ Keys) while drafting — Fast/Balanced modes only.";
   toolsToggleEl.classList.toggle("active", toolsEnabled && !disabledByCouncil);
@@ -4638,15 +5068,17 @@ function checkStructInput() {
   else setStructStatus("✓ Example recognised: its keys become required properties, and their types are inferred from your values.", "ok");
 }
 function refreshStructToggle() {
-  const council = mode === "council", blockedByTools = toolsEnabled && !council;
-  structToggleEl.disabled = council || blockedByTools;
+  const council = mode === "council", agent = mode === "agent", blockedByTools = toolsEnabled && !council;
+  structToggleEl.disabled = council || agent || blockedByTools;
   structToggleEl.title = council ? "Not available in Council mode. Switch to Fast or Balanced to use structured output."
+    : agent ? "Agent plans use a fixed safety schema and the optional approved local browser runner."
     : blockedByTools ? "Turn off 🔧 Tools first: tool calls need the model to answer in steps, which a JSON-only reply can't do."
     : "Get the answer as JSON in a shape you choose. Paste a JSON Schema or an example object; the reply is checked against it. Best-effort: how strictly it is enforced depends on the provider. Fast/Balanced only. In Balanced the plain-English rewrite is skipped.";
   structToggleEl.classList.toggle("active", structEnabled && !council);
   structToggleEl.textContent = "🧩 JSON: " + (structEnabled && !council ? "on" : "off");
   structPanelEl.hidden = !structActive();
   toggleNoteEl.textContent = council ? "🔧 Tools and 🧩 Structured output work with a single model: switch to Fast or Balanced to use them."
+    : agent ? "Agent mode creates a validated plan and requires approval before each permitted read-only step. Browser actions require the optional local runner and approved domains."
     : structActive() ? "🔧 Tools is unavailable while 🧩 Structured output is on: the reply has to be JSON only, and tool calls need the model to answer in steps."
     : blockedByTools ? "🧩 Structured output is unavailable while 🔧 Tools is on: tool calls need the model to answer in steps, which a JSON-only reply can't do. Turn Tools off to use it."
     : "";
@@ -4735,6 +5167,10 @@ document.getElementById("modePicker").addEventListener("click", e => {
   if (!btn) return;
   mode = btn.dataset.mode;
   document.querySelectorAll("#modePicker button").forEach(b => b.classList.toggle("active", b === btn));
+  if (mode === "agent") {
+    toolsEnabled = false;
+    structEnabled = false;
+  }
   refreshToolsToggle();
   refreshStructToggle();
   syncEmptyModes();
@@ -4777,7 +5213,8 @@ function renderEmptyState(first) {
   for (const [id, name, what, calls] of [
     ["fast", "Fast", "Routing only", "2 calls"],
     ["balanced", "Balanced", "Routing + critique loop", "3–4 calls"],
-    ["council", "Council", "Ensemble + synthesis + critique", "6–7 calls"]
+    ["council", "Council", "Ensemble + synthesis + critique", "6–7 calls"],
+    ["agent", "Agent", "Plan + approval + safe tools", "as needed"]
   ]) {
     const b = document.createElement("button");
     b.type = "button"; b.className = "es-mode"; b.dataset.emode = id;
@@ -4862,6 +5299,15 @@ let drawerOpener = null;   // what had focus when a panel opened, so Escape can 
 function openSettings() { const from = document.activeElement; closeDrawers(); drawerOpener = from; renderTokenPanel(); settingsEl.classList.add("open"); overlayEl.classList.add("open"); }
 function openMemory() { const from = document.activeElement; closeDrawers(); drawerOpener = from; renderMemoryPanel(); memoryEl.classList.add("open"); overlayEl.classList.add("open"); }
 document.addEventListener("keydown", e => {
+  const drawer = settingsEl.classList.contains("open") ? settingsEl : memoryEl.classList.contains("open") ? memoryEl : null;
+  if (drawer && e.key === "Tab") {
+    const focusable = [...drawer.querySelectorAll('button, input, textarea, select, [href], [tabindex]:not([tabindex="-1"])')].filter(el => !el.disabled && el.offsetParent !== null);
+    if (focusable.length) {
+      const first = focusable[0], last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+  }
   if (e.key !== "Escape") return;
   if (document.getElementById("welcome").classList.contains("open")) return;   // the How to start pop-up has its own handler
   if (!settingsEl.classList.contains("open") && !memoryEl.classList.contains("open")) return;
@@ -4875,6 +5321,12 @@ document.getElementById("closeSettings").addEventListener("click", closeDrawers)
 document.getElementById("memoryBtn").addEventListener("click", openMemory);
 document.getElementById("closeMemory").addEventListener("click", closeDrawers);
 overlayEl.addEventListener("click", closeDrawers);
+function focusDrawer(panel) {
+  const first = panel.querySelector('input, button, textarea, select, [href], [tabindex]:not([tabindex="-1"])');
+  if (first) first.focus();
+}
+document.getElementById("settingsBtn").addEventListener("click", () => focusDrawer(settingsEl));
+document.getElementById("memoryBtn").addEventListener("click", () => focusDrawer(memoryEl));
 
 /* ---------- memory panel ---------- */
 function renderMemoryPanel() {
@@ -4884,9 +5336,7 @@ function renderMemoryPanel() {
   factsEl.innerHTML = "";
   if (memory.facts.length === 0) {
     factsEl.innerHTML = `<div class="mem-empty">Nothing remembered yet.</div>`;
-    return;
-  }
-  memory.facts.forEach((fact, i) => {
+  } else memory.facts.forEach((fact, i) => {
     const row = document.createElement("div");
     row.className = "fact";
     const span = document.createElement("span");
@@ -4906,10 +5356,31 @@ function renderMemoryPanel() {
     row.appendChild(del);
     factsEl.appendChild(row);
   });
+  const taskEl = document.getElementById("taskMemoryList");
+  if (!taskEl) return;
+  taskEl.innerHTML = "";
+  if (!taskMemory.length) { taskEl.innerHTML = `<div class="mem-empty">Nothing saved yet.</div>`; return; }
+  taskMemory.forEach((item, i) => {
+    const row = document.createElement("div"); row.className = "fact";
+    const span = document.createElement("span"); span.textContent = item.text;
+    const del = document.createElement("button"); del.textContent = "✕"; del.title = "Delete task memory";
+    del.addEventListener("click", () => { taskMemory.splice(i, 1); saveTaskMemory(); renderMemoryPanel(); });
+    row.append(span, del); taskEl.appendChild(row);
+  });
 }
+document.getElementById("addTaskMemory").addEventListener("click", () => {
+  const input = document.getElementById("taskMemoryInput");
+  const text = input.value.trim();
+  if (!text) return;
+  if (!taskMemory.some(x => x.text.toLowerCase() === text.toLowerCase())) taskMemory.push({ text: text.slice(0, 240), addedAt: Date.now() });
+  taskMemory = taskMemory.slice(-40); input.value = ""; saveTaskMemory(); renderMemoryPanel();
+});
+document.getElementById("taskMemoryInput").addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("addTaskMemory").click(); });
 document.getElementById("forgetAll").addEventListener("click", () => {
   memory = { summary: "", facts: [] };
+  taskMemory = [];
   saveMemory();
+  saveTaskMemory();
   renderMemoryPanel();
 });
 
@@ -4940,6 +5411,24 @@ function renderTokenPanel() {
     const td = document.createElement("td"); td.textContent = text; tr.appendChild(td);
   }
   body.appendChild(tr);
+}
+
+function renderProviderReliability() {
+  const body = document.getElementById("reliabilityBody");
+  if (!body) return;
+  body.innerHTML = "";
+  const ids = Object.keys(P);
+  ids.forEach(id => {
+    const m = providerMetric(id);
+    const total = m.successes + m.failures;
+    const success = total ? Math.round((m.successes / total) * 100) + "%" : "—";
+    const avg = total ? Math.round(m.totalLatencyMs / total) + " ms" : "—";
+    const row = document.createElement("tr");
+    [P[id].label, success, String(m.failures), String(m.rateLimits), avg, m.lastLatencyMs ? Math.round(m.lastLatencyMs) + " ms" : "—"].forEach(text => {
+      const td = document.createElement("td"); td.textContent = text; row.appendChild(td);
+    });
+    body.appendChild(row);
+  });
 }
 
 function refreshDots() {
@@ -4977,6 +5466,40 @@ document.getElementById("provDots").addEventListener("click", () => verifyProvid
 function buildSettings() {
   const body = document.getElementById("settingsBody");
   const anchor = document.getElementById("customSectionLabel");
+
+  const runnerCard = document.createElement("div");
+  runnerCard.className = "prov-card";
+  runnerCard.innerHTML = `
+    <h3>🧭 Isolated browser runner — optional</h3>
+    <div class="hint">Connect only to a runner you started locally. Agent browser actions are limited to these approved HTTPS domains and never receive provider keys.</div>
+    <div class="keyrow" style="margin-bottom:8px"><input type="url" id="runnerUrl" placeholder="http://127.0.0.1:8787" autocomplete="off"></div>
+    <div class="keyrow" style="margin-bottom:8px"><input type="password" id="runnerToken" placeholder="Runner token" autocomplete="off"><button class="testbtn" id="runnerTest">Test</button></div>
+    <div class="keyrow"><input type="text" id="runnerDomains" placeholder="Approved domains, comma-separated (example.com, docs.example.com)" autocomplete="off"></div>
+    <label class="remember-row"><input type="checkbox" id="runnerRemember"> Remember runner settings in this browser</label>
+    <div class="teststatus" id="runnerStatus"></div>`;
+  document.getElementById("runnerSettings").appendChild(runnerCard);
+  const rurl = runnerCard.querySelector("#runnerUrl");
+  const rtok = runnerCard.querySelector("#runnerToken");
+  const rdom = runnerCard.querySelector("#runnerDomains");
+  const rrem = runnerCard.querySelector("#runnerRemember");
+  const rstat = runnerCard.querySelector("#runnerStatus");
+  rurl.value = runner.url; rtok.value = runner.token; rdom.value = runner.domains.join(", "); rrem.checked = runner.remembered;
+  const updateRunner = () => {
+    runner.url = rurl.value.trim().replace(/\/+$/, "");
+    runner.token = rtok.value.trim();
+    runner.domains = rdom.value.split(",").map(x => x.trim().toLowerCase().replace(/^\*\./, "")).filter(Boolean).slice(0, 20);
+    runner.remembered = rrem.checked; runner.taskId = ""; saveRunnerConfig();
+  };
+  [rurl, rtok, rdom].forEach(el => el.addEventListener("input", updateRunner));
+  rrem.addEventListener("change", updateRunner);
+  runnerCard.querySelector("#runnerTest").addEventListener("click", async () => {
+    updateRunner(); rstat.className = "teststatus"; rstat.textContent = "Testing…";
+    try {
+      const result = await testRunner();
+      rstat.className = "teststatus ok"; rstat.textContent = `✓ Connected (${result.service || "runner"})`;
+    } catch (e) { rstat.className = "teststatus err"; rstat.textContent = "✗ " + e.message.slice(0, 160); }
+  });
+  body.insertBefore(runnerCard, anchor);
 
   /* --- proxy card (keyless mode) --- */
   const proxyCard = document.createElement("div");
@@ -5210,6 +5733,23 @@ function buildSettings() {
   tokCard.querySelector("#tokReset").addEventListener("click", () => { tokenUsageByProvider = {}; renderTokenPanel(); });
   body.insertBefore(tokCard, anchor);
   renderTokenPanel();
+
+  const reliabilityCard = document.createElement("div");
+  reliabilityCard.className = "prov-card";
+  reliabilityCard.innerHTML = `
+    <h3>🩺 Provider reliability — this session</h3>
+    <div class="hint">Live request outcomes since this page loaded. Routing puts recently failing or rate-limited providers last; use Test or reset to retry deliberately.</div>
+    <div class="ab-scroll" tabindex="0" role="region" aria-label="Provider reliability (scrollable table)"><table class="tok-table">
+      <thead><tr><th>Provider</th><th>Success</th><th>Failures</th><th>Rate limits</th><th>Average</th><th>Last call</th></tr></thead>
+      <tbody id="reliabilityBody"></tbody></table></div>
+    <button class="danger-btn" id="reliabilityReset" style="margin-top:8px">Reset reliability</button>`;
+  reliabilityCard.querySelector("#reliabilityReset").addEventListener("click", () => {
+    Object.keys(providerMetrics).forEach(id => delete providerMetrics[id]);
+    Object.keys(health).forEach(id => delete health[id]);
+    renderProviderReliability(); refreshDots();
+  });
+  body.insertBefore(reliabilityCard, anchor);
+  renderProviderReliability();
 
   for (const id of Object.keys(CONFIG.providers)) {
     const prov = CONFIG.providers[id];
@@ -5592,7 +6132,7 @@ function flashSideNote(msg) {
   sideNoteTimer = setTimeout(() => { sideNoteEl.textContent = sideNoteDefault; }, 7000);
 }
 function exportBackup() {
-  const payload = { app: "ai-council", version: 1, exportedAt: new Date().toISOString(), chats, folders: userFolders, memory };
+  const payload = { app: "ai-council", version: 1, exportedAt: new Date().toISOString(), chats, folders: userFolders, memory, taskMemory };
   const blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -5648,6 +6188,14 @@ function importBackup(text) {
       if (t && t.length <= 200 && !seen.has(t.toLowerCase())) {
         memory.facts.push({ text: t, addedAt: Number.isFinite(f.addedAt) ? f.addedAt : Math.floor(Date.now() / 1000) });
         seen.add(t.toLowerCase()); facts++;
+      }
+      if (Array.isArray(data.taskMemory)) {
+        const seen = new Set(taskMemory.map(x => x.text.toLowerCase()));
+        for (const item of data.taskMemory.slice(0, 80)) {
+          const text = item && typeof item.text === "string" ? item.text.trim().slice(0, 240) : "";
+          if (text && !seen.has(text.toLowerCase())) { taskMemory.push({ text, addedAt: Number(item.addedAt) || Date.now() }); seen.add(text.toLowerCase()); }
+        }
+        taskMemory = taskMemory.slice(-40); saveTaskMemory(); renderMemoryPanel();
       }
     }
     if (memory.facts.length > 40) memory.facts = memory.facts.slice(-40);
@@ -5802,8 +6350,10 @@ loadProviderKeys();
 loadProxy();
 loadSearchKey();
 loadMemory();
+loadTaskMemory();
 loadFolders();
 loadChats();
+loadRunnerConfig();
 buildSettings();
 buildAbout();
 renderEmptyState(true);
