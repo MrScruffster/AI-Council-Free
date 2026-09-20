@@ -1468,8 +1468,13 @@ async function clientTrusted() {
     const h = String(host).trim().toLowerCase();
     if (!h) return;
     // already listed: only the more specific "government" may replace the broad "general" (same rule as the Worker)
-    if (kinds.has(h)) { if (kind === "government" && kinds.get(h) === "general") kinds.set(h, "government"); return; }
-    kinds.set(h, kind); order.push(h);
+    if (kinds.has(h)) { if (kind === "government" && kinds.get(h) === "general") kinds.set(h, "government"); }
+    else { kinds.set(h, kind); order.push(h); }
+    // ...and the same site under its www./bare twin gets the same upgrade (CISA lists "cdc.gov"; the general group also lists "www.cdc.gov")
+    if (kind === "government") {
+      const twin = h.startsWith("www.") ? h.slice(4) : "www." + h;
+      if (kinds.get(twin) === "general") kinds.set(twin, "government");
+    }
   };
   for (const [kind, list] of TRUSTED_STATIC) list.forEach(h => add(h, kind));
   for (const [h, kind] of (trustedExtras || [])) add(h, kind);

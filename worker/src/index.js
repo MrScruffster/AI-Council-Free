@@ -309,8 +309,13 @@ async function loadTrusted(env) {
       const d = String(raw).trim().toLowerCase();
       if (!d) continue;
       // already listed: only the more specific "government" may replace the broad "general"; other categories keep the first
-      if (kinds.has(d)) { if (kind === "government" && kinds.get(d) === "general") kinds.set(d, "government"); continue; }
-      kinds.set(d, kind); order.push(d);
+      if (kinds.has(d)) { if (kind === "government" && kinds.get(d) === "general") kinds.set(d, "government"); }
+      else { kinds.set(d, kind); order.push(d); }
+      // the same site under its www./bare twin gets the same upgrade (CISA lists "cdc.gov"; the general group also lists "www.cdc.gov")
+      if (kind === "government") {
+        const twin = d.startsWith("www.") ? d.slice(4) : "www." + d;
+        if (kinds.get(twin) === "general") kinds.set(twin, "government");
+      }
     }
   };
   for (const [kind, list] of STATIC_TRUSTED_GROUPS) add(list, kind);
