@@ -200,6 +200,57 @@
     background: rgba(139, 108, 255, .16); border: 1px solid rgba(139, 108, 255, .5); color: #c4b5ff; }
   .source-label[data-cat="government"] { background: rgba(139, 108, 255, .16); border-color: rgba(139, 108, 255, .5); color: #c4b5ff; }
   .source-label .sl-icon { font-size: .8rem; }
+  /* ▶ Run on python / javascript code blocks: a console-style output panel under the code */
+  .code-run { margin: 0 0 10px; }
+  .code-run > pre { margin: 0; border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+  .run-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; background: #0d1016; border: 1px solid var(--border); border-top: none; border-radius: 0 0 8px 8px; padding: 5px 8px; }
+  .run-btn { background: var(--accent-strong); color: #fff; border: none; border-radius: 6px; padding: 4px 12px; font-size: .78rem; font-weight: 600; cursor: pointer; font-family: inherit; }
+  .run-btn:hover { filter: brightness(1.12); }
+  .run-btn.running { background: #7a3a2f; }
+  .run-lang { font-size: .72rem; color: var(--text-dim); }
+  .run-note { display: inline-flex; align-items: center; gap: 6px; font-size: .72rem; color: var(--text-dim); background: rgba(108, 140, 255, .1); border: 1px solid rgba(108, 140, 255, .3); border-radius: 6px; padding: 2px 4px 2px 8px; }
+  .run-note button { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: .8rem; padding: 0 4px; }
+  .run-note button:hover { color: var(--text); }
+  .run-out { margin-top: 6px; background: #07090d; border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; max-height: 280px; overflow: auto; font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospace; font-size: .8rem; line-height: 1.45; }
+  .run-out[hidden] { display: none; }
+  .run-line { white-space: pre-wrap; word-break: break-word; color: #d6dae4; }
+  .run-line.err { color: var(--err); }
+  .run-line.warn { color: var(--warn); }
+  .run-line.result { color: #8fd0ff; }
+  .run-line.sys { color: var(--text-dim); font-style: italic; }
+
+  /* 🧩 Structured output: schema box above the composer, and the JSON viewer inside an answer */
+  #toggleNote { margin: 0; padding: 6px max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left)); background: var(--panel); border-top: 1px solid var(--border); font-size: .76rem; color: var(--text-dim); line-height: 1.4; }
+  #toggleNote:empty { display: none; }
+  #structPanel { padding: 8px max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left)); background: var(--panel); border-top: 1px solid var(--border); }
+  #structPanel[hidden] { display: none; }
+  #structPanel label { display: block; font-size: .78rem; color: var(--text-dim); margin-bottom: 4px; }
+  #structSchema { width: 100%; resize: vertical; min-height: 64px; max-height: 200px; background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospace; font-size: .78rem; outline: none; }
+  #structSchema:focus { border-color: var(--accent); }
+  #structStatus { margin-top: 4px; font-size: .74rem; min-height: 1em; color: var(--text-dim); }
+  #structStatus.err { color: var(--err); }
+  #structStatus.ok { color: var(--ok); }
+  .json-viewer { margin: 4px 0 10px; background: #10131a; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+  .json-warn { background: rgba(229, 115, 95, .1); border: 1px solid rgba(229, 115, 95, .5); border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; font-size: .84rem; line-height: 1.45; color: #f0b3a8; }
+  .json-warn strong { color: var(--err); }
+  .json-errs { margin: 6px 0 0 18px; font-family: ui-monospace, Consolas, monospace; font-size: .76rem; color: var(--text-dim); }
+  .json-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+  .json-title { font-weight: 650; font-size: .86rem; }
+  .json-badge { font-size: .7rem; border-radius: 999px; padding: 1px 9px; border: 1px solid var(--border); }
+  .json-badge.ok { color: var(--ok); border-color: rgba(76, 195, 138, .5); background: rgba(76, 195, 138, .1); }
+  .json-badge.bad { color: var(--warn); border-color: rgba(229, 181, 103, .5); background: rgba(229, 181, 103, .1); }
+  .json-copy { margin-left: auto; background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 3px 10px; font-size: .74rem; cursor: pointer; font-family: inherit; }
+  .json-copy:hover { border-color: var(--accent); }
+  .json-tree { font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospace; font-size: .8rem; line-height: 1.5; overflow-x: auto; }
+  .json-tree details.jv > summary { cursor: pointer; list-style: none; color: var(--text-dim); }
+  .json-tree details.jv > summary::-webkit-details-marker { display: none; }
+  .json-tree details.jv:not([open]) > summary::after { content: " …"; }
+  .jv-kids { margin-left: 16px; border-left: 1px dashed var(--border); padding-left: 10px; }
+  .jv-row { white-space: pre-wrap; word-break: break-word; }
+  .jv-key { color: #9db4ff; } .jv-idx { color: var(--text-dim); } .jv-str { color: #a5d6a7; } .jv-num { color: #ffcc80; } .jv-bool, .jv-null { color: #ce93d8; } .jv-count { font-size: .72rem; }
+  .json-note, .json-tier { font-size: .74rem; color: var(--text-dim); margin-top: 6px; }
+  .json-rawd { margin-top: 8px; } .json-rawd summary { cursor: pointer; font-size: .76rem; color: var(--text-dim); }
+  .json-rawd pre { margin: 6px 0 0; max-height: 240px; overflow: auto; white-space: pre-wrap; word-break: break-word; font-size: .76rem; }
   /* token usage table in the Keys drawer */
   .tok-table { border-collapse: collapse; width: 100%; font-size: .74rem; }
   .tok-table th, .tok-table td { text-align: right; padding: 5px 6px; border-bottom: 1px solid var(--border); white-space: nowrap; }
@@ -466,8 +517,10 @@
     #plainToggle { order: 9; }
     #toolsToggle { order: 10; }
     #compressToggle { order: 10; }
+    #structToggle { order: 10; }
     #memoryBtn { order: 11; }
-    #plainToggle, #toolsToggle, #compressToggle, #memoryBtn { flex: 1 1 auto; min-width: 0; padding: 6px 5px; font-size: .74rem; white-space: nowrap; }
+    #plainToggle, #toolsToggle, #compressToggle, #structToggle, #memoryBtn { flex: 1 1 auto; min-width: 0; padding: 6px 4px; font-size: .72rem; white-space: nowrap; }
+    header { row-gap: 5px; }
     header .icon-btn { padding: 6px 10px; }
     #chat { padding: 14px 12px; gap: 14px; }
     .msg.user { max-width: 92%; }
@@ -485,7 +538,7 @@
   @media (max-width: 1400px) { #helpBtn .hb-text { display: none; } }
   /* on mid-width desktops the Memory / Keys / About buttons drop their words (they keep tooltips and aria-labels)
      so the header stays on one row instead of wrapping into two */
-  @media (min-width: 761px) and (max-width: 1360px) {   /* 1360, not 1180: the Compress button and the Search dot made the full-width header wrap a little sooner */
+  @media (min-width: 761px) and (max-width: 1480px) {   /* 1480 (was 1360): the Compress, Search-dot and 🧩 JSON toggles made the full-width header wrap sooner */
     .hb-opt { display: none; }
     header { gap: 6px; padding-left: 12px; padding-right: 12px; }
     header .icon-btn { padding: 6px 8px; }
@@ -493,11 +546,11 @@
     .provider-dots { gap: 4px 8px; font-size: .72rem; }
     .pdot { margin-right: 2px; }
   }
-  @media (min-width: 761px) and (max-width: 1100px) {   /* tablets: tighter buttons so the wrap is one tidy second row */
+  @media (min-width: 761px) and (max-width: 1250px) {   /* tablets: tighter buttons so the wrap is one tidy second row */
     header .icon-btn { padding: 6px 6px; font-size: .78rem; }
     .mode-picker button { padding: 6px 8px; }
   }
-  body.about-mode .mode-picker, body.about-mode #plainToggle, body.about-mode #toolsToggle, body.about-mode #compressToggle { display: none; }
+  body.about-mode .mode-picker, body.about-mode #plainToggle, body.about-mode #toolsToggle, body.about-mode #compressToggle, body.about-mode #structToggle { display: none; }
   #layout.about-mode #maincol { display: none; }
   #layout.about-mode #aboutView { display: block; }
   .about { max-width: 860px; margin: 0 auto; padding: 28px clamp(16px, 4vw, 32px) 64px; line-height: 1.65; font-size: .95rem; }
@@ -550,6 +603,7 @@
   </div>
   <button class="icon-btn active" id="plainToggle" title="Explain answers in plain, everyday language (with a simple diagram where it helps). The full technical answer stays one click away.">🗣 Plain: on</button>
   <button class="icon-btn" id="toolsToggle" title="Let a model use a small built-in toolset (calculator, current date/time, and web search when you add your own Tavily key in ⚙ Keys) while drafting — Fast/Balanced modes only.">🔧 Tools: off</button>
+  <button class="icon-btn" id="structToggle" title="Get the answer as JSON in a shape you choose. Paste a JSON Schema or an example object; the reply is checked against it. Best-effort: how strictly it is enforced depends on the provider. Fast/Balanced only.">🧩 JSON: off</button>
   <button class="icon-btn" id="compressToggle" title="Shorten your question with one extra model call before the council sees it. It costs one extra call per question, so it mostly pays off in Council mode (several models each read the shorter question) and rarely in Fast mode. It can drop something you meant: both versions are shown in the workings.">🗜️ Compress: off</button>
   <button class="icon-btn" id="memoryBtn" title="Working memory: what the council remembers about you" aria-label="Memory">🧠<span class="hb-opt"> Memory</span></button>
   <button class="icon-btn" id="aboutBtn" title="How AI Council works, and how it reduces incorrect answers" aria-label="About AI Council"><span id="abIco">ℹ️</span><span class="hb-text hb-opt" id="abTxt"> About</span></button>
@@ -574,6 +628,13 @@
   </nav>
   <div id="maincol">
     <main id="chat"><!-- the welcome / starter-question panel is rendered by renderEmptyState() --></main>
+    <div id="toggleNote" role="status" aria-live="polite"></div>
+    <div id="structPanel" hidden>
+      <label for="structSchema">🧩 Shape of the answer: paste a <b>JSON Schema</b> <i>or</i> a small <b>example JSON object</b></label>
+      <textarea id="structSchema" rows="3" spellcheck="false" autocomplete="off" placeholder='Either a JSON Schema, e.g.  {"type":"object","properties":{"name":{"type":"string"},"age":{"type":"integer"}},"required":["name","age"]}
+…or just an example, e.g.  {"name":"Ada","age":36}  (its keys become required and the types are inferred from your values)'></textarea>
+      <div id="structStatus" role="status"></div>
+    </div>
     <div class="teststatus" id="micStatus" role="status" aria-live="polite"></div>
     <div id="composer" role="region" aria-label="Write a message">
       <textarea id="input" rows="1" placeholder="Ask the council anything…"></textarea>
@@ -1167,6 +1228,10 @@ async function callModelRaw(providerId, model, messages, maxTokens, onDelta, opt
   const viaProxy = useProxy(prov);
   if (!viaProxy && !prov.key.trim()) throw new Error(`No API key for ${providerId}`);
   const anthropic = isAnthropic(prov);
+  /* 🧩 Structured output: the shape is always spelled out in the system message; on top of that a native JSON mode is used where the
+     provider has one (see the note above jsonTierFor). opts.json = { schema }. */
+  if (opts && opts.json) messages = withJsonInstruction(messages, opts.json.schema);
+  let jsonTier = null;
   const endpoint = viaProxy
     ? CONFIG.proxy.url.trim().replace(/\/+$/, "") + "/api/" + providerId
     : prov.url;
@@ -1199,6 +1264,7 @@ async function callModelRaw(providerId, model, messages, maxTokens, onDelta, opt
        provider accepts it, so it is sent optimistically and dropped, for the rest of the session, for any provider that answers
        400/422 to it (see below). A streamed call that reports no usage is simply not counted; see recordUsage(). */
     if (streaming && !usageOptionRefused.has(providerId)) bodyObj.stream_options = { include_usage: true };
+    if (opts && opts.json) { jsonTier = jsonTierFor(providerId); applyJsonTier(bodyObj, jsonTier, opts.json.schema); }
   }
 
   const ctrl = new AbortController();
@@ -1221,6 +1287,13 @@ async function callModelRaw(providerId, model, messages, maxTokens, onDelta, opt
     delete bodyObj.stream_options;
     res = await send();
   }
+  /* a provider (or model) that refuses the JSON mode we asked for is stepped down for the rest of the session: json_schema -> json_object -> instructions only */
+  while (!res.ok && jsonTier && jsonTier !== "prompt" && (res.status === 400 || res.status === 404 || res.status === 422)) {
+    jsonTier = nextJsonTier(jsonTier); jsonTierCap.set(providerId, jsonTier);
+    applyJsonTier(bodyObj, jsonTier, opts.json.schema);
+    res = await send();
+  }
+  if (res.ok && opts && opts.json) lastJsonTier.set(providerId, jsonTier || "prompt");
   if (!res.ok) {
     clearTimeout(timer);
     let detail = "";
@@ -1919,7 +1992,7 @@ function systemPromptFor(category) {
   return p + todayLine() + cautionPromptLine() + memoryPreamble();
 }
 
-async function generate(spec, category, history, ui) {
+async function generate(spec, category, history, ui, sopts) {
   if (toolsEnabled) {
     const order = [spec.provId, ...availableProviders().filter(id => id !== spec.provId)];
     if (order.length === 0) throw new Error("no providers");
@@ -1954,7 +2027,7 @@ async function generate(spec, category, history, ui) {
   }
   ui.stage("gen", "running", `Generating · ${P[spec.provId].label}`);
   const msgs = [{ role: "system", content: systemPromptFor(category) }, ...history];
-  const { text, provId } = await callWithFallback(spec.provId, msgs, null, ui.stream, ui, "generation");
+  const { text, provId } = await callWithFallback(spec.provId, msgs, null, sopts ? undefined : ui.stream, ui, "generation", sopts);   // structured replies are not streamed (Groq can't stream them)
   ui.stage("gen", "done", `Generated · ${P[provId].label} (${P[provId].workhorse})`);
   return { text, provId };
 }
@@ -1984,7 +2057,7 @@ async function critique(draft, question, generatorProv, ui) {
 }
 
 /* Stage: REVISE — the original specialist fixes what the critic found. */
-async function revise(genProvId, category, question, draft, critiqueText, ui) {
+async function revise(genProvId, category, question, draft, critiqueText, ui, sopts) {
   ui.stage("rev", "running", `Revising · ${P[genProvId].label}`);
   const { text, provId } = await callWithFallback(genProvId, [
     { role: "system", content: systemPromptFor(category) +
@@ -1994,7 +2067,7 @@ async function revise(genProvId, category, question, draft, critiqueText, ui) {
       "QUESTION:\n" + question +
       "\n\nYOUR DRAFT:\n" + draft +
       "\n\nREVIEWER'S FEEDBACK:\n" + critiqueText }
-  ], null, ui.stream, ui, "revision");
+  ], null, sopts ? undefined : ui.stream, ui, "revision", sopts);
   ui.stage("rev", "done", `Revised · ${P[provId].label}`);
   return text;
 }
@@ -2616,9 +2689,14 @@ async function answer(question, ui) {
   if (CONFIG.compression.enabled) question = await compressQuestion(originalQuestion, ui);
   /* Past answers are sent to the models in their technical form only. */
   const trimmedHistory = [...history.slice(-CONFIG.historyLimit).map(m => ({ role: m.role, content: forModel(m.content) })), { role: "user", content: question }];
-  const usePlain = plainMode;
+  /* 🧩 Structured output (Fast/Balanced): the reply is JSON, so the plain-English rewrite is skipped; critique and revision still run, and a
+     revision is asked for in the same JSON shape. */
+  const sc = structActive() ? parseStructInput(structSchemaEl.value) : null;
+  const structured = !!(sc && sc.ok);
+  const sopts = structured ? { json: { schema: sc.schema }, temperature: 0.2 } : undefined;
+  const usePlain = plainMode && !structured;
   currentSensitive = sensitiveDomain(originalQuestion);
-  if (usePlain) ui.setStream("drafting");   // hold back the technical draft; the plain answer streams instead
+  if (usePlain || structured) ui.setStream("drafting");   // hold back the technical draft; the plain answer streams instead
 
   /* 5 — SPECIALIST ROUTING (all modes) */
   const category = await routeQuestion(question, ui);
@@ -2629,7 +2707,7 @@ async function answer(question, ui) {
     ({ genProvId, draft, disagreement } = await councilGenerate(category, trimmedHistory, question, ui));
   } else {
     const spec = specialistFor(category);
-    ({ text: draft, provId: genProvId, webSources: toolSources } = await generate(spec, category, trimmedHistory, ui));
+    ({ text: draft, provId: genProvId, webSources: toolSources } = await generate(spec, category, trimmedHistory, ui, sopts));
     toolSources = toolSources || [];
   }
 
@@ -2642,7 +2720,7 @@ async function answer(question, ui) {
     const crit = await critique(draft, question, genProvId, ui);
     if (!crit.approved && crit.text) {
       ui.working(`Critique — ${P[crit.provId].label}`, crit.text);
-      final = stripBlockMarkers(await revise(genProvId, category, question, draft, crit.text, ui));
+      final = stripBlockMarkers(await revise(genProvId, category, question, draft, crit.text, ui, sopts));
     } else {
       ui.stage("rev", "skipped", "Revision · not needed");
     }
@@ -2658,6 +2736,7 @@ async function answer(question, ui) {
     final = final.trimEnd() + "\n\n:::disagreement\n" + disagreement + "\n:::";
   }
   const technical = final;   // the full, detailed answer
+  if (structured) final = await structuredEnvelope(final, sc, ui, genProvId);   // validated and packed for the JSON viewer; never throws
   /* Council only, and only when the models disagreed: check the disagreement against trusted sources (kept out of the technical section) */
   let sourceMd = "";
   if (mode === "council" && disagreement) {
@@ -2704,6 +2783,419 @@ async function answer(question, ui) {
   updateMemory(originalQuestion, technical, ui).catch(() => {});
   return final;
 }
+
+/* =====================================================================
+   ▶ Run: python / javascript code blocks, executed entirely in the visitor's browser.
+   - JavaScript runs inside <iframe sandbox="allow-scripts" srcdoc=...> (no allow-same-origin, so it gets an opaque origin: no
+     access to this page, its storage or the API keys in it). Inside the iframe the code runs in a Web Worker, so an endless loop
+     cannot freeze the page and Stop / the 10 s limit can kill it; if a Worker can't be created there it falls back to the
+     iframe's own thread. console.log / warn / error and thrown errors are posted back to the parent in call order.
+   - Python runs in Pyodide, lazy-loaded on the FIRST Python Run click (never on page load), inside a Web Worker. I chose the
+     worker: its pattern is straightforward here, the page stays responsive, Stop can terminate it, and CDN-loaded code never
+     runs in the page itself. pyodide.js is fetched with a Subresource Integrity hash and refused if it doesn't match.
+   Honest limits: no input() (no stdin), no network for the JS sandbox's own fetch is guaranteed only by the browser's
+   sandbox rules, and Python imports of packages such as numpy download that package from jsDelivr (a download, not an upload).
+   ===================================================================== */
+const RUN_LANGS = { python: "python", py: "python", javascript: "js", js: "js" };
+const RUN_LIMITS = { jsMs: 10000, jsIdleMs: 1500, pyMs: 30000, maxLines: 500, maxChars: 20000 };
+const PYODIDE_VERSION = "314.0.7";   // latest stable release on jsDelivr when this was written (the 315 line is still alpha)
+const PYODIDE_BASE = "https://cdn.jsdelivr.net/pyodide/v" + PYODIDE_VERSION + "/full/";
+const PYODIDE_JS_SRI = "sha384-Lp79fMwxa4n2BLtugpUAoQMlbxIdg8iCUiP1r3h7nJLkQjwlXT1JzZTeHVL+f4Dg";   // pyodide.mjs (Pyodide 314 no longer works as a classic worker script)
+let codeRunEnabled = true;   // switched off while an answer is streaming: blocks are half-written and each re-render would wipe the output panel
+let runNoteShown = false;    // the "runs in your browser" note appears next to the first Run button of a page load, then never again
+const RUN_NOTE_KEY = "aicouncil-runnote-v1";
+function runNoteWanted() { try { return sessionStorage.getItem(RUN_NOTE_KEY) !== "dismissed"; } catch (_) { return true; } }
+function runBarHtml(lang) {
+  let note = "";
+  if (!runNoteShown && runNoteWanted()) {
+    runNoteShown = true;
+    note = '<span class="run-note" role="note">🔒 Runs entirely in your browser, in a sandbox. Your code is never sent anywhere.<button type="button" class="run-note-x" aria-label="Dismiss this note" title="Dismiss">✕</button></span>';
+  }
+  return '<div class="run-bar"><button type="button" class="run-btn" aria-label="Run this ' + (lang === "js" ? "JavaScript" : "Python") + ' code">▶ Run</button>' +
+    '<span class="run-lang">' + (lang === "js" ? "JavaScript" : "Python") + '</span>' + note + '</div><div class="run-out" role="log" aria-live="polite" hidden></div>';
+}
+
+/* console-style formatting shared by the JS sandbox (kept as a string so it can be injected into the iframe and its worker) */
+const JS_SHIM = [
+  'function __fmt(a){',
+  '  if (typeof a === "string") return a;',
+  '  if (a instanceof Error) return (a.name || "Error") + ": " + a.message;',
+  '  if (typeof a === "function") return String(a);',
+  '  if (typeof a === "symbol") return String(a);',
+  '  try { var s = JSON.stringify(a, function (k, v) { return typeof v === "bigint" ? v + "n" : v === undefined ? "undefined" : v; }, 2); return s === undefined ? String(a) : s; }',
+  '  catch (e) { return String(a); }',
+  '}',
+  'function __install(post, scope){',
+  '  var c = scope.console || (scope.console = {});',
+  '  ["log","info","debug","table","dir"].forEach(function (k) { c[k] = function () { post("log", Array.prototype.map.call(arguments, __fmt).join(" ")); }; });',
+  '  c.warn = function () { post("warn", Array.prototype.map.call(arguments, __fmt).join(" ")); };',
+  '  c.error = function () { post("error", Array.prototype.map.call(arguments, __fmt).join(" ")); };',
+  '}',
+  'async function __run(post, code){',
+  '  var AF = Object.getPrototypeOf(async function(){}).constructor;',
+  '  try { await new AF(code)(); }',
+  '  catch (e) { post("error", (e && e.name ? e.name + ": " + e.message : String(e))); }',
+  '}'
+].join("\n");
+
+function jsSrcdoc(id, code) {
+  const j = s => JSON.stringify(s).replace(/</g, "\\u003c").replace(new RegExp(String.fromCharCode(0x2028), 'g'), "\\u2028").replace(new RegExp(String.fromCharCode(0x2029), 'g'), "\\u2029");   // safe inside a <script>
+  return '<!doctype html><html><head><meta charset="utf-8"></head><body><script>\n' +
+    '(function () {\n' +
+    '  var ID = ' + j(id) + ', CODE = ' + j(code) + ', SHIM = ' + j(JS_SHIM) + ';\n' +
+    '  function send(k, t) { parent.postMessage({ aic: ID, k: k, t: t === undefined ? "" : String(t) }, "*"); }\n' +
+    '  var workerSrc = SHIM + "\\n__install(function (k, t) { postMessage({ k: k, t: t }); }, self);\\n" +\n' +
+    '    "self.addEventListener(\\"unhandledrejection\\", function (e) { postMessage({ k: \\"error\\", t: \\"Unhandled promise rejection: \\" + __fmt(e.reason) }); e.preventDefault(); });\\n" +\n' +
+    '    "__run(function (k, t) { postMessage({ k: k, t: t }); }, " + JSON.stringify(CODE) + ").then(function () { postMessage({ k: \\"done\\" }); });";\n' +
+    '  var w = null;\n' +
+    '  try { w = new Worker(URL.createObjectURL(new Blob([workerSrc], { type: "text/javascript" }))); } catch (e) { w = null; }\n' +
+    '  if (w) {\n' +
+    '    w.onmessage = function (e) { send(e.data.k, e.data.t); };\n' +
+    '    w.onerror = function (e) { send("error", e.message || "Error in the worker"); e.preventDefault(); send("done"); };\n' +
+    '  } else {   // no Worker in this sandbox: run on the iframe thread (Stop still works by removing the iframe, but an endless loop cannot be interrupted)\n' +
+    '    (0, eval)(SHIM);\n' +
+    '    __install(send, window);\n' +
+    '    window.addEventListener("unhandledrejection", function (e) { send("error", "Unhandled promise rejection: " + __fmt(e.reason)); });\n' +
+    '    window.onerror = function (m) { send("error", m); return true; };\n' +
+    '    __run(send, CODE).then(function () { send("done"); });\n' +
+    '  }\n' +
+    '})();\n' +
+    '<\/script></body></html>';
+}
+
+/* Each starter returns { stop() } and reports through emit(kind, text). kinds: log warn error result sys done */
+function startJs(code, emit) {
+  const id = "r" + Math.random().toString(36).slice(2);
+  const frame = document.createElement("iframe");
+  frame.setAttribute("sandbox", "allow-scripts");   // deliberately NOT allow-same-origin
+  frame.setAttribute("aria-hidden", "true");
+  frame.tabIndex = -1;
+  frame.style.cssText = "position:absolute;width:0;height:0;border:0;visibility:hidden";
+  let over = false, idle = null, hard = null;
+  const end = (why) => {
+    if (over) return; over = true;
+    clearTimeout(idle); clearTimeout(hard);
+    window.removeEventListener("message", onMsg);
+    frame.remove();
+    if (why) emit("sys", why);
+    emit("done", "");
+  };
+  const onMsg = (e) => {
+    if (e.source !== frame.contentWindow || !e.data || e.data.aic !== id) return;
+    const { k, t } = e.data;
+    if (k === "done") { clearTimeout(idle); idle = setTimeout(() => end(), RUN_LIMITS.jsIdleMs); return; }   // a little time for timers to print
+    if (k === "log" || k === "warn" || k === "error") { emit(k, t); if (idle) { clearTimeout(idle); idle = setTimeout(() => end(), RUN_LIMITS.jsIdleMs); } }
+  };
+  window.addEventListener("message", onMsg);
+  hard = setTimeout(() => end("Stopped: the code was still running after " + RUN_LIMITS.jsMs / 1000 + " seconds."), RUN_LIMITS.jsMs);
+  frame.srcdoc = jsSrcdoc(id, code);
+  document.body.appendChild(frame);
+  return { stop: (why) => end(why || "Stopped.") };
+}
+
+let pyWorker = null;
+function pyWorkerSource() {
+  return [
+    'let py = null, loading = null, cur = 0, runner = null;',
+    'const post = (k, t) => postMessage({ k, t, id: cur });',
+    'const HELPER = "import ast\\ndef __aic_run(src, g):\\n    tree = ast.parse(src, \\"<exec>\\", \\"exec\\")\\n    last = None\\n    if tree.body and isinstance(tree.body[-1], ast.Expr):\\n        last = ast.Expression(tree.body.pop().value)\\n    exec(compile(tree, \\"<exec>\\", \\"exec\\"), g)\\n    if last is not None:\\n        v = eval(compile(last, \\"<exec>\\", \\"eval\\"), g)\\n        if v is not None:\\n            return repr(v)\\n    return None\\n";',
+    'async function init(base, sri) {',
+    '  if (py) return py;',
+    '  if (!loading) loading = (async () => {',
+    '    post("sys", "Loading Python (first run only: about 10 MB from jsDelivr, then cached by your browser)…");',
+    '    const r = await fetch(base + "pyodide.mjs", { integrity: sri });',   // refused if the file does not match the pinned hash
+    '    if (!r.ok) throw new Error("could not download the Python runtime (HTTP " + r.status + ")");',
+    '    const { loadPyodide } = await import(URL.createObjectURL(new Blob([await r.text()], { type: "text/javascript" })));',
+    '    const p = await loadPyodide({ indexURL: base, stdout: t => post("log", t), stderr: t => post("warn", t), stdin: () => null });',
+    '    p.runPython(HELPER);',
+    '    runner = p.globals.get("__aic_run");',
+    '    py = p;',
+    '    return p;',
+    '  })().catch(e => { loading = null; throw e; });',
+    '  return loading;',
+    '}',
+    'function cleanTb(msg) {   // hide the runner\'s own frames (__aic_run, ast.py): the user only wants to see their own code',
+    '  const L = msg.split("\\n");',
+    '  const si = L.findIndex((l, i) => /^\\s*File "<exec>", line \\d+$/.test(l) && L.slice(0, i).some(x => /ast\\.py/.test(x)));',
+    '  if (si >= 0) return L.slice(si).join("\\n").trim();   // a SyntaxError raised while parsing: show only where it is',
+    '  return L.filter(l => !/in __aic_run$/.test(l)).join("\\n").trim();',
+    '}',
+    'onmessage = async (e) => {',
+    '  const m = e.data; cur = m.id;',
+    '  try {',
+    '    const p = await init(m.base, m.sri);',
+    '    post("ready", "");',   // runtime loaded: the parent now starts the run-time limit
+    '    try { await p.loadPackagesFromImports(m.code); } catch (_) { /* a missing package surfaces as a normal ImportError below */ }',
+    '    const g = p.runPython("{\'__name__\': \'__main__\'}");',
+    '    try { const r = runner(m.code, g); if (r !== undefined && r !== null) post("result", String(r)); }',
+    '    catch (err) { post("error", cleanTb(String(err && err.message || err))); }',
+    '    finally { try { g.destroy(); } catch (_) {} }',
+    '  } catch (err) { post("error", "Could not start Python: " + (err && err.message || err)); }',
+    '  post("done", "");',
+    '};'
+  ].join("\n");
+}
+function startPython(code, emit) {
+  const id = Math.floor(Math.random() * 1e9);
+  let over = false, hard = null;
+  if (!pyWorker) {
+    try { pyWorker = new Worker(URL.createObjectURL(new Blob([pyWorkerSource()], { type: "text/javascript" })), { type: "module" }); }   // module worker: Pyodide 314 is ESM-only
+    catch (e) { emit("error", "This browser can't start the Python runner (Web Workers are blocked here)."); emit("done", ""); return { stop() {} }; }
+  }
+  const w = pyWorker;
+  const end = (why, kill) => {
+    if (over) return; over = true;
+    clearTimeout(hard);
+    w.removeEventListener("message", onMsg); w.removeEventListener("error", onErr);
+    if (kill) { try { w.terminate(); } catch (_) {} if (pyWorker === w) pyWorker = null; }   // the next run starts a fresh worker (the runtime is cached by the browser)
+    if (why) emit("sys", why);
+    emit("done", "");
+  };
+  const onMsg = (e) => {
+    const d = e.data || {};
+    if (d.id !== id) return;
+    if (d.k === "done") return end();
+    if (d.k === "ready") {   // loading the runtime isn't counted against the run-time limit; the limit starts now
+      clearTimeout(hard);
+      hard = setTimeout(() => end("Stopped: the code was still running after " + RUN_LIMITS.pyMs / 1000 + " seconds.", true), RUN_LIMITS.pyMs);
+      return;
+    }
+    emit(d.k, d.t);
+  };
+  const onErr = (e) => { emit("error", "The Python runner stopped unexpectedly: " + (e.message || "unknown error")); end(null, true); };
+  w.addEventListener("message", onMsg); w.addEventListener("error", onErr);
+  hard = setTimeout(() => end("Stopped: Python took longer than " + RUN_LIMITS.pyMs / 1000 + " seconds to load or run.", true), 90000);
+  w.postMessage({ id, code, base: PYODIDE_BASE, sri: PYODIDE_JS_SRI });
+  return { stop: (why) => end(why || "Stopped.", true) };
+}
+
+const runningBlocks = new WeakMap();   // .code-run wrapper -> { stop }
+function runCodeBlock(wrapper) {
+  const btn = wrapper.querySelector(".run-btn"), out = wrapper.querySelector(".run-out");
+  const codeEl = wrapper.querySelector("pre code");
+  if (!btn || !out || !codeEl) return;
+  if (runningBlocks.has(wrapper)) { runningBlocks.get(wrapper).stop("Stopped."); return; }   // a second click while running = Stop
+  const lang = wrapper.dataset.run;
+  out.hidden = false; out.textContent = "";
+  btn.textContent = "⏹ Stop"; btn.classList.add("running");
+  let lines = 0, chars = 0, truncated = false, handle = null;
+  const emit = (kind, text) => {
+    if (kind === "done") { runningBlocks.delete(wrapper); btn.textContent = "▶ Run"; btn.classList.remove("running"); if (!out.childNodes.length) addLine("sys", "(no output)"); return; }
+    if (truncated) return;
+    if (++lines > RUN_LIMITS.maxLines || (chars += String(text).length) > RUN_LIMITS.maxChars) {
+      truncated = true; addLine("sys", "Output limit reached; stopped."); if (handle) handle.stop(); return;
+    }
+    addLine(kind, text);
+  };
+  const addLine = (kind, text) => {
+    const d = document.createElement("div");
+    d.className = "run-line " + (kind === "error" ? "err" : kind === "warn" ? "warn" : kind === "result" ? "result" : kind === "sys" ? "sys" : "");
+    d.textContent = (kind === "result" ? "⇒ " : "") + String(text);
+    out.appendChild(d); out.scrollTop = out.scrollHeight;
+  };
+  try {
+    handle = lang === "js" ? startJs(codeEl.textContent, emit) : startPython(codeEl.textContent, emit);
+    runningBlocks.set(wrapper, handle);
+  } catch (e) {   // never let a runner problem become an unhandled error in the page
+    addLine("error", "Couldn't run this code: " + (e && e.message || e));
+    runningBlocks.delete(wrapper); btn.textContent = "▶ Run"; btn.classList.remove("running");
+  }
+}
+document.addEventListener("click", e => {
+  const run = e.target.closest && e.target.closest(".run-btn");
+  if (run) { const w = run.closest(".code-run"); if (w) runCodeBlock(w); return; }
+  const x = e.target.closest && e.target.closest(".run-note-x");
+  if (x) { try { sessionStorage.setItem(RUN_NOTE_KEY, "dismissed"); } catch (_) {} document.querySelectorAll(".run-note").forEach(n => n.remove()); }
+});
+
+/* =====================================================================
+   🧩 Structured (JSON) output. The user pastes a JSON Schema OR a small example object; the reply is asked for as JSON of that
+   shape, then validated in the browser and shown in a collapsible viewer. Fast/Balanced only, and mutually exclusive with 🔧 Tools.
+
+   How each provider is asked (checked against the providers' docs when this was written):
+     Groq        json_schema (strict or best-effort) on openai/gpt-oss-20b and -120b; json_object elsewhere. Groq says structured outputs
+                 can't be combined with streaming, so structured requests are never streamed.
+     Gemini      the OpenAI-compatible endpoint documents structured outputs via response_format.
+     Cohere      the compatibility API lists response_format (JSON Schema) as supported.
+     OpenRouter  documents json_schema and says a model without support makes the request FAIL rather than ignore it.
+     Mistral     its docs page I read did not say which response_format types exist, so nothing here relies on it.
+   Because docs are per provider, per MODEL and change, nothing is hard-wired: every provider starts at json_schema and, if it answers
+   400/404/422, is stepped down for the rest of the session to json_object, then to "prompt" (explicit instructions in the system
+   message only). The "prompt" tier is BEST-EFFORT, the same honest caveat as 🔧 Tools: the model may still add prose or break the
+   shape, which is why every reply is validated and a mismatch is shown, never hidden. Custom Anthropic-style providers use "prompt".
+   ===================================================================== */
+const AJV_URL = "https://cdnjs.cloudflare.com/ajax/libs/ajv/8.17.1/ajv7.min.js";   // Ajv 8.17.1 UMD bundle (JSON Schema draft-07 by default)
+const AJV_SRI = "sha384-mKV+CfeYObKDokDWvT7Rra6ndzHEeBGfUGdutJRlfK2ynvA4lA7a/XBrHIs27z7A";
+let structEnabled = false;
+const JSON_TIERS = ["json_schema", "json_object", "prompt"];
+const JSON_TIER_START = {};   // provider id -> first tier to try (empty: everything starts at json_schema)
+const jsonTierCap = new Map();   // provider id -> the highest tier that hasn't been refused this session
+const lastJsonTier = new Map();  // provider id -> the tier the last successful structured request actually used
+const JSON_TIER_LABEL = { json_schema: "the provider's JSON-schema mode", json_object: "the provider's JSON mode", prompt: "instructions only (best-effort: this provider or model has no native JSON mode)" };
+
+function jsonTierFor(providerId) {
+  const prov = P[providerId];
+  if (prov && isAnthropic(prov)) return "prompt";
+  return jsonTierCap.get(providerId) || JSON_TIER_START[providerId] || "json_schema";
+}
+function nextJsonTier(t) { return JSON_TIERS[JSON_TIERS.indexOf(t) + 1] || "prompt"; }
+function schemaForProvider(schema) {   // a private copy without the keywords providers commonly reject
+  const s = JSON.parse(JSON.stringify(schema)); delete s.$schema; delete s.$id; return s;
+}
+function applyJsonTier(bodyObj, tier, schema) {
+  delete bodyObj.response_format;
+  if (tier === "json_schema") bodyObj.response_format = { type: "json_schema", json_schema: { name: "answer", schema: schemaForProvider(schema), strict: false } };
+  else if (tier === "json_object") bodyObj.response_format = { type: "json_object" };
+}
+function jsonInstruction(schema) {
+  return "Reply with ONE JSON value only: no prose, no explanation and no markdown code fences. It must match this JSON Schema exactly, and must not contain " +
+    "properties the schema does not list:\n" + JSON.stringify(schemaForProvider(schema));
+}
+function withJsonInstruction(messages, schema) {   // appended to the system message in EVERY tier (json_object mode needs it, and "prompt" mode is only this)
+  const out = messages.map(m => ({ ...m }));
+  const line = "\n\n" + jsonInstruction(schema);
+  if (out.length && out[0].role === "system") out[0].content += line;
+  else out.unshift({ role: "system", content: line.trim() });
+  return out;
+}
+
+/* ---- the schema / example the user typed ---- */
+const JSON_TYPE_NAMES = ["string", "number", "integer", "boolean", "object", "array", "null"];
+function isSchemaLike(o) {
+  if (!o || typeof o !== "object" || Array.isArray(o)) return false;
+  const okType = t => JSON_TYPE_NAMES.includes(t);
+  if ("$schema" in o) return true;
+  if (typeof o.type === "string" && okType(o.type)) return true;
+  if (Array.isArray(o.type) && o.type.length && o.type.every(okType)) return true;
+  if (o.properties && typeof o.properties === "object" && !Array.isArray(o.properties)) return true;
+  if (["anyOf", "oneOf", "allOf"].some(k => Array.isArray(o[k]))) return true;
+  if (typeof o.$ref === "string") return true;
+  return false;
+}
+function inferSchema(v) {   // an example value becomes a schema: object keys are all required, no extra keys, value types are inferred
+  if (v === null) return { type: "null" };
+  if (Array.isArray(v)) return v.length ? { type: "array", items: inferSchema(v[0]) } : { type: "array" };
+  if (typeof v === "object") {
+    const properties = {};
+    for (const k of Object.keys(v)) properties[k] = inferSchema(v[k]);
+    return { type: "object", properties, required: Object.keys(v), additionalProperties: false };
+  }
+  if (typeof v === "number") return { type: Number.isInteger(v) ? "integer" : "number" };
+  return { type: typeof v };   // string | boolean
+}
+/* -> { ok, schema, kind: "schema" | "example", error } */
+function parseStructInput(text) {
+  const t = String(text || "").trim();
+  if (!t) return { ok: false, error: "Paste a JSON Schema or an example JSON object first." };
+  let v;
+  try { v = JSON.parse(t); } catch (e) { return { ok: false, error: "That isn't valid JSON: " + e.message }; }
+  if (isSchemaLike(v)) return { ok: true, schema: v, kind: "schema" };
+  if (v === null || typeof v !== "object") return { ok: false, error: "Give a JSON Schema or an example object or array, not a single value." };
+  return { ok: true, schema: inferSchema(v), kind: "example" };
+}
+
+/* ---- Ajv, loaded only when the toggle is used, with a pinned integrity hash ---- */
+let ajvPromise = null;
+function loadAjv() {
+  if (ajvPromise) return ajvPromise;
+  ajvPromise = new Promise((resolve, reject) => {
+    const pick = () => { const g = window.ajv7 || window.Ajv || window.ajv || null; return g && (g.default || g.Ajv || g); };
+    const found = pick();
+    if (typeof found === "function") return resolve(found);
+    const s = document.createElement("script");
+    s.src = AJV_URL; s.integrity = AJV_SRI; s.crossOrigin = "anonymous";
+    s.onload = () => { const A = pick(); typeof A === "function" ? resolve(A) : (ajvPromise = null, reject(new Error("the validator loaded but was not recognised"))); };
+    s.onerror = () => { ajvPromise = null; reject(new Error("the validator could not be downloaded (offline, or the file failed its integrity check)")); };
+    document.head.appendChild(s);
+  });
+  return ajvPromise;
+}
+
+/* ---- pull JSON out of a reply that may not be pure JSON ---- */
+function extractJson(raw) {
+  const t = String(raw || "").trim();
+  try { return { ok: true, value: JSON.parse(t), note: "" }; } catch (_) { /* try the looser forms */ }
+  const fence = t.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fence) { try { return { ok: true, value: JSON.parse(fence[1].trim()), note: "The reply was wrapped in a code fence; the JSON inside it was used." }; } catch (_) {} }
+  const a = t.search(/[{\[]/), b = Math.max(t.lastIndexOf("}"), t.lastIndexOf("]"));
+  if (a >= 0 && b > a) { try { return { ok: true, value: JSON.parse(t.slice(a, b + 1)), note: "The reply had text around the JSON; only the JSON was checked and shown." }; } catch (_) {} }
+  return { ok: false, value: null, note: "" };
+}
+
+/* Validates the reply and packs everything the viewer needs into one line of JSON, so a saved chat re-renders without the validator.
+   Never throws: every failure becomes a status the viewer shows as a warning. */
+async function structuredEnvelope(rawText, sc, ui, provId) {
+  const raw = stripBlockMarkers(rawText);
+  const ex = extractJson(raw);
+  let status = "not_json", errors = [], note = ex.note;
+  if (ex.ok) {
+    let Ajv = null;
+    try { Ajv = await loadAjv(); } catch (e) { status = "unchecked"; errors = [e.message]; }
+    if (Ajv) {
+      try {
+        const validate = new Ajv({ allErrors: true, strict: false }).compile(schemaForProvider(sc.schema));
+        if (validate(ex.value)) status = "valid";
+        else { status = "invalid"; errors = (validate.errors || []).slice(0, 8).map(e => (e.instancePath || "(top level)") + " " + e.message); }
+      } catch (e) { status = "schema_error"; errors = [String(e.message || e).slice(0, 300)]; }
+    }
+  }
+  const tier = lastJsonTier.get(provId) || "prompt";
+  const labels = { valid: "matches your schema", invalid: "doesn't match your schema", not_json: "not valid JSON", unchecked: "not checked", schema_error: "your schema couldn't be used" };
+  if (ui) ui.stage("struct", status === "valid" ? "done" : "warn", `Structured · ${labels[status]}`);
+  return ":::structured\n" + JSON.stringify({ v: 1, status, errors, note, tier, raw }) + "\n:::";
+}
+
+/* ---- the viewer ---- */
+function jvNode(v, depth, budget) {
+  if (budget.n-- <= 0) return '<span class="jv-more">…</span>';
+  if (v === null) return '<span class="jv-null">null</span>';
+  if (typeof v === "string") return '<span class="jv-str">' + escapeHtml(JSON.stringify(v)) + "</span>";
+  if (typeof v === "number") return '<span class="jv-num">' + escapeHtml(String(v)) + "</span>";
+  if (typeof v === "boolean") return '<span class="jv-bool">' + v + "</span>";
+  const isArr = Array.isArray(v), keys = isArr ? v.map((_, i) => i) : Object.keys(v);
+  const open = isArr ? "[" : "{", close = isArr ? "]" : "}";
+  if (!keys.length) return '<span class="jv-brace">' + open + close + "</span>";
+  const rows = keys.map(k => '<div class="jv-row">' + (isArr ? '<span class="jv-idx">' + k + "</span>" : '<span class="jv-key">' + escapeHtml(JSON.stringify(k)) + "</span>") + ": " + jvNode(v[k], depth + 1, budget) + "</div>").join("");
+  return '<details class="jv"' + (depth < 2 ? " open" : "") + '><summary><span class="jv-brace">' + open + '</span> <span class="jv-count">' + keys.length + (isArr ? " item" : " key") + (keys.length === 1 ? "" : "s") + '</span></summary><div class="jv-kids">' + rows + '</div><span class="jv-brace">' + close + "</span></details>";
+}
+function renderStructuredBox(envText) {
+  let env;
+  try { env = JSON.parse(envText); } catch (_) { return '<div class="json-viewer"><div class="json-warn" role="alert">⚠ This structured answer could not be read back.</div></div>'; }
+  const raw = String(env.raw || ""), ex = extractJson(raw);
+  const status = env.status, valid = status === "valid";
+  const why = {
+    not_json: "The model's reply isn't valid JSON, so it couldn't be checked against your schema. The raw reply is shown below.",
+    invalid: "The reply is valid JSON, but it doesn't match the shape you asked for. The raw reply is shown below.",
+    unchecked: "The schema validator couldn't be loaded, so this reply was NOT checked against your schema.",
+    schema_error: "Your schema itself couldn't be used, so the reply was NOT checked against it."
+  }[status];
+  const pretty = ex.ok ? JSON.stringify(ex.value, null, 2) : raw;
+  const errs = Array.isArray(env.errors) && env.errors.length ? '<ul class="json-errs">' + env.errors.map(e => "<li>" + escapeHtml(String(e)) + "</li>").join("") + "</ul>" : "";
+  return '<div class="json-viewer" data-status="' + escapeHtml(String(status)) + '">' +
+    (valid ? "" : '<div class="json-warn" role="alert"><strong>⚠ ' + escapeHtml(why || "This reply couldn't be verified.") + "</strong>" + errs + "</div>") +
+    '<div class="json-head"><span class="json-title">🧩 Structured answer</span>' +
+    '<span class="json-badge ' + (valid ? "ok" : "bad") + '">' + (valid ? "✓ matches your schema" : "not verified") + "</span>" +
+    '<button type="button" class="json-copy" aria-label="Copy JSON to the clipboard">Copy JSON</button></div>' +
+    (ex.ok ? '<div class="json-tree">' + jvNode(ex.value, 0, { n: 2000 }) + "</div>" : "") +
+    (env.note ? '<div class="json-note">ℹ️ ' + escapeHtml(String(env.note)) + "</div>" : "") +
+    '<details class="json-rawd"' + (ex.ok ? "" : " open") + '><summary>Show the raw reply</summary><pre>' + escapeHtml(raw) + "</pre></details>" +
+    '<pre class="json-src" hidden>' + escapeHtml(pretty) + "</pre>" +
+    '<div class="json-tier">Asked using ' + escapeHtml(JSON_TIER_LABEL[env.tier] || JSON_TIER_LABEL.prompt) + ".</div></div>";
+}
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); return true; }
+  catch (_) {
+    try { const t = document.createElement("textarea"); t.value = text; t.style.cssText = "position:fixed;opacity:0"; document.body.appendChild(t); t.select(); const ok = document.execCommand("copy"); t.remove(); return ok; }
+    catch (__) { return false; }
+  }
+}
+document.addEventListener("click", async e => {
+  const b = e.target.closest && e.target.closest(".json-copy");
+  if (!b) return;
+  const src = b.closest(".json-viewer") && b.closest(".json-viewer").querySelector(".json-src");
+  const ok = src ? await copyText(src.textContent) : false;
+  const old = b.textContent; b.textContent = ok ? "Copied ✓" : "Couldn't copy"; setTimeout(() => { b.textContent = old; }, 1500);
+});
 
 /* =====================================================================
    Minimal safe markdown renderer
@@ -2759,7 +3251,8 @@ function stripBlockMarkers(text) { return String(text || "").replace(/^[ \t]*:::
 function forModel(content) {
   const m = String(content).match(TECH_RE);
   /* the UI-only "general information" note and source-check box are never fed back to a model */
-  return m ? m[2] : String(content).replace(/\n*:::(caution|sources)[^\n]*\n[\s\S]*?\n:::/g, "");
+  const cleaned = String(content).replace(/:::structured\n([^\n]*)\n:::/g, (_, j) => { try { return JSON.parse(j).raw || ""; } catch (_) { return ""; } });   // a structured answer goes back to the model as the JSON it wrote
+  return m ? m[2] : cleaned.replace(/\n*:::(caution|sources)[^\n]*\n[\s\S]*?\n:::/g, "");
 }
 
 function renderMarkdown(md, allowBadges) {
@@ -2787,10 +3280,17 @@ function renderMarkdown(md, allowBadges) {
     return "\u0000DB" + (disagreementBlocks.length - 1) + "\u0000";
   });
 
+  md = md.replace(/:::structured\n([^\n]*)\n:::/g, (_, envText) => {   // written by structuredEnvelope() alone; model output has its ::: lines stripped
+    disagreementBlocks.push(renderStructuredBox(envText));
+    return "\u0000DB" + (disagreementBlocks.length - 1) + "\u0000";
+  });
+
   const codeBlocks = [];
   md = md.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
     const diagram = lang.toLowerCase() === "diagram" ? renderDiagram(code) : null;
-    codeBlocks.push(diagram || `<pre><code>${escapeHtml(code.replace(/\n$/, ""))}</code></pre>`);
+    const pre = `<pre><code>${escapeHtml(code.replace(/\n$/, ""))}</code></pre>`;
+    const runLang = RUN_LANGS[lang.toLowerCase()];
+    codeBlocks.push(diagram || (runLang && codeRunEnabled ? `<div class="code-run" data-run="${runLang}">${pre}${runBarHtml(runLang)}</div>` : pre));
     return "\u0000CB" + (codeBlocks.length - 1) + "\u0000";
   });
   let html = escapeHtml(md);
@@ -2856,7 +3356,7 @@ function stopSpeaking() {
    code, the collapsed "full technical answer", diagrams and emoji. */
 function speechTextFor(answerEl) {
   const c = answerEl.cloneNode(true);
-  c.querySelectorAll("details.tech, .cursor-blink, .diagram").forEach(n => n.remove());
+  c.querySelectorAll("details.tech, .cursor-blink, .diagram, .run-bar, .run-out, .json-viewer").forEach(n => n.remove());
   c.querySelectorAll("pre").forEach(n => n.replaceWith(document.createTextNode("(Code block skipped.)\n")));
   c.querySelectorAll("br").forEach(n => n.replaceWith(document.createTextNode("\n")));
   c.querySelectorAll("p, li, h1, h2, h3, div, summary").forEach(n => n.append("\n"));   // textContent alone would run paragraphs together
@@ -3082,7 +3582,9 @@ function addAiBubble() {
       }
       const visible = splitDisagree(accumulated, { streaming: true }).body;   // never show the marker (or half of it) or the notes after it
       const text = streamMode === "plain" ? stripOpenFence(visible) : visible;
-      answerEl.innerHTML = (streamMode === "plain" ? '<div class="plain-body">' + renderMarkdown(text) + '</div>' : renderMarkdown(text)) + '<span class="cursor-blink"></span>';
+      codeRunEnabled = false;   // no Run buttons on half-written code: each 80 ms re-render would wipe the output panel
+      try { answerEl.innerHTML = (streamMode === "plain" ? '<div class="plain-body">' + renderMarkdown(text) + '</div>' : renderMarkdown(text)) + '<span class="cursor-blink"></span>'; }
+      finally { codeRunEnabled = true; }
       if (nearBottom) chatEl.scrollTop = chatEl.scrollHeight;
     },
     stage(id, state, label) {
@@ -3125,6 +3627,10 @@ async function onSend() {
   const q = inputEl.value.trim();
   if (!q || busy) return;
   if (availableProviders().length === 0) { openSettings(); return; }
+  if (structActive()) {   // 🧩 needs a usable schema or example before anything is sent
+    const chk = parseStructInput(structSchemaEl.value);
+    if (!chk.ok) { setStructStatus(chk.error, "err"); structSchemaEl.focus(); return; }
+  }
   inputEl.value = ""; autoGrow();
   busy = true; sendEl.disabled = true;
   addUserBubble(q);
@@ -3305,9 +3811,11 @@ refreshPlainToggle();
 const toolsToggleEl = document.getElementById("toolsToggle");
 function refreshToolsToggle() {
   const disabledByCouncil = mode === "council";
-  toolsToggleEl.disabled = disabledByCouncil;
+  const disabledByStruct = structEnabled && !disabledByCouncil;   // 🧩 Structured output and 🔧 Tools can't be combined
+  toolsToggleEl.disabled = disabledByCouncil || disabledByStruct;
   toolsToggleEl.title = disabledByCouncil
     ? "Not available in Council mode. Switch to Fast or Balanced to use tools."
+    : disabledByStruct ? "Turn off 🧩 Structured output first: it needs the reply to be JSON only, and tool calls need the model to answer in steps."
     : "Let a model use a small built-in toolset (calculator, current date/time, and web search when you add your own Tavily key in ⚙ Keys) while drafting — Fast/Balanced modes only.";
   toolsToggleEl.classList.toggle("active", toolsEnabled && !disabledByCouncil);
   toolsToggleEl.textContent = "🔧 Tools: " + (toolsEnabled && !disabledByCouncil ? "on" : "off");
@@ -3316,8 +3824,52 @@ toolsToggleEl.addEventListener("click", () => {
   if (toolsToggleEl.disabled) return;
   toolsEnabled = !toolsEnabled;
   refreshToolsToggle();
+  refreshStructToggle();
 });
 refreshToolsToggle();
+
+/* ---------- 🧩 structured output toggle (Fast / Balanced only; can't be combined with 🔧 Tools) ---------- */
+const structToggleEl = document.getElementById("structToggle");
+const structPanelEl = document.getElementById("structPanel");
+const structSchemaEl = document.getElementById("structSchema");
+const structStatusEl = document.getElementById("structStatus");
+const toggleNoteEl = document.getElementById("toggleNote");
+const STRUCT_KEY = "aicouncil-schema-v1";   // the pasted schema is a convenience draft, kept in this browser only
+try { const s = localStorage.getItem(STRUCT_KEY); if (s) structSchemaEl.value = s; } catch (_) {}
+function structActive() { return structEnabled && mode !== "council"; }
+function setStructStatus(msg, cls) { structStatusEl.textContent = msg; structStatusEl.className = cls || ""; }
+function checkStructInput() {
+  const t = structSchemaEl.value.trim();
+  if (!t) { setStructStatus("Paste a JSON Schema, or a small example of the JSON you want.", ""); return; }
+  const r = parseStructInput(t);
+  if (!r.ok) setStructStatus(r.error, "err");
+  else if (r.kind === "schema") setStructStatus("✓ JSON Schema recognised.", "ok");
+  else setStructStatus("✓ Example recognised: its keys become required properties, and their types are inferred from your values.", "ok");
+}
+function refreshStructToggle() {
+  const council = mode === "council", blockedByTools = toolsEnabled && !council;
+  structToggleEl.disabled = council || blockedByTools;
+  structToggleEl.title = council ? "Not available in Council mode. Switch to Fast or Balanced to use structured output."
+    : blockedByTools ? "Turn off 🔧 Tools first: tool calls need the model to answer in steps, which a JSON-only reply can't do."
+    : "Get the answer as JSON in a shape you choose. Paste a JSON Schema or an example object; the reply is checked against it. Best-effort: how strictly it is enforced depends on the provider. Fast/Balanced only. In Balanced the plain-English rewrite is skipped.";
+  structToggleEl.classList.toggle("active", structEnabled && !council);
+  structToggleEl.textContent = "🧩 JSON: " + (structEnabled && !council ? "on" : "off");
+  structPanelEl.hidden = !structActive();
+  toggleNoteEl.textContent = council ? "🔧 Tools and 🧩 Structured output work with a single model: switch to Fast or Balanced to use them."
+    : structActive() ? "🔧 Tools is unavailable while 🧩 Structured output is on: the reply has to be JSON only, and tool calls need the model to answer in steps."
+    : blockedByTools ? "🧩 Structured output is unavailable while 🔧 Tools is on: tool calls need the model to answer in steps, which a JSON-only reply can't do. Turn Tools off to use it."
+    : "";
+  if (structActive()) checkStructInput();
+}
+structToggleEl.addEventListener("click", () => {
+  if (structToggleEl.disabled) return;
+  structEnabled = !structEnabled;
+  refreshStructToggle(); refreshToolsToggle();
+  if (structEnabled) { loadAjv().catch(() => {}); structSchemaEl.focus(); }   // the validator is downloaded only once this toggle is used
+});
+structSchemaEl.addEventListener("input", () => { try { localStorage.setItem(STRUCT_KEY, structSchemaEl.value); } catch (_) {} checkStructInput(); });
+refreshStructToggle();
+
 
 /* ---------- compress toggle (opt-in, off by default, not remembered between visits) ---------- */
 const compressToggleEl = document.getElementById("compressToggle");
@@ -3336,6 +3888,7 @@ document.getElementById("modePicker").addEventListener("click", e => {
   mode = btn.dataset.mode;
   document.querySelectorAll("#modePicker button").forEach(b => b.classList.toggle("active", b === btn));
   refreshToolsToggle();
+  refreshStructToggle();
   syncEmptyModes();
 });
 
