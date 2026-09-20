@@ -17,16 +17,13 @@
  * providers you use):
  *   GROQ_API_KEY  GEMINI_API_KEY  OPENROUTER_API_KEY
  *   COHERE_API_KEY  SAMBANOVA_API_KEY  MISTRAL_API_KEY
- *   TAVILY_API_KEY  — web search only (tavily.com: free, no card, 1,000 searches a month, shared by
- *                     everyone who uses THIS deployment — it is not per visitor)
  *   PROXY_TOKEN     — if set, callers must send it as the X-Proxy-Token header
  *                     (paste the same value into the app's ⚙ Keys → proxy card)
  *
- * Two extra routes sit beside the chat providers, behind the same origin + PROXY_TOKEN checks:
+ * One extra route sits beside the chat providers, behind the same origin + PROXY_TOKEN checks:
  *   POST /api/transcribe  multipart audio → { text }   Groq Whisper, using GROQ_API_KEY (no new secret)
- *   POST /api/websearch   { query } → { results: [{ title, url, content }] }   Tavily, using TAVILY_API_KEY
- *                         { query, trusted: true } searches only the trusted-source list (see "trusted sources"
- *                         below) and adds a "kind" to each result. That is what the Council source check uses.
+ * Web search is NOT here on purpose: everyone uses their own Tavily key, straight from the browser, so no shared
+ * search key (and no shared monthly allowance) exists on this Worker. What it does provide for search:
  *   GET /trusted-domains  the merged trusted list as [host, kind] pairs, for the website (allowed origin, no token)
  *   GET|POST /trusted     OWNER ONLY (X-Proxy-Token): GET reports the merged list's size and last refresh, POST refreshes now
  * Optional KV binding TRUSTED_KV + a weekly cron keep the IFCN and CISA lists fresh; without them only the static lists are used.
@@ -78,9 +75,9 @@ function json(status, obj, cors) {
   });
 }
 
-/* ---------- transcription + web search ----------
-   Both spend a shared, limited free quota (Groq's free-tier limits; Tavily's 1,000 searches a month),
-   so each gets a per-IP speed limit on top of the origin and PROXY_TOKEN checks. The limiter lives in
+/* ---------- transcription ----------
+   This spends a shared, limited free quota (Groq's free-tier limits), so it gets a per-IP speed limit
+   on top of the origin and PROXY_TOKEN checks. The limiter lives in
    this isolate's memory only: Cloudflare may run several isolates of a Worker, so it is a speed bump
    that stops one browser tab looping, not a hard cap. The providers' own quotas are the real ceiling. */
 const TOOL_RATE_PER_IP_PER_MIN = 12;
@@ -140,59 +137,10 @@ async function handleTranscribe(request, env, cors) {
   return json(200, { text: String((j && j.text) || "") }, { ...cors, "Cache-Control": "no-store" });
 }
 
-const TAVILY_URL = "https://api.tavily.com/search";
-const MAX_QUERY_CHARS = 400;
-
-/* Forwards a search to Tavily and returns only what the app needs. Tavily's raw response (scores,
-   request ids, timings, an optional "answer") is deliberately not passed through. */
-async function handleWebSearch(request, env, cors) {
-  if (!env.TAVILY_API_KEY) return json(503, { error: { message: "TAVILY_API_KEY is not set on the Worker." } }, cors);
-  if (toolRateLimited(request, "websearch")) return json(429, { error: { message: "Too many searches. Wait a minute and try again." } }, cors);
-  if (Number(request.headers.get("Content-Length") || 0) > 4096) return json(413, { error: { message: "Request too large." } }, cors);
-  let query = "", wantTrusted = false;
-  try { const b = await request.json(); query = String(b.query || "").trim(); wantTrusted = b.trusted === true; } catch (_) { /* falls through to the 400 */ }
-  if (!query || query.length > MAX_QUERY_CHARS) return json(400, { error: { message: `Send {"query": "<1-${MAX_QUERY_CHARS} characters>"}.` } }, cors);
-
-  /* {"trusted": true} restricts the search to the trusted-source list above (the Council source check); each result then
-     also carries its "kind". A plain search stays open to the whole web. */
-  const trusted = wantTrusted ? await loadTrusted(env) : null;
-  const payload = { query, search_depth: "basic", max_results: 5 };
-  if (trusted) payload.include_domains = trusted.domains;
-  let upstream;
-  try {
-    upstream = await fetch(TAVILY_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + env.TAVILY_API_KEY },
-      body: JSON.stringify(payload)
-    });
-  } catch (_) {
-    return json(502, { error: { message: "Upstream request failed." } }, cors);
-  }
-  let j = null;
-  try { j = await upstream.json(); } catch (_) { /* not JSON: handled below */ }
-  if (!upstream.ok) {
-    // Per Tavily's API docs, 429 is a rate limit and 432/433 mean the plan's monthly allowance is used up.
-    // All three become a 429 here so the app can say "quota used up" instead of "something broke".
-    if ([429, 432, 433].includes(upstream.status)) return json(429, { error: { message: "Web search quota used up (the free plan allows 1,000 searches a month, shared by everyone using this Worker)." } }, cors);
-    if (upstream.status === 401 || upstream.status === 403) return json(502, { error: { message: "Tavily rejected the Worker's TAVILY_API_KEY." } }, cors);
-    const detail = (j && j.detail && j.detail.error) || (j && j.error && j.error.message) || "";
-    return json(502, { error: { message: `Search failed (HTTP ${upstream.status}). ${detail}`.trim() } }, cors);
-  }
-  const results = (Array.isArray(j && j.results) ? j.results : []).slice(0, 5).map(r => {
-    const item = {
-      title: String((r && r.title) || "").slice(0, 200),
-      url: String((r && r.url) || "").slice(0, 500),
-      content: String((r && r.content) || "").slice(0, 800)   // keeps five results well inside a model's context
-    };
-    if (trusted) item.kind = trustedKindOf(item.url, trusted) || "trusted";
-    return item;
-  });
-  return json(200, { results }, { ...cors, "Cache-Control": "no-store" });
-}
-
 /* ---------- trusted sources (for the Council "source check") ----------
-   When Council models disagree, the app searches ONLY these domains (Tavily's include_domains) and shows what
-   the sources say. Two kinds of list feed it:
+   When Council models disagree, the app searches these domains (Tavily's include_domains) and, separately, the
+   wider web, and labels every source as trusted (with its kind) or unverified. The search itself runs in the visitor's own
+   browser with their own Tavily key; this Worker only supplies the list (GET /trusted-domains). Two kinds of list feed it:
      1. the static groups below: small, fixed, human-curated, edited here and redeployed;
      2. two lists refreshed weekly by the cron job into KV: IFCN fact-checkers and a slice of CISA's .gov registry.
    Hosts are listed with and without "www." where a site answers on both. I have not verified whether Tavily's
@@ -359,19 +307,6 @@ async function loadTrusted(env) {
   trustedCache = { at: now, val };
   return val;
 }
-/* Which kind of trusted source a result URL is on (its host, its www/bare twin, or a parent domain), or "" if none. */
-function trustedKindOf(url, trusted) {
-  let h;
-  try { h = new URL(url).hostname.toLowerCase(); } catch (_) { return ""; }
-  while (h.includes(".")) {
-    const twin = h.startsWith("www.") ? h.slice(4) : "www." + h;
-    if (trusted.kinds.has(h)) return trusted.kinds.get(h);
-    if (trusted.kinds.has(twin)) return trusted.kinds.get(twin);
-    h = h.slice(h.indexOf(".") + 1);
-  }
-  return "";
-}
-
 /* GET /trusted-domains: the merged list as [host, kind] pairs, for the website (allowed origin, no token). Visitors who use
    their OWN Tavily key search straight from their browser, so the page needs the list itself; this hands it the IFCN and
    CISA parts it can't have built in. It is public data (domain names only) and is cached for ten minutes. */
@@ -510,9 +445,8 @@ export default {
       return json(401, { error: { message: "Bad or missing proxy token." } }, cors);
     }
 
-    // The two non-chat routes share the origin and token checks above.
+    // The voice route shares the origin and token checks above.
     if (m[1].toLowerCase() === "transcribe") return handleTranscribe(request, env, cors);
-    if (m[1].toLowerCase() === "websearch") return handleWebSearch(request, env, cors);
 
     const provider = PROVIDERS[m[1].toLowerCase()];
     if (!provider) return json(404, { error: { message: `Unknown provider "${m[1]}".` } }, cors);

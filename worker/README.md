@@ -22,16 +22,13 @@ npx wrangler secret put PROXY_TOKEN
 ```
 
 Secret names: `GROQ_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`,
-`COHERE_API_KEY`, `SAMBANOVA_API_KEY`, `MISTRAL_API_KEY`, `TAVILY_API_KEY`.
+`COHERE_API_KEY`, `SAMBANOVA_API_KEY`, `MISTRAL_API_KEY`.
 
 - **Voice input reuses `GROQ_API_KEY`.** There is no new secret for it.
-- **Web search needs a Tavily key, and there are two ways to supply one.** Either way it's free at
-  [tavily.com](https://tavily.com) (no credit card, 1,000 searches a month).
-  - **A visitor's own key:** pasted in **⚙ Keys → 🔎 Web search key**, like the AI provider keys. The browser calls Tavily
-    directly (Tavily allows browser calls) and it uses that visitor's own 1,000 a month. No Worker needed.
-  - **The Worker's key (optional):** `npx wrangler secret put TAVILY_API_KEY`. That allowance is **shared by everyone who
-    uses your deployment**, not per visitor, the same caveat as the free AI provider keys above.
-  - If both exist, the visitor's own key wins, exactly as with the AI providers.
+- **Web search has no Worker secret at all: everyone uses their own free Tavily key.** A visitor pastes it in
+  **⚙ Keys → 🔎 Web search key** (free at [tavily.com](https://tavily.com), no credit card, 1,000 searches a month, their own
+  allowance). The browser calls Tavily directly, so there is no shared key and no shared quota for anyone to use up. This was
+  changed from an earlier design that put one shared key on the Worker.
 
 ## What the Worker offers besides chat
 
@@ -39,13 +36,12 @@ Secret names: `GROQ_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`,
 |---|---|---|
 | `POST /api/<provider>` | forwards a chat request to that provider | that provider's key |
 | `POST /api/transcribe` | 🎙️ voice input: forwards a recording to Groq's Whisper (`whisper-large-v3-turbo`, fixed on the server) and returns `{ "text": "…" }` | `GROQ_API_KEY` |
-| `POST /api/websearch` | 🔧 web search tool: sends `{ "query": "…" }` to Tavily and returns `{ "results": [{ title, url, content }] }`. With `"trusted": true` it searches only the trusted-source list and adds a `kind` to each result (see below) | `TAVILY_API_KEY` |
-| `GET /trusted-domains` | the website (allowed origin, no token): the merged trusted list as `[host, kind]` pairs, so visitors using their own Tavily key get the IFCN/CISA parts too. Domain names only | optional KV `TRUSTED_KV` |
+| `GET /trusted-domains` | the website (allowed origin, no token): the merged trusted list as `[host, kind]` pairs, so a visitor's own-key searches get the IFCN/CISA parts too. Domain names only | optional KV `TRUSTED_KV` |
 | `GET` / `POST /trusted` | **you only** (`X-Proxy-Token`): report the trusted list's size and last refresh / refresh it now | optional KV `TRUSTED_KV` |
 
-All three sit behind the same origin check and `PROXY_TOKEN`. The two extra routes also have a per-IP limit of
+`/api/*` and `/trusted` sit behind the origin check and `PROXY_TOKEN`. `/api/transcribe` also has a per-IP limit of
 12 requests a minute. That limit is held in each Worker instance's memory, so it stops one browser tab looping
-but is not a hard cap; the providers' own quotas are the real ceiling.
+but is not a hard cap; Groq's own quota is the real ceiling.
 
 ## Voice input, read-aloud & web search
 
@@ -56,10 +52,17 @@ but is not a hard cap; the providers' own quotas are the real ceiling.
   copied here). The app calls Groq directly if the visitor pasted a Groq key in ⚙ Keys, and otherwise goes through
   this Worker's `/api/transcribe`. It needs one of the two, and the browser only offers the microphone on
   `https://` (or `localhost`). The text is added to the question box and never sent automatically.
-- **Web search needs a Tavily key**: the visitor's own (⚙ Keys) or the Worker's `TAVILY_API_KEY` secret with the proxy set
-  up. It is a tool, so it is used only when 🔧 Tools is on, in Fast or Balanced mode (never Council). When there is no key,
-  or the monthly allowance is used up, the search returns a plain message to the model, which then answers without it.
-  The answer isn't broken, and no error is shown.
+- **Web search needs your own Tavily key** (⚙ Keys). It is a tool, so it is used only when 🔧 Tools is on, in Fast or Balanced
+  mode (never Council). With no key, or once the monthly allowance is used up, the search returns a plain message to the
+  model, which then answers without it. The answer isn't broken, and no error is shown.
+- **The header shows a 🔎 Search dot on the same red / amber / green scheme as the AI providers**: red = no key or the key was
+  rejected, amber = not checked yet or rate-limited / allowance used up, green = Tavily accepted the key. The check uses
+  Tavily's own `GET /usage` endpoint, which spends no search, so it can run on every page load; the tooltip shows the plan's
+  usage (for example "12 of 1,000 searches used"). The ⚙ Keys **Test** button uses the same free check.
+- **Search isn't limited to trusted sites, so information isn't cut off, but nothing unvetted is passed off as trusted.** Every
+  result is labelled with the kind of source it is, and anything not on the trusted list is marked **unverified**: the model is
+  told which is which and asked to say so when it relies on an unverified source, and the answer gets a "Web search" box listing
+  every result with ⚠ against the unverified ones (so the note appears even if the model forgets to mention it).
 
 ## Connect the app
 
@@ -74,17 +77,19 @@ paid billing. (The Worker still knows the `sambanova` route if you have a paid k
 
 ## Trusted-source check (Council mode)
 
-When Council models **disagree** and a Tavily key is available, the app searches **only** a fixed list of trusted sites and
-shows a green **Source check** box: a short model-written summary of what those sources say, and under it a list of the real
-sources found, each labelled with its kind. It runs only after a disagreement, because every search spends a monthly free
-allowance, and it never changes the answer. It needs a Tavily key, like web search: a visitor's own (⚙ Keys) or the Worker's.
+When Council models **disagree** and you have added a Tavily key, the app looks for sources and shows a green **Source check**
+box: a short model-written summary of what the sources say, and under it the list of real sources found. It never changes
+the answer, and it runs only after a disagreement because it spends **two** searches from your own monthly allowance.
 
-Which list is searched depends on the key. With **the Worker's key**, the Worker builds the full list (static groups + IFCN +
-CISA) and sends it to Tavily (`POST /api/websearch` with `"trusted": true`). With **a visitor's own key**, the browser calls
-Tavily itself using a copy of the four static groups built into the page (`TRUSTED_STATIC`, which must be kept in step with the
-Worker's lists; the tests compare them), plus the IFCN and CISA parts fetched from the Worker's public `GET /trusted-domains`.
-If that Worker is unreachable, or has no KV set up, the direct search just uses the static groups, so a visitor loses
-the IFCN fact-checkers but keeps the legislative, historical, scientific and general sources.
+Two searches run in the browser: one **restricted to the trusted list**, and one over **the whole web**, so information isn't cut
+off. Results are merged with trusted ones first. Every source is labelled: a trusted one with its kind (below), anything else
+marked **⚠ not on the trusted list (unverified)**. If no trusted source turns up, the box says so and that everything listed is
+unverified. The summary model is told which sources are which and to say so when a point rests on an unverified source only.
+
+The trusted list is the four static groups built into the page (`TRUSTED_STATIC`, which must be kept in step with the Worker's
+lists; the tests compare them), plus the IFCN and CISA parts fetched from the Worker's public `GET /trusted-domains`. If that Worker
+is unreachable, or has no KV set up, only the static groups are used, so a visitor loses the IFCN fact-checkers but keeps the
+legislative, historical, scientific and general sources.
 
 ### What each group is, and what it does and doesn't tell you
 
@@ -134,6 +139,32 @@ curl https://ai-council-proxy.<you>.workers.dev/trusted -H "X-Proxy-Token: <your
   at the time of writing the merged list is **239 domains** (53 static, 148 IFCN, 38 CISA after removing duplicates), so this
   doesn't trigger today. Note that the CISA slice is the first thing to lose out if IFCN grows.
 
+## Query compression & token counter
+
+**Token counter (⚙ Keys → 📊 Token usage).** A table of calls counted, prompt, completion and total tokens per provider, for the
+current session (in memory; it resets on reload, and there's a Reset button). These are **real numbers the provider itself
+reports** in its response (`usage`), not an estimate and not something a model says about its own output. Known gap, shown in
+the UI rather than hidden: streamed replies only carry usage if the provider honours `stream_options: {include_usage: true}`
+(part of the OpenAI API spec, but not every OpenAI-compatible provider takes it). The app asks for it, drops it for the rest of
+the session for any provider that rejects it, and counts a stream with no usage in the **No usage data** column instead of
+guessing. So the totals cover only calls where the provider reported usage; some streamed responses may not be in them. The
+non-streamed calls (routing, critique, memory, the tool loop) are counted for every provider that reports usage.
+
+**Query compression (🗜️ Compress in the header).** **Opt-in and off by default**, not remembered between visits. When on, a long
+question is first shortened by one call to the fast Groq model (using a system prompt of the site owner's own wording, kept
+verbatim in `COMPRESSION_SYSTEM_PROMPT`), and the shorter version stands in for your question through routing, generation, the
+Council fanout, critique and the source check. The trade-off is real:
+
+- **Cost:** one extra model call per question.
+- **Benefit:** fewer input tokens on every later call, so it mainly pays off in **Council mode**, where several models each read
+  the question. In Fast mode there are only two or three calls, so the extra one rarely pays for itself.
+- **Risk:** compression is lossy and a model decides what counts as filler, so it can drop something you meant. Both versions
+  are always shown in the "Show the council's workings" panel ("Compressed question"), never a silent substitution.
+- **Safe failure:** if compression is skipped, times out, fails, replies without the `<compressed_prompt>` tag, or isn't actually
+  shorter, your original question is used unchanged and the workings say why. A question under 30 words is left alone.
+- Your **original** words are still what's shown and saved in the chat, and what the plain-language rewrite (which honours
+  requests like "in one sentence"), the medical/legal/financial check and memory work from.
+
 ## Global question counter
 
 The same Worker keeps the running total of questions asked on the site (shown at the bottom of the
@@ -163,6 +194,6 @@ the limit. Counts are indicative, not audited.
 - Set `PROXY_TOKEN`. The app keeps it in memory only, unless you tick **Remember** on the proxy card, in which
   case it is stored in that browser's `localStorage` (treat it like an API key).
 - A provider with no key in the browser *and* no secret on the Worker will show an error in the council and be skipped; set the secret or ignore it.
-- Only the six listed providers, plus `transcribe` and `websearch`, are reachable; there is no open forwarding.
+- Only the six listed providers, plus `transcribe`, are reachable; there is no open forwarding.
 
 Copyright (c) 2026 O. T. Dowling. All rights reserved. See the LICENSE file in the repository root.

@@ -195,6 +195,12 @@
   .sources-box > .sb-head { color: var(--ok); font-weight: 600; font-size: .85rem; margin-bottom: 6px; }
   .sources-box p:first-of-type { margin-top: 0; }
   .sources-box ol { margin-bottom: 6px; }
+  /* token usage table in the Keys drawer */
+  .tok-table { border-collapse: collapse; width: 100%; font-size: .74rem; }
+  .tok-table th, .tok-table td { text-align: right; padding: 5px 6px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  .tok-table th:first-child, .tok-table td:first-child { text-align: left; }
+  .tok-table th { color: var(--text-dim); font-weight: 600; font-size: .68rem; }
+  .tok-table tr.tok-total td { font-weight: 650; border-bottom: none; }
   @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
 
   details.workings { margin-top: 12px; border-top: 1px dashed var(--border); padding-top: 8px; }
@@ -454,8 +460,9 @@
     .mode-picker button { flex: 1; padding: 7px 4px; }
     #plainToggle { order: 9; }
     #toolsToggle { order: 10; }
+    #compressToggle { order: 10; }
     #memoryBtn { order: 11; }
-    #plainToggle, #toolsToggle, #memoryBtn { flex: 1 1 0; min-width: 0; padding: 6px 4px; font-size: .78rem; white-space: nowrap; }
+    #plainToggle, #toolsToggle, #compressToggle, #memoryBtn { flex: 1 1 0; min-width: 0; padding: 6px 4px; font-size: .78rem; white-space: nowrap; }
     header .icon-btn { padding: 6px 10px; }
     #chat { padding: 14px 12px; gap: 14px; }
     .msg.user { max-width: 92%; }
@@ -481,7 +488,7 @@
     .provider-dots { gap: 4px 8px; font-size: .72rem; }
     .pdot { margin-right: 2px; }
   }
-  body.about-mode .mode-picker, body.about-mode #plainToggle, body.about-mode #toolsToggle { display: none; }
+  body.about-mode .mode-picker, body.about-mode #plainToggle, body.about-mode #toolsToggle, body.about-mode #compressToggle { display: none; }
   #layout.about-mode #maincol { display: none; }
   #layout.about-mode #aboutView { display: block; }
   .about { max-width: 860px; margin: 0 auto; padding: 28px clamp(16px, 4vw, 32px) 64px; line-height: 1.65; font-size: .95rem; }
@@ -533,7 +540,8 @@
     <button data-mode="council" title="All models answer in parallel, one synthesizes, another critiques, then a final revision. 6–7 calls.">Council</button>
   </div>
   <button class="icon-btn active" id="plainToggle" title="Explain answers in plain, everyday language (with a simple diagram where it helps). The full technical answer stays one click away.">🗣 Plain: on</button>
-  <button class="icon-btn" id="toolsToggle" title="Let a model use a small built-in toolset (calculator, current date/time, and web search when a Tavily key is added in ⚙ Keys or a proxy has one) while drafting — Fast/Balanced modes only.">🔧 Tools: off</button>
+  <button class="icon-btn" id="toolsToggle" title="Let a model use a small built-in toolset (calculator, current date/time, and web search when you add your own Tavily key in ⚙ Keys) while drafting — Fast/Balanced modes only.">🔧 Tools: off</button>
+  <button class="icon-btn" id="compressToggle" title="Shorten your question with one extra model call before the council sees it. It costs one extra call per question, so it mostly pays off in Council mode (several models each read the shorter question) and rarely in Fast mode. It can drop something you meant: both versions are shown in the workings.">🗜️ Compress: off</button>
   <button class="icon-btn" id="memoryBtn" title="Working memory: what the council remembers about you" aria-label="Memory">🧠<span class="hb-opt"> Memory</span></button>
   <button class="icon-btn" id="aboutBtn" title="How AI Council works, and how it reduces incorrect answers" aria-label="About AI Council"><span id="abIco">ℹ️</span><span class="hb-text hb-opt" id="abTxt"> About</span></button>
   <button class="icon-btn" id="helpBtn" title="How to get set up: it takes about 2 minutes and needs no credit card" aria-label="How to start">❓<span class="hb-text"> How to start</span></button>
@@ -598,6 +606,7 @@
         <li><b>Deadlines.</b> An <code>AbortController</code> deadline of <span data-cfg="timeoutS">90</span>&nbsp;s per request. Each Council member additionally races a <span data-cfg="councilS">30</span>&nbsp;s cutoff so one slow provider cannot stall the ensemble (the late response is discarded).</li>
         <li><b>Token budget.</b> <code>max_tokens</code> has a floor of 512. Reasoning-tuned models spend part of the budget on hidden chain-of-thought, and a very small cap would otherwise yield an empty completion.</li>
         <li><b>Persistence.</b> <code>localStorage</code> holds chats (including their saved workings), long-term memory and preferences. API keys, and the proxy access token, are stored only when "Remember" is ticked (it is unticked by default). Chats and memory can be saved to, and restored from, a backup file with the sidebar's Export and Import; that file never contains keys.</li>
+        <li><b>Token counter.</b> ⚙&nbsp;Keys shows, per provider, the tokens each provider itself reported for this session's calls (the response's <code>usage</code> field). Streamed replies only carry it if the provider honours <code>stream_options.include_usage</code>; calls without usage are shown in their own column and never estimated.</li>
         <li><b>Optional key-holding proxy.</b> A reverse proxy (Cloudflare Worker) can hold provider keys server-side, guarded by an origin allow-list, a shared-secret header and a fixed provider allow-list. It is disabled by default and is not used by visitors.</li>
         <li><b>Global question counter.</b> The sidebar shows a running total of questions asked by all users, abbreviated with <code>K</code> (thousand), <code>Mi</code> (million) and <code>Bi</code> (billion), truncated to one decimal so it never overstates. Each question sends one anonymous <code>POST</code> (no body, no custom headers, no question text) to a counter endpoint on the same Worker, which increments a single integer held in a <b>Durable Object</b>. Because a Durable Object serialises access to its storage, simultaneous increments cannot be lost. The page reads the total on load, after each of its own questions and once a minute while the tab is visible, and hides the box if the counter is unreachable or the total is still small (under 100). Per-IP (20 a minute) and global (600 a minute) rate limits stop one client from inflating it, so treat the figure as indicative, not audited.</li>
       </ul>
@@ -622,7 +631,7 @@
         <li><b>Memory update (background).</b> A fast model extracts durable facts as a JSON array (at most 200 characters each, deduplicated, capped at 40, expiring after <span data-cfg="ttlDays">90</span> days), and folds turns older than the context window into a rolling summary of under 150 words.</li>
       </ol>
       <h3>Council mode (ensemble + synthesis)</h3>
-      <p>Instead of a single generator, the prompt is sent in parallel (<code>Promise.all</code>) to <b>every connected provider</b>. Successful answers are passed to a synthesis model, chosen by the routing table with provider fallback. It merges them, keeping agreed claims, resolving contradictions toward the most plausible one, and emitting a delimited <b>disagreement list</b> of genuinely conflicting factual claims (or <code>None</code>). That list is parsed out <em>before</em> critique and revision and re-attached verbatim, so no later stage can smooth it away. Each member's raw answer stays visible with its own <b>cross-examine</b> form. <b>Source check:</b> when the models disagreed and a Tavily key is available, the question is also searched against a fixed list of trusted sites only (official bodies, statute text, historical records, journal indexes and IFCN fact-checkers) and a green box shows what they say, with each source labelled by kind. It shows what those documents say, not that a claim is true, and it never rewrites the answer.</p>
+      <p>Instead of a single generator, the prompt is sent in parallel (<code>Promise.all</code>) to <b>every connected provider</b>. Successful answers are passed to a synthesis model, chosen by the routing table with provider fallback. It merges them, keeping agreed claims, resolving contradictions toward the most plausible one, and emitting a delimited <b>disagreement list</b> of genuinely conflicting factual claims (or <code>None</code>). That list is parsed out <em>before</em> critique and revision and re-attached verbatim, so no later stage can smooth it away. Each member's raw answer stays visible with its own <b>cross-examine</b> form. <b>Source check:</b> when the models disagreed and you have added your own Tavily key, the question is searched twice, once against a fixed list of trusted sites (official bodies, statute text, historical records, journal indexes and IFCN fact-checkers) and once across the whole web, so information isn't cut off. A green box shows what the sources say. Trusted sources are labelled by kind and come first; anything else is marked ⚠ unverified. It shows what those documents say, not that a claim is true, and it never rewrites the answer.</p>
       <div class="ab-scroll" tabindex="0" role="region" aria-label="Execution modes (scrollable table)"><table class="ab-table">
         <thead><tr><th>Mode</th><th>Stages</th><th>Approx. model calls</th></tr></thead>
         <tbody>
@@ -638,7 +647,7 @@
       <div class="ab-mech"><span class="ab-tag">Council mode</span><h3>1 · Heterogeneous ensembling</h3><p>Independent models from different vendors, trained on different data with different architectures, tend to make <em>different</em> errors. Querying several and arbitrating between them is a cross-vendor analogue of self-consistency and mixture-of-agents aggregation. It filters idiosyncratic hallucinations, since a claim made by one model and contradicted by the others is down-weighted in synthesis.</p></div>
       <div class="ab-mech"><span class="ab-tag">Balanced and Council</span><h3>2 · Verifier / author separation</h3><p>The critic is a different model instance from the generator whenever two or more providers are connected. This reduces self-preference and self-confirmation bias, because a model is more likely to overlook its own error than another model's. The critic's constrained output protocol (<code>APPROVED</code> or a defect list) makes its verdict machine-checkable, and the no-rewrite rule keeps it from silently replacing content.</p></div>
       <div class="ab-mech"><span class="ab-tag">Council mode</span><h3>3 · Explicit disagreement surfacing</h3><p>Inter-model disagreement is a practical proxy for epistemic uncertainty. Instead of averaging it away, the system reports conflicts in a distinct callout ("Where the models disagreed") and preserves it through every later stage, so the reader knows which claims to verify independently.</p></div>
-      <div class="ab-mech"><span class="ab-tag">Tools toggle (Fast and Balanced)</span><h3>4 · Tool-augmented determinism</h3><p>LLMs are unreliable at exact arithmetic and have no clock. With tools enabled, the model may call <code>calculate</code>, whose input is validated against the grammar <code>^[\d\s+\-*/().]+$</code> and must evaluate to a finite number, or <code>current_datetime</code>. Calls are bounded to 4 rounds per request, results are fed back as <code>tool</code> messages, and every call and result is shown in the workings. Deterministic code replaces stochastic guessing for those two classes of claim. A third tool, <code>web_search</code>, gives the model fresh sources to cite; it needs a Tavily key (a visitor pastes their own in ⚙ Keys and the browser calls Tavily directly, or a Worker proxy supplies one), and a missing key or used-up monthly allowance just means the model answers without it. Search results are snippets, not verified facts.</p></div>
+      <div class="ab-mech"><span class="ab-tag">Tools toggle (Fast and Balanced)</span><h3>4 · Tool-augmented determinism</h3><p>LLMs are unreliable at exact arithmetic and have no clock. With tools enabled, the model may call <code>calculate</code>, whose input is validated against the grammar <code>^[\d\s+\-*/().]+$</code> and must evaluate to a finite number, or <code>current_datetime</code>. Calls are bounded to 4 rounds per request, results are fed back as <code>tool</code> messages, and every call and result is shown in the workings. Deterministic code replaces stochastic guessing for those two classes of claim. A third tool, <code>web_search</code>, gives the model fresh sources to cite; it needs your own Tavily key (pasted in ⚙ Keys; the browser calls Tavily directly), and a missing key or used-up monthly allowance just means the model answers without it. Search isn't limited to trusted sites, but every result is labelled, anything not on the trusted list is marked unverified, and the model is told to say so when it relies on one. Search results are snippets, not verified facts.</p></div>
       <div class="ab-mech"><span class="ab-tag">Prompt conditioning</span><h3>5 · Calibrated, task-specific prompts</h3><p>The <code>FACTUAL</code> prompt instructs the model to say plainly when it is unsure of a fact, and the <code>REASONING</code> prompt elicits step-by-step derivation before the final answer (chain-of-thought), which improves multi-step accuracy and exposes the reasoning to review. Every prompt also states today's date, because models have no clock and would otherwise each guess a different one.</p></div>
       <div class="ab-mech"><span class="ab-tag">Transparency</span><h3>6 · Auditability and cross-examination</h3><p>The workings panel records every draft, critique, per-provider answer, fallback event and tool trace, and is saved with the chat. Each Council member has a <b>cross-examine</b> form that asks that one model a follow-up conditioned on its own earlier answer, without re-running the pipeline, so a doubtful claim can be interrogated directly.</p></div>
       <div class="ab-mech"><span class="ab-tag">Reliability</span><h3>7 · Failure containment</h3><p>Provider fallback chains, per-request and per-member deadlines, a deterministic default for routing failure, typed error classification (rate-limit, auth, overload, timeout, CORS, billing) and status dots (fed by a cheap key check, a model-list request that generates no text so a page load spends none of your quota, and by the outcome of real requests) keep a failing provider from degrading an answer unnoticed. Empty or truncated completions are detected and reported instead of being shown as answers.</p></div>
@@ -669,7 +678,7 @@
       <ul>
         <li><b>Storage.</b> Keys and the proxy token (only if remembered), chats, workings, memory and preferences live in this browser's <code>localStorage</code>. There is no AI Council server that receives your prompts, keys, chats or memory.</li>
         <li><b>What leaves the browser.</b> Your prompts, the recent conversation, the memory preamble and today's date (no time zone or location) are sent to the providers you have connected, under those providers' terms and retention policies. Use only providers whose terms you accept.</li>
-        <li><b>Voice input, read-aloud and web search.</b> If you use 🎙️, your recording is sent to Groq for transcription (straight from your browser with your Groq key, or through a proxy that holds one) and is not stored by this site. 🔊 read-aloud runs on your device's built-in speech engine: no request goes to AI Council, though some browsers use an online voice service run by the browser maker. Web search needs a Tavily key. With your own key (⚙ Keys) the search words the model chooses go from your browser straight to Tavily and use your own 1,000-a-month free allowance; with a proxy they go to that Worker and on to Tavily, using the proxy owner's allowance, shared by everyone using it. The same goes for the <b>source check</b> (below): when Council models disagree, your question is searched the same way. A direct source check also fetches a public list of trusted domain names from this site's Worker (no personal data in the request).</li>
+        <li><b>Voice input, read-aloud, web search and compression.</b> If you use 🎙️, your recording is sent to Groq for transcription (straight from your browser with your Groq key, or through a proxy that holds one) and is not stored by this site. 🔊 read-aloud runs on your device's built-in speech engine: no request goes to AI Council, though some browsers use an online voice service run by the browser maker. Web search and the source check use <b>your own Tavily key</b>: the search words go from your browser straight to Tavily (there is no shared key), and use your own 1,000-a-month free allowance. If 🗜️ Compress is on, your question is sent to Groq once more to be shortened before the council sees it.</li>
         <li><b>The question counter.</b> The only things this site itself sends to a server of its own are one anonymous "+1" per question and, if a source check runs on your own Tavily key, one request for the public list of trusted domain names, with no prompt, key, chat or memory content in either. As with any web request, your IP address reaches that server; it is held in memory only, to apply the rate limit, and is not stored or logged by the counter's own code. (Cloudflare, which hosts the Worker, handles requests under its own terms.)</li>
         <li><b>Advertising (Google AdSense).</b> This site loads Google's advertising script. In testing, a plain visit contacted Google's ad and consent-messaging servers (<code>pagead2.googlesyndication.com</code>, <code>fundingchoicesmessages.google.com</code>) and set one Google consent cookie on this domain. AI Council does not pass your keys, prompts or chats to that script. Like any third-party script, though, it executes in the same browsing context as the page, and Google's own privacy terms govern what it collects.</li>
         <li><b>Erasure.</b> Delete a chat with ✕ in the sidebar, clear memory with "Forget everything", and remove a key by clearing its field in ⚙&nbsp;Keys ("Remember" is unticked by default).</li>
@@ -916,7 +925,7 @@ const CONFIG = {
   /* Sampling temperature per stage. The "author" calls (drafts, Council answers, revisions) stay at 0.7 so the wording
      is natural; the judging and utility calls use low temperatures so routing, critique, synthesis, the plain-language
      rewrite and memory extraction give repeatable results. */
-  temperatures: { route: 0, judge: 0.2, synth: 0.3, plain: 0.3, memory: 0.1, summary: 0.2 },
+  temperatures: { route: 0, judge: 0.2, synth: 0.3, plain: 0.3, memory: 0.1, summary: 0.2, compress: 0.2 },
   /* Providers that get the default 0.7 whatever the stage asks for. Google advises leaving temperature alone on its
      newer Gemini reasoning models (lowering it can hurt them), so the low values above are not sent to Gemini. */
   keepDefaultTemperature: ["gemini"],
@@ -929,12 +938,17 @@ const CONFIG = {
      Groq directly (the model below is sent by the browser); otherwise, if a proxy is set, it goes to the Worker's
      /api/transcribe, which forces the same model itself. So it needs either a Groq key or a proxy that holds one.
      It counts against Groq's free-tier rate limits (console.groq.com/docs/rate-limits), not against chat tokens. */
+  /* Opt-in query compression (🗜️ Compress in the header). OFF by default: it costs one extra model call per question, so it
+     only pays off when many models will each read the shorter question (Council mode). A question shorter than minWords is
+     left alone, since there is nothing worth compressing and the extra call would be pure cost. See compressQuestion(). */
+  compression: { enabled: false, timeoutMs: 10000, minWords: 30 },
+
   voice: { url: "https://api.groq.com/openai/v1/audio/transcriptions", model: "whisper-large-v3-turbo", maxSeconds: 60 },
 
   /* Web search (the 🔧 tool and the Council source check): a Tavily key pasted in ⚙ Keys is called directly at `search.url`;
      with no key the proxy's /api/websearch is used instead. `trustedUrl` is the site Worker's public list of the trusted
      domains that change weekly (IFCN, CISA), used only for direct searches; empty = static groups only. */
-  search: { url: "https://api.tavily.com/search" },
+  search: { url: "https://api.tavily.com/search", usageUrl: "https://api.tavily.com/usage" },   // usageUrl: Tavily's free key/usage check (costs no search)
   trustedUrl: "https://ai-council-proxy.o-t-dowling.workers.dev/trusted-domains"
 };
 
@@ -1030,6 +1044,25 @@ function recordCallResult(id, err) {
   return setHealth(id, "fail", "Not connected — " + m.replace(/\s+/g, " ").slice(0, 160));
 }
 
+/* =====================================================================
+   Token counter. Real numbers only: what each provider itself reports in its response (data.usage), never an estimate
+   and never something a model says about its own output. In memory, reset on reload.
+   { [providerId]: { promptTokens, completionTokens, calls, unreported } }
+   calls      = calls whose response carried usage, and so were counted
+   unreported = calls that succeeded but carried none (typically streamed replies from a provider that ignores
+                stream_options): a real gap that is shown as such, not filled in.
+   ===================================================================== */
+let tokenUsageByProvider = {};
+const usageOptionRefused = new Set();   // providers that rejected stream_options this session
+function recordUsage(providerId, usage, anthropic) {
+  const u = tokenUsageByProvider[providerId] || (tokenUsageByProvider[providerId] = { promptTokens: 0, completionTokens: 0, calls: 0, unreported: 0 });
+  const p = usage && (anthropic ? usage.input_tokens : usage.prompt_tokens);
+  const c = usage && (anthropic ? usage.output_tokens : usage.completion_tokens);
+  if (Number.isFinite(p) || Number.isFinite(c)) { u.promptTokens += Number.isFinite(p) ? p : 0; u.completionTokens += Number.isFinite(c) ? c : 0; u.calls++; }
+  else u.unreported++;
+  if (typeof renderTokenPanel === "function") renderTokenPanel();
+}
+
 async function callModel(providerId, model, messages, maxTokens, onDelta, opts) {
   try {
     const out = await callModelRaw(providerId, model, messages, maxTokens, onDelta, opts);
@@ -1087,10 +1120,12 @@ async function checkProvider(id, force) {
 /* Tests every provider that is configured but not yet verified (used on load
    and whenever the Keys drawer closes) — or all of them when `force` is set. */
 function verifyProviders(force) {
-  return Promise.all(Object.keys(P).filter(id => {
+  const jobs = Object.keys(P).filter(id => {
     const s = providerStatus(id).state;
     return force ? isConfigured(id) : s === "unverified";
-  }).map(id => checkProvider(id, !!force)));
+  }).map(id => checkProvider(id, !!force));
+  if (searchAvailable() && (force || searchStatus().state === "unverified")) jobs.push(checkSearchKey());   // Tavily's own free key check: spends no search
+  return Promise.all(jobs);
 }
 
 /* onDelta (optional): called with the accumulated text as tokens stream in.
@@ -1150,20 +1185,31 @@ async function callModelRaw(providerId, model, messages, maxTokens, onDelta, opt
        floor. Short answers still stop early; the floor only raises the ceiling. */
     const temp = temperatureFor(providerId, opts);
     bodyObj = { model, messages, max_tokens: Math.max(maxTokens || 2048, 512), temperature: temp !== undefined ? temp : 0.7, stream: streaming };
+    /* Streamed replies only carry token usage if asked for. This is part of the OpenAI spec, but not every OpenAI-compatible
+       provider accepts it, so it is sent optimistically and dropped, for the rest of the session, for any provider that answers
+       400/422 to it (see below). A streamed call that reports no usage is simply not counted; see recordUsage(). */
+    if (streaming && !usageOptionRefused.has(providerId)) bodyObj.stream_options = { include_usage: true };
   }
 
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), CONFIG.timeoutMs);
-  let res;
-  try {
-    res = await fetch(endpoint, { method: "POST", signal: ctrl.signal, headers: headers, body: JSON.stringify(bodyObj) });
-  } catch (e) {
-    clearTimeout(timer);
-    if (e.name === "AbortError") throw new Error(`${prov.label} timed out`);
-    if (!viaProxy && prov.corsBlocked) {
-      throw new Error(`${prov.label}: request blocked — this provider generally refuses direct calls from a browser (CORS). Use the 🔒 proxy in ⚙ Keys instead (add its key as a Worker secret).`);
+  const send = async () => {
+    try {
+      return await fetch(endpoint, { method: "POST", signal: ctrl.signal, headers: headers, body: JSON.stringify(bodyObj) });
+    } catch (e) {
+      clearTimeout(timer);
+      if (e.name === "AbortError") throw new Error(`${prov.label} timed out`);
+      if (!viaProxy && prov.corsBlocked) {
+        throw new Error(`${prov.label}: request blocked — this provider generally refuses direct calls from a browser (CORS). Use the 🔒 proxy in ⚙ Keys instead (add its key as a Worker secret).`);
+      }
+      throw new Error(`${prov.label}: network error (are you online? is the endpoint URL right?)`);
     }
-    throw new Error(`${prov.label}: network error (are you online? is the endpoint URL right?)`);
+  };
+  let res = await send();
+  if (!res.ok && (res.status === 400 || res.status === 422) && bodyObj.stream_options) {
+    usageOptionRefused.add(providerId);   // this provider doesn't take stream_options: retry once without it, and don't send it again
+    delete bodyObj.stream_options;
+    res = await send();
   }
   if (!res.ok) {
     clearTimeout(timer);
@@ -1184,6 +1230,7 @@ async function callModelRaw(providerId, model, messages, maxTokens, onDelta, opt
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buf = "", full = "";
+    let usage = null;   // the provider's own usage report, if the stream carries one
     try {
       while (true) {
         const { done, value } = await reader.read();
@@ -1201,20 +1248,26 @@ async function callModelRaw(providerId, model, messages, maxTokens, onDelta, opt
             let delta = null;
             if (anthropic) {
               if (parsed.type === "content_block_delta" && parsed.delta?.type === "text_delta") delta = parsed.delta.text;
+              /* Anthropic reports input tokens in message_start and the running output count in message_delta */
+              if (parsed.type === "message_start" && parsed.message?.usage) usage = { ...usage, ...parsed.message.usage };
+              if (parsed.type === "message_delta" && parsed.usage) usage = { ...usage, ...parsed.usage };
             } else {
               delta = parsed.choices?.[0]?.delta?.content;
+              if (parsed.usage) usage = parsed.usage;   // OpenAI-shaped: the last chunk, when include_usage was honoured
             }
             if (delta) { full += delta; onDelta(full); }
           } catch (_) { /* ignore malformed keep-alive chunks */ }
         }
       }
     } finally { clearTimeout(timer); }
+    recordUsage(providerId, usage, anthropic);   // a stream with no usage is counted as "not reported", never estimated
     if (full.trim() === "") throw new Error(`${prov.label}: empty streamed response (model may be unavailable — try updating its ID in CONFIG)`);
     return full.trim();
   }
 
   clearTimeout(timer);
   const data = await res.json();
+  recordUsage(providerId, data.usage, anthropic);   // side-channel bookkeeping only; what this function returns is unchanged
   let content;
   if (anthropic) {
     content = Array.isArray(data.content) ? data.content.filter(b => b.type === "text").map(b => b.text).join("") : "";
@@ -1297,15 +1350,22 @@ const TOOLS = {
     async run(args) {
       const query = String(args?.query ?? "").trim();
       if (!query) return { error: "No search query given." };
-      return webSearch(query, false);
+      const r = await webSearch(query, false);
+      /* each result tells the model whether its source is on the trusted list, so it can say so when it relies on one that isn't */
+      if (r.results) r.results = r.results.map(x => ({ ...x, source_trust: sourceTrustNote(x.kind) }));
+      return r;
     }
   }
 };
 
-/* ---------- web search: the visitor's own Tavily key, or the proxy ----------
-   Same rule as the chat providers: a key pasted in ⚙ Keys wins, and then the browser calls Tavily directly (Tavily allows
-   browser calls). With no key, the Worker proxy's shared TAVILY_API_KEY is used if a proxy is set. Either way a search
-   spends a monthly free allowance: your own key's own 1,000 searches, or the proxy owner's, shared by all who use it. */
+/* ---------- web search: everyone uses their OWN Tavily key ----------
+   There is no shared key and no proxy route for search: a key pasted in ⚙ Keys is called directly from the browser
+   (Tavily allows that), and it spends that person's own free allowance (1,000 searches a month). Without a key, search
+   is simply off and the header shows it red, like a chat provider with no key.
+
+   Search is NOT limited to trusted sites, so information isn't cut off. Instead every result is labelled with what kind of
+   source it is, and anything not on the trusted list is marked "untrusted" so it can't be mistaken for a vetted source.
+   (Only half of the Council source check searches trusted sites alone; see sourceCheck().) */
 const SEARCH_KEY_KEY = "aicouncil-search-v1";
 let searchKey = "";
 let searchRemembered = false;
@@ -1315,18 +1375,58 @@ function loadSearchKey() {
 function saveSearchKey() {
   try { if (searchRemembered && searchKey.trim()) localStorage.setItem(SEARCH_KEY_KEY, searchKey.trim()); else localStorage.removeItem(SEARCH_KEY_KEY); } catch (_) {}
 }
-function searchAvailable() { return searchKey.trim() !== "" || proxyOn(); }
+function searchAvailable() { return searchKey.trim() !== ""; }
 
-async function webSearch(query, trusted) {
-  if (searchKey.trim()) return webSearchDirect(query, trusted);
-  if (proxyOn()) return webSearchViaProxy(query, trusted);
-  return { error: "Web search needs a Tavily key (free at tavily.com, no card: add it in ⚙ Keys) or this app's built-in proxy to be configured." };
+/* Header dot for search, on the same red / amber / green scheme as the AI providers:
+     off = no key · fail = key rejected · limited = rate-limited or allowance used up · unverified = key added, not checked yet
+     checking · ok = Tavily accepted the key. The check is Tavily's own free GET /usage (it costs no search credit), so a
+   page load never spends any of the allowance; real searches also update the dot. */
+let searchHealth = { state: "", msg: "", sig: "" };
+function searchStatus() {
+  if (!searchKey.trim()) return { state: "off", msg: "Not connected — no Tavily key, so web search and the source check are off" };
+  if (!searchHealth.state || searchHealth.sig !== searchKey.trim()) return { state: "unverified", msg: "Key added but not checked yet" };
+  return searchHealth;
+}
+function setSearchHealth(state, msg) {
+  searchHealth = { state, msg, sig: searchKey.trim() };
+  if (document.getElementById("provDots")) refreshDots();
+}
+/* Returns { state, msg } and updates the dot. Inconclusive answers (offline, odd status) never show as a failure. */
+async function checkSearchKey() {
+  const key = searchKey.trim();
+  if (!key) return { state: "off", msg: "No key entered." };
+  setSearchHealth("checking", "Checking…");
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 15000);
+  try {
+    const res = await fetch(CONFIG.search.usageUrl, { headers: { "Authorization": "Bearer " + key }, signal: ctrl.signal });
+    if (key !== searchKey.trim()) return searchStatus();   // the key was edited while the check was running
+    if (res.status === 401 || res.status === 403) { setSearchHealth("fail", "Not connected — Tavily rejected the key (check it in ⚙ Keys)"); return searchHealth; }
+    if (res.status === 429) { setSearchHealth("limited", "Connected but rate-limited right now"); return searchHealth; }
+    if (res.ok) {
+      const j = await res.json().catch(() => ({}));
+      const used = j.account?.plan_usage ?? j.key?.usage, limit = j.account?.plan_limit ?? j.key?.limit;
+      const known = Number.isFinite(used) && Number.isFinite(limit);
+      if (known && used >= limit) setSearchHealth("limited", `Connected, but this plan's allowance is used up (${used} of ${limit} searches)`);
+      else setSearchHealth("ok", known ? `Connected — ${used} of ${limit} searches used this plan period` : "Connected — key accepted");
+      return searchHealth;
+    }
+  } catch (_) { /* inconclusive */ }
+  finally { clearTimeout(timer); }
+  if (key === searchKey.trim()) setSearchHealth("unverified", "Key added, but Tavily couldn't be reached just now to check it");
+  return searchStatus();
 }
 
-/* The trusted-source lists, for searching straight from the browser. The four static groups MIRROR the Worker's
-   (worker/src/index.js): keep them in step (the tests compare them). The IFCN and CISA lists can't be built in, because
-   they are refreshed weekly on the Worker, so they are fetched from its public /trusted-domains when reachable. If that
-   fails the search simply uses the static groups. Same merge order and same 300-domain cap as the Worker. */
+async function webSearch(query, restrict) {
+  if (!searchAvailable()) return { error: "Web search needs your own Tavily key (free at tavily.com, no card: add it in ⚙ Keys)." };
+  return webSearchDirect(query, restrict);
+}
+
+/* The trusted-source lists, for labelling results and for the trusted half of the source check. The four static groups
+   MIRROR the Worker's (worker/src/index.js): keep them in step (the tests compare them). The IFCN and CISA lists can't be
+   built in, because they are refreshed weekly on the Worker, so they are fetched from its public /trusted-domains when
+   reachable, at most once every ten minutes. If that fails the static groups alone are used. Same merge order and the same
+   300-domain cap as the Worker. */
 const TRUSTED_STATIC = [
   ["general", ["cdc.gov", "www.cdc.gov", "nih.gov", "www.nih.gov", "fda.gov", "www.fda.gov", "nasa.gov", "www.nasa.gov", "noaa.gov", "www.noaa.gov", "nist.gov", "www.nist.gov",
     "census.gov", "www.census.gov", "bls.gov", "www.bls.gov", "epa.gov", "www.epa.gov", "usgs.gov", "www.usgs.gov", "gov.uk", "www.gov.uk", "ons.gov.uk", "www.ons.gov.uk", "nhs.uk", "www.nhs.uk",
@@ -1336,15 +1436,17 @@ const TRUSTED_STATIC = [
   ["scientific", ["pubmed.ncbi.nlm.nih.gov", "www.ncbi.nlm.nih.gov", "doaj.org"]]
 ];
 const TRUSTED_CAP = 300;   // Tavily's limit on include_domains
-let trustedExtras = null;  // [[host, kind]] fetched from the Worker once per page load (only "fact-check" and "us-federal" are used)
+let trustedExtras = null;  // [[host, kind]] fetched from the Worker (only "fact-check" and "us-federal" are used)
+let trustedExtrasTry = 0;  // when it was last attempted
 async function clientTrusted() {
-  if (!trustedExtras && CONFIG.trustedUrl) {
+  if (!(trustedExtras && trustedExtras.length) && CONFIG.trustedUrl && Date.now() - trustedExtrasTry > 10 * 60 * 1000) {
+    trustedExtrasTry = Date.now();
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 5000);
     try {
       const res = await fetch(CONFIG.trustedUrl, { signal: ctrl.signal });
       if (res.ok) { const j = await res.json(); if (Array.isArray(j.domains)) trustedExtras = j.domains.filter(p => Array.isArray(p) && /^(fact-check|us-federal)$/.test(p[1])); }
-    } catch (_) { /* unreachable: static groups only, and try again on the next search */ }
+    } catch (_) { /* unreachable: static groups only */ }
     finally { clearTimeout(timer); }
   }
   const kinds = new Map(), order = [];
@@ -1365,12 +1467,19 @@ function clientKindOf(url, trusted) {   // the result's host, its www/bare twin,
   }
   return "";
 }
+const SOURCE_KIND_LABEL = {
+  general: "official body", legislative: "law text", historical: "historical record", scientific: "scientific index",
+  "fact-check": "IFCN fact-checker", "us-federal": "US federal site", untrusted: "not on the trusted list (unverified)"
+};
+/* One line describing a result's source, for the model and for the UI */
+function sourceTrustNote(kind) { return kind && kind !== "untrusted" ? "trusted (" + (SOURCE_KIND_LABEL[kind] || kind) + ")" : "NOT on the trusted-source list (unverified)"; }
 
-/* Direct browser -> Tavily, with the visitor's own key. Same request and the same trimmed result shape as the Worker's route. */
-async function webSearchDirect(query, trusted) {
+/* Direct browser -> Tavily with the visitor's own key. `restrict` = search only the trusted list (Tavily's include_domains);
+   otherwise the whole web is searched. Either way every result gets a `kind`: a trusted kind, or "untrusted". */
+async function webSearchDirect(query, restrict) {
+  const t = await clientTrusted();   // needed either way: to restrict, and to label
   const payload = { query: query.slice(0, 400), search_depth: "basic", max_results: 5 };
-  let t = null;
-  if (trusted) { t = await clientTrusted(); payload.include_domains = t.domains; }
+  if (restrict) payload.include_domains = t.domains;
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 20000);
   try {
@@ -1382,44 +1491,19 @@ async function webSearchDirect(query, trusted) {
     if (!res.ok) {
       let detail = "";
       try { const j = await res.json(); detail = j.detail?.error || j.error?.message || ""; } catch (_) { /* no JSON body */ }
-      if (res.status === 401 || res.status === 403) return { error: "Web search: Tavily rejected your key (check it in ⚙ Keys)." };
-      if ([429, 432, 433].includes(res.status)) return { error: "Your Tavily search allowance is used up or rate-limited right now (the free plan is 1,000 searches a month). Answer without it." };
+      if (res.status === 401 || res.status === 403) { setSearchHealth("fail", "Not connected — Tavily rejected the key (check it in ⚙ Keys)"); return { error: "Web search: Tavily rejected your key (check it in ⚙ Keys)." }; }
+      if ([429, 432, 433].includes(res.status)) { setSearchHealth("limited", "Connected but rate-limited, or this plan's allowance is used up"); return { error: "Your Tavily search allowance is used up or rate-limited right now (the free plan is 1,000 searches a month). Answer without it." }; }
       return { error: "Web search failed (HTTP " + res.status + "). " + detail };
     }
     const data = await res.json();
+    if (searchStatus().state !== "ok") setSearchHealth("ok", "Connected — last search succeeded");
     return { results: (Array.isArray(data.results) ? data.results : []).slice(0, 5).map(r => {
       const item = { title: String(r.title || "").slice(0, 200), url: String(r.url || "").slice(0, 500), content: String(r.content || "").slice(0, 800) };
-      if (t) item.kind = clientKindOf(item.url, t) || "trusted";
+      item.kind = clientKindOf(item.url, t) || "untrusted";
       return item;
     }) };
   } catch (e) {
     return { error: e.name === "AbortError" ? "Web search timed out." : "Web search failed: couldn't reach Tavily. Check your internet connection." };
-  } finally { clearTimeout(timer); }
-}
-
-/* Talks to the Worker's /api/websearch (its shared key). `trusted` = only the Worker's trusted-source list.
-   Always resolves to { results } or { error }, never throws. */
-async function webSearchViaProxy(query, trusted) {
-  const headers = { "Content-Type": "application/json" };
-  if (CONFIG.proxy.token.trim()) headers["X-Proxy-Token"] = CONFIG.proxy.token.trim();
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 20000);
-  try {
-    const res = await fetch(CONFIG.proxy.url.trim().replace(/\/+$/, "") + "/api/websearch", {
-      method: "POST", signal: ctrl.signal, headers, body: JSON.stringify(trusted ? { query: query.slice(0, 400), trusted: true } : { query: query.slice(0, 400) })
-    });
-    if (!res.ok) {
-      let detail = "";
-      try { detail = (await res.json()).error?.message || ""; } catch (_) { /* no JSON body */ }
-      if (res.status === 401) return { error: "Web search: the proxy rejected the access token (check it in ⚙ Keys)." };
-      if (res.status === 429) return { error: detail || "Web search is rate-limited or its monthly free quota is used up right now. Answer without it." };
-      if (res.status === 503) return { error: "Web search isn't set up on this proxy (no TAVILY_API_KEY secret). Answer without it." };
-      return { error: "Web search failed (HTTP " + res.status + "). " + detail };
-    }
-    const data = await res.json();
-    return { results: Array.isArray(data.results) ? data.results : [] };
-  } catch (e) {
-    return { error: e.name === "AbortError" ? "Web search timed out." : "Web search failed: couldn't reach the proxy." };
   } finally { clearTimeout(timer); }
 }
 
@@ -1511,6 +1595,7 @@ async function callModelWithToolsRaw(providerId, model, messages) {
       return failOrFallBack(new Error(`${prov.label} HTTP ${res.status}: ${detail}`));
     }
     const data = await res.json();
+    recordUsage(providerId, data.usage, anthropic);
 
     if (anthropic) {
       const blocks = Array.isArray(data.content) ? data.content : [];
@@ -1793,7 +1878,8 @@ async function generate(spec, category, history, ui) {
       { role: "system", content: systemPromptFor(category) +
         " You have a calculator, a current-date/time tool and a web-search tool available — use them when precision or fresh information matters " +
         "(arithmetic, \"what's today's date\", recent events or facts you may not know), otherwise just answer directly. " +
-        "When you rely on web search results, cite the URLs you used." },
+        "When you rely on web search results, cite the URLs you used. Each result says whether its source is on the trusted-source list; " +
+        "when you rely on one that is NOT, say so in your answer (for example \"(unverified source)\") rather than presenting it as established." },
       ...history
     ];
     let lastErr = null;
@@ -1806,7 +1892,8 @@ async function generate(spec, category, history, ui) {
         }
         ui.stage("gen", gaveUp ? "warn" : "done",
           `Generated · ${P[provId].label} (${P[provId].workhorse})${toolCallsUsed.length ? ` · 🔧 ${toolCallsUsed.length} tool call${toolCallsUsed.length > 1 ? "s" : ""}` : ""}${gaveUp ? " · gave up, showing raw tool results" : ""}`);
-        return { text, provId };
+        const webSources = toolCallsUsed.filter(t => t.name === "web_search" && t.result && t.result.results).flatMap(t => t.result.results);
+        return { text, provId, webSources };
       } catch (e) {
         lastErr = e;
         if (order.length > 1 && provId !== order[order.length - 1]) {
@@ -2327,81 +2414,170 @@ function renderChatList() {
 }
 
 /* =====================================================================
-   Council source check. When the Council models disagreed, search ONLY the Worker's trusted-source list (official
-   bodies, statute text, historical records, journal indexes, IFCN fact-checkers; see worker/src/index.js) and show
-   what those sources say. Honest limits:
-   - it runs only after a disagreement, and only with a Tavily key (your own in ⚙ Keys, or a proxy's), because every
-     search spends a monthly free allowance (1,000 a month on the free plan);
+   Query compression (opt-in). The system prompt below is the site owner's own wording; do not paraphrase it.
+   ===================================================================== */
+const COMPRESSION_SYSTEM_PROMPT = `You are an expert prompt compression and token optimization engine. Your
+sole objective is to take a raw, unstructured, or long user query and
+compress it into a highly dense semantic payload. This compressed output
+will be forwarded simultaneously to a multi-model AI council, so every
+token saved here reduces systemic overhead across the entire panel.
+
+### Compression Rules
+1. Eliminate all conversational filler, pleasantries, greetings, and
+   rhetorical transitions (e.g., "Hello", "Can you help me", "Please note
+   that").
+2. Strip out repetitive phrasing, wordy passive voice, and redundant
+   background details while aggressively keeping all unique parameters,
+   technical variables, operational constraints, and explicit user
+   intents intact.
+3. Use compact structures: flatten sentences into shorthand keyword-value
+   pairs, bullet points, or concise structural statements where
+   appropriate.
+4. Do not alter or lose domain-specific terms, numbers, codes, postcodes,
+   or specific entity names.
+5. The output must remain entirely readable by an LLM without losing its
+   original meaning or logical variables.
+
+### Output Format
+Wrap your final compressed prompt inside a clear \`<compressed_prompt>\` XML
+tag. Do not include any introductory remarks, explanations, or
+conversational text outside of this tag.`;
+
+/* Compresses a long question with one call to the fast Groq model. It can never block an answer: if it is skipped, fails,
+   times out, replies without the <compressed_prompt> tag, or isn't actually shorter, the ORIGINAL question is returned
+   unchanged, and the workings panel says why. Compression is lossy and a model decides what counts as "filler", so both
+   versions are always shown in the workings. */
+async function compressQuestion(question, ui) {
+  const words = question.trim().split(/\s+/).length;
+  if (words < CONFIG.compression.minWords) {
+    ui.working("Compressed question", `Skipped: only ${words} words, too short to be worth an extra call (the minimum is ${CONFIG.compression.minWords}). The original was used.`);
+    return question;
+  }
+  const provId = pickProvider("groq");
+  if (!provId) return question;
+  ui.stage("compress", "running", `Compressing question · ${P[provId].label}`);
+  try {
+    const raw = await withDeadline(callModel(provId, P[provId].fast, [
+      { role: "system", content: COMPRESSION_SYSTEM_PROMPT },
+      { role: "user", content: question }
+    ], 1500, undefined, { temperature: CONFIG.temperatures.compress }), CONFIG.compression.timeoutMs, P[provId].label);
+    const m = String(raw).match(/<compressed_prompt>([\s\S]*?)<\/compressed_prompt>/i);
+    const out = m ? m[1].trim() : "";
+    if (!out) {   // no usable tag: say so plainly and keep what the model actually said, so it can be checked
+      ui.stage("compress", "warn", "Compression skipped");
+      ui.working("Compressed question", { summary: "The compression reply didn't contain a complete <compressed_prompt> tag, so your original question was used unchanged.", raw: String(raw).slice(0, 1500) });
+      return question;
+    }
+    const outWords = out.split(/\s+/).length;
+    if (out.length >= question.length) {
+      ui.stage("compress", "warn", "Compression · not shorter, original kept");
+      ui.working("Compressed question", "The compressed version wasn't shorter, so the original was used.\n\nOriginal: " + question + "\n\nCompressed: " + out);
+      return question;
+    }
+    ui.stage("compress", "done", `Compressed · ${words} → ${outWords} words`);
+    ui.working("Compressed question", "Original: " + question + "\n\nCompressed: " + out);
+    return out;
+  } catch (e) {
+    const d = describeError(e);
+    ui.stage("compress", "warn", "Compression skipped");
+    ui.working("Compressed question", { summary: d.summary + ". Your original question was used unchanged.", raw: d.raw });
+    return question;
+  }
+}
+
+/* =====================================================================
+   Council source check. When the Council models disagreed, look for sources and show what they say. Two searches run:
+   one restricted to the trusted list (official bodies, statute text, historical records, journal indexes, IFCN
+   fact-checkers), and one over the whole web, so information is not cut off. Every source is labelled: trusted ones with
+   their kind, everything else marked ⚠ "not on the trusted list (unverified)", and trusted ones are listed first.
+   Honest limits:
+   - it runs only after a disagreement, and only with your own Tavily key, because it spends TWO searches from your
+     monthly free allowance (1,000 a month on the free plan);
    - a source shows what that DOCUMENT says. It is not proof a claim is true, and the summary is written by a model
      from short search snippets, so the source list underneath (built from the real results, not by a model) is what to trust;
    - it never changes the answer; it adds a box under it, and if anything fails the answer is shown without it.
    ===================================================================== */
-const SOURCE_KIND_LABEL = {
-  general: "official body", legislative: "law text", historical: "historical record", scientific: "scientific index",
-  "fact-check": "IFCN fact-checker", "us-federal": "US federal site", trusted: "trusted list"
-};
 function mdLinkSafe(title, url) {   // keeps a hostile title or URL from breaking out of the markdown link syntax
   return "[" + String(title || url).replace(/[\[\]\n]/g, " ").trim().slice(0, 120) + "](" + String(url).replace(/[()\s]/g, c => encodeURIComponent(c)) + ")";
 }
+/* numbered list of sources; an unverified one is marked so it can't be mistaken for a vetted source */
+function sourceListMd(results) {
+  return results.map((r, i) => `${i + 1}. ${mdLinkSafe(r.title, r.url)} — ${r.kind === "untrusted" || !r.kind ? "⚠ " : ""}${SOURCE_KIND_LABEL[r.kind] || SOURCE_KIND_LABEL.untrusted}`).join("\n");
+}
 async function sourceCheck(question, disagreement, ui) {
-  if (!searchAvailable()) { ui.stage("src", "skipped", "Source check · needs a Tavily key"); return ""; }
-  ui.stage("src", "running", "Checking trusted sources");
-  const found = await webSearch(question, true);
-  if (found.error) {
+  if (!searchAvailable()) { ui.stage("src", "skipped", "Source check · needs your Tavily key"); return ""; }
+  ui.stage("src", "running", "Checking sources");
+  const [tr, open] = await Promise.all([webSearch(question, true), webSearch(question, false)]);
+  if (tr.error && open.error) {
     ui.stage("src", "warn", "Source check unavailable");
-    ui.working("Source check", found.error);
+    ui.working("Source check", tr.error);
     return "";
   }
-  const results = found.results.filter(r => /^https?:\/\//i.test(r.url || ""));
+  const seen = new Set(), merged = [];
+  for (const r of [...(tr.results || []), ...(open.results || [])]) {
+    if (!/^https?:\/\//i.test(r.url || "") || seen.has(r.url)) continue;
+    seen.add(r.url); merged.push(r);
+  }
+  merged.sort((a, b) => (a.kind === "untrusted") - (b.kind === "untrusted"));   // trusted first (the sort is stable)
+  const results = merged.slice(0, 8);
   if (!results.length) {
     ui.stage("src", "warn", "Source check · nothing found");
-    ui.working("Source check", "The trusted-source search returned nothing for: " + question.slice(0, 200));
-    return "\n\n:::sources\nNo trusted source turned up for this question, so the disagreement above is **unresolved**. Check it against a primary source yourself.\n:::";
+    ui.working("Source check", "The searches returned nothing for: " + question.slice(0, 200));
+    return "\n\n:::sources\nNo source turned up for this question, so the disagreement above is **unresolved**. Check it against a primary source yourself.\n:::";
   }
-  ui.working("Source check — search results", results.map((r, i) => `[${i + 1}] (${r.kind || "trusted"}) ${r.title}\n${r.url}\n${r.content}`).join("\n\n"));
+  const trustedN = results.filter(r => r.kind !== "untrusted").length, untrustedN = results.length - trustedN;
+  ui.working("Source check — search results", results.map((r, i) => `[${i + 1}] ${sourceTrustNote(r.kind)}\n${r.title}\n${r.url}\n${r.content}`).join("\n\n"));
   let summary = "";
   try {
     const { text } = await callWithFallback(pickProvider(CONFIG.specialists.factual), [
       { role: "system", content:
-        "You are checking a disagreement between AI models against SOURCES retrieved from trusted websites. For each point of disagreement, " +
-        "say in one or two plain sentences which claim, if either, the sources support, citing the source as [n]. " +
+        "You are checking a disagreement between AI models against SOURCES found on the web. Each source is marked either trusted (with its kind) " +
+        "or NOT on the trusted-source list (unverified). For each point of disagreement, say in one or two plain sentences which claim, if either, " +
+        "the sources support, citing the source as [n]. Prefer trusted sources. If a point rests only on an unverified source, say so plainly. " +
         "Use ONLY what the source excerpts actually say. If they do not address a point, write \"The sources found don't settle this.\" " +
         "Never add facts from your own knowledge and never invent quotes, section numbers or dates. " +
         "A source shows what that document says, not that a claim is true in general, and a fact-checker's verdict is that organisation's assessment. " +
         "At most 120 words, as markdown bullets, no headings." + todayLine() },
       { role: "user", content:
         "QUESTION:\n" + question.slice(0, 1500) + "\n\nPOINTS WHERE THE MODELS DISAGREED:\n" + disagreement.slice(0, 2500) +
-        "\n\nSOURCES:\n" + results.map((r, i) => `[${i + 1}] (${SOURCE_KIND_LABEL[r.kind] || "trusted"}) ${r.title}\n${r.url}\n${r.content}`).join("\n\n") }
+        "\n\nSOURCES:\n" + results.map((r, i) => `[${i + 1}] ${sourceTrustNote(r.kind)}\n${r.title}\n${r.url}\n${r.content}`).join("\n\n") }
     ], 500, undefined, ui, "source check", { temperature: CONFIG.temperatures.judge });
     summary = text.replace(/^:::.*$/gm, "").trim();
   } catch (e) {
     ui.working("Source check summary", describeError(e));
   }
-  const kinds = [...new Set(results.map(r => SOURCE_KIND_LABEL[r.kind] || "trusted list"))];
-  ui.stage("src", "done", `Source check · ${results.length} source${results.length === 1 ? "" : "s"} (${kinds.join(", ")})`);
+  ui.stage("src", untrustedN && !trustedN ? "warn" : "done", `Source check · ${trustedN} trusted${untrustedN ? `, ${untrustedN} unverified` : ""}`);
   return "\n\n:::sources\n" + (summary || "*The summary couldn't be written; the sources found are listed below.*") +
-    "\n\n**Sources checked** (only trusted sites were searched):\n" +
-    results.map((r, i) => `${i + 1}. ${mdLinkSafe(r.title, r.url)} — ${SOURCE_KIND_LABEL[r.kind] || "trusted list"}`).join("\n") +
+    (trustedN ? "" : "\n\n**No trusted source turned up. Everything below comes from the wider web and is unverified.**") +
+    "\n\n**Sources checked** (trusted sites first; ⚠ marks a source that is not on the trusted list and hasn't been vetted):\n" +
+    sourceListMd(results) +
     "\n\n*A source shows what that document says, not that a claim is true. Check anything important yourself.*\n:::";
 }
 
 async function answer(question, ui) {
+  /* Optional query compression (🗜️). The compressed text stands in for the question through the whole pipeline (routing,
+     generation, the Council fanout, critique, source check). The user's ORIGINAL words are still used for what is shown and
+     saved in the chat, for the plain-language rewrite (which honours format requests like "one sentence"), for the
+     medical/legal/financial check and for memory: each of those needs what was actually said, not a shorthand of it. */
+  const originalQuestion = question;
+  if (CONFIG.compression.enabled) question = await compressQuestion(originalQuestion, ui);
   /* Past answers are sent to the models in their technical form only. */
   const trimmedHistory = [...history.slice(-CONFIG.historyLimit).map(m => ({ role: m.role, content: forModel(m.content) })), { role: "user", content: question }];
   const usePlain = plainMode;
-  currentSensitive = sensitiveDomain(question);
+  currentSensitive = sensitiveDomain(originalQuestion);
   if (usePlain) ui.setStream("drafting");   // hold back the technical draft; the plain answer streams instead
 
   /* 5 — SPECIALIST ROUTING (all modes) */
   const category = await routeQuestion(question, ui);
 
-  let genProvId, draft, disagreement = "";
+  let genProvId, draft, disagreement = "", toolSources = [];
   if (mode === "council") {
     /* 3 — ENSEMBLE + synthesis */
     ({ genProvId, draft, disagreement } = await councilGenerate(category, trimmedHistory, question, ui));
   } else {
     const spec = specialistFor(category);
-    ({ text: draft, provId: genProvId } = await generate(spec, category, trimmedHistory, ui));
+    ({ text: draft, provId: genProvId, webSources: toolSources } = await generate(spec, category, trimmedHistory, ui));
+    toolSources = toolSources || [];
   }
 
   let final = draft;
@@ -2433,6 +2609,14 @@ async function answer(question, ui) {
     try { sourceMd = await sourceCheck(question, disagreement, ui); }
     catch (e) { ui.stage("src", "warn", "Source check unavailable"); ui.working("Source check", describeError(e)); }
   }
+  /* web_search tool used (Fast/Balanced): list the results the model could see, unverified ones marked, so a non-trusted
+     source is never presented as vetted even if the model forgets to say so */
+  if (toolSources.length) {
+    const seenUrl = new Set();
+    const uniq = toolSources.filter(r => r.url && !seenUrl.has(r.url) && seenUrl.add(r.url)).sort((a, b) => (a.kind === "untrusted") - (b.kind === "untrusted"));
+    sourceMd += "\n\n:::sources Web search\n**Web results the model could see** (⚠ marks a source that is not on the trusted list and hasn't been vetted):\n" +
+      sourceListMd(uniq) + "\n\n*The model was told which sources are unverified. Check anything important yourself.*\n:::";
+  }
   /* medical / legal / financial: a short "general information only" note, kept out of the technical section */
   const cautionMd = currentSensitive ? "\n\n:::caution\n" + CAUTION_TEXT[currentSensitive] + "\n:::" : "";
 
@@ -2441,7 +2625,7 @@ async function answer(question, ui) {
   if (usePlain) {
     try {
       ui.setStream("plain");
-      const pl = await plainify(question, body, disagreement, category, ui);
+      const pl = await plainify(originalQuestion, body, disagreement, category, ui);
       let plainMd = pl.plain;
       if (pl.disagreement) plainMd += "\n\n:::disagreement\n" + pl.disagreement + "\n:::";
       else if (disagreement) plainMd += "\n\n:::disagreement\n" + disagreement + "\n:::";
@@ -2455,14 +2639,14 @@ async function answer(question, ui) {
   }
   if (!TECH_RE.test(final)) final += sourceMd + cautionMd;   // plain mode off, or the rewrite failed
 
-  history.push({ role: "user", content: question });
+  history.push({ role: "user", content: originalQuestion });
   /* The workings are kept with the answer so they survive saving and reloading the chat.
      Models never see them: the history sent to a model is rebuilt from role + content only. */
   const workings = ui.getWorkings ? ui.getWorkings() : [];
   history.push(workings.length ? { role: "assistant", content: final, workings } : { role: "assistant", content: final });
 
   /* fire-and-forget: memory updates in the background after the answer shows */
-  updateMemory(question, technical, ui).catch(() => {});
+  updateMemory(originalQuestion, technical, ui).catch(() => {});
   return final;
 }
 
@@ -2516,7 +2700,7 @@ const TECH_RE = /\n*:::technical(-open)?\n([\s\S]*?)\n:::end-technical\s*$/;
 function forModel(content) {
   const m = String(content).match(TECH_RE);
   /* the UI-only "general information" note and source-check box are never fed back to a model */
-  return m ? m[2] : String(content).replace(/\n*:::(caution|sources)\n[\s\S]*?\n:::/g, "");
+  return m ? m[2] : String(content).replace(/\n*:::(caution|sources)[^\n]*\n[\s\S]*?\n:::/g, "");
 }
 
 function renderMarkdown(md) {
@@ -2534,8 +2718,8 @@ function renderMarkdown(md) {
     return "\u0000DB" + (disagreementBlocks.length - 1) + "\u0000";
   });
 
-  md = md.replace(/:::sources\n([\s\S]*?)\n:::/g, (_, inner) => {
-    disagreementBlocks.push(`<div class="sources-box"><div class="sb-head">🔎 Source check</div>${renderMarkdown(inner.trim())}</div>`);
+  md = md.replace(/:::sources(?: ([^\n]+))?\n([\s\S]*?)\n:::/g, (_, title, inner) => {
+    disagreementBlocks.push(`<div class="sources-box"><div class="sb-head">🔎 ${title ? escapeHtml(title) : "Source check"}</div>${renderMarkdown(inner.trim())}</div>`);
     return "\u0000DB" + (disagreementBlocks.length - 1) + "\u0000";
   });
 
@@ -3062,7 +3246,7 @@ function refreshToolsToggle() {
   toolsToggleEl.disabled = disabledByCouncil;
   toolsToggleEl.title = disabledByCouncil
     ? "Not available in Council mode. Switch to Fast or Balanced to use tools."
-    : "Let a model use a small built-in toolset (calculator, current date/time, and web search when a Tavily key is added in ⚙ Keys or a proxy has one) while drafting — Fast/Balanced modes only.";
+    : "Let a model use a small built-in toolset (calculator, current date/time, and web search when you add your own Tavily key in ⚙ Keys) while drafting — Fast/Balanced modes only.";
   toolsToggleEl.classList.toggle("active", toolsEnabled && !disabledByCouncil);
   toolsToggleEl.textContent = "🔧 Tools: " + (toolsEnabled && !disabledByCouncil ? "on" : "off");
 }
@@ -3072,6 +3256,16 @@ toolsToggleEl.addEventListener("click", () => {
   refreshToolsToggle();
 });
 refreshToolsToggle();
+
+/* ---------- compress toggle (opt-in, off by default, not remembered between visits) ---------- */
+const compressToggleEl = document.getElementById("compressToggle");
+function refreshCompressToggle() {
+  compressToggleEl.classList.toggle("active", CONFIG.compression.enabled);
+  compressToggleEl.textContent = "🗜️ Compress: " + (CONFIG.compression.enabled ? "on" : "off");
+  compressToggleEl.setAttribute("aria-pressed", String(CONFIG.compression.enabled));
+}
+compressToggleEl.addEventListener("click", () => { CONFIG.compression.enabled = !CONFIG.compression.enabled; refreshCompressToggle(); });
+refreshCompressToggle();
 
 /* ---------- mode picker ---------- */
 document.getElementById("modePicker").addEventListener("click", e => {
@@ -3178,7 +3372,7 @@ function closeDrawers() {
   verifyProviders();   // test anything newly configured
 }
 let drawerOpener = null;   // what had focus when a panel opened, so Escape can hand focus back
-function openSettings() { const from = document.activeElement; closeDrawers(); drawerOpener = from; settingsEl.classList.add("open"); overlayEl.classList.add("open"); }
+function openSettings() { const from = document.activeElement; closeDrawers(); drawerOpener = from; renderTokenPanel(); settingsEl.classList.add("open"); overlayEl.classList.add("open"); }
 function openMemory() { const from = document.activeElement; closeDrawers(); drawerOpener = from; renderMemoryPanel(); memoryEl.classList.add("open"); overlayEl.classList.add("open"); }
 document.addEventListener("keydown", e => {
   if (e.key !== "Escape") return;
@@ -3232,10 +3426,52 @@ document.getElementById("forgetAll").addEventListener("click", () => {
   renderMemoryPanel();
 });
 
+/* Token usage table in ⚙ Keys. Rows are exactly what recordUsage() has collected: real, provider-reported numbers. */
+function renderTokenPanel() {
+  const body = document.getElementById("tokBody");
+  if (!body) return;
+  const fmt = n => Number(n).toLocaleString("en-GB");
+  const ids = Object.keys(tokenUsageByProvider);
+  body.innerHTML = "";
+  if (!ids.length) {
+    const tr = document.createElement("tr"), td = document.createElement("td");
+    td.colSpan = 6; td.textContent = "No calls yet this session."; tr.appendChild(td); body.appendChild(tr);
+    return;
+  }
+  const tot = { calls: 0, unreported: 0, promptTokens: 0, completionTokens: 0 };
+  for (const id of ids) {
+    const u = tokenUsageByProvider[id];
+    for (const k of Object.keys(tot)) tot[k] += u[k];
+    const tr = document.createElement("tr");
+    for (const text of [P[id] ? P[id].label : id, fmt(u.calls), fmt(u.promptTokens), fmt(u.completionTokens), fmt(u.promptTokens + u.completionTokens), fmt(u.unreported)]) {
+      const td = document.createElement("td"); td.textContent = text; tr.appendChild(td);
+    }
+    body.appendChild(tr);
+  }
+  const tr = document.createElement("tr"); tr.className = "tok-total";
+  for (const text of ["All", fmt(tot.calls), fmt(tot.promptTokens), fmt(tot.completionTokens), fmt(tot.promptTokens + tot.completionTokens), fmt(tot.unreported)]) {
+    const td = document.createElement("td"); td.textContent = text; tr.appendChild(td);
+  }
+  body.appendChild(tr);
+}
+
 function refreshDots() {
   const el = document.getElementById("provDots");
   el.innerHTML = "";
   el.title = "Filled green circle = connected · Hollow amber ring = not tested yet or rate-limited · Red diamond = not connected. Click to re-check.";
+  {   // 🔎 Search (Tavily) first: same red / amber / green scheme as the AI providers
+    const st = searchStatus();
+    const s = document.createElement("span");
+    s.id = "searchDot";
+    const dot = document.createElement("span");
+    dot.className = "pdot " + (st.state === "ok" ? "on" : st.state);
+    s.title = "Web search (Tavily): " + st.msg;
+    s.setAttribute("role", "img");
+    s.setAttribute("aria-label", "Web search, Tavily: " + st.msg);
+    s.appendChild(dot);
+    s.appendChild(document.createTextNode("🔎 Search"));
+    el.appendChild(s);
+  }
   for (const id of Object.keys(P)) {
     const st = providerStatus(id);
     const s = document.createElement("span");
@@ -3300,15 +3536,16 @@ function buildSettings() {
   });
   body.insertBefore(proxyCard, anchor);
 
-  /* --- web search key (Tavily): not a chat provider, so it has its own small card --- */
+  /* --- web search key (Tavily): at the top of the drawer, since it is what switches on web search and the source check --- */
   const searchCard = document.createElement("div");
   searchCard.className = "prov-card";
   searchCard.id = "searchCard";
   searchCard.innerHTML = `
-    <h3>🔎 Web search key (Tavily) — optional</h3>
+    <h3>🔎 Web search key (Tavily)</h3>
     <div class="hint">Free at <a href="https://app.tavily.com" target="_blank" rel="noopener">app.tavily.com</a> · no card ·
-      1,000 searches a month. Lets a model search the web when 🔧 Tools is on, and powers the Council <b>source check</b> when
-      the models disagree. Sent only to Tavily. It is used instead of a proxy's key if you set both.</div>
+      1,000 searches a month. <b>You use your own key</b> (there is no shared one): it lets a model search the web when
+      🔧 Tools is on, and powers the Council <b>source check</b> when the models disagree (that uses 2 searches). Sent only to Tavily.
+      Results from sites that aren't on the trusted list are marked as unverified.</div>
     <div class="keyrow" style="margin-top:10px">
       <input type="password" id="searchKeyInput" placeholder="Paste Tavily API key (tvly-…)" autocomplete="off">
       <button class="testbtn" id="searchTest">Test</button>
@@ -3318,19 +3555,40 @@ function buildSettings() {
   const skey = searchCard.querySelector("#searchKeyInput");
   const srem = searchCard.querySelector("#searchRemember");
   const sstat = searchCard.querySelector("#searchStatus");
+  let searchCheckTimer = null;
   skey.value = searchKey;
   srem.checked = searchRemembered;
-  skey.addEventListener("input", () => { searchKey = skey.value; saveSearchKey(); });
+  skey.addEventListener("input", () => {
+    searchKey = skey.value; saveSearchKey(); refreshDots();
+    clearTimeout(searchCheckTimer);
+    if (searchKey.trim()) searchCheckTimer = setTimeout(checkSearchKey, 800);   // Tavily's free check, so the header dot turns green by itself
+  });
   srem.addEventListener("change", () => { searchRemembered = srem.checked; saveSearchKey(); });
   searchCard.querySelector("#searchTest").addEventListener("click", async () => {
     searchKey = skey.value; saveSearchKey();
     if (!searchKey.trim()) { sstat.className = "teststatus err"; sstat.textContent = "No key entered."; return; }
     sstat.className = "teststatus"; sstat.textContent = "Testing…";
-    const r = await webSearchDirect("test", false);   // a real one-result search: it uses 1 of your monthly searches
-    if (r.error) { sstat.className = "teststatus err"; sstat.textContent = "✗ " + r.error; }
-    else { sstat.className = "teststatus ok"; sstat.textContent = "✓ Key works (that test used 1 of your monthly searches)."; }
+    const r = await checkSearchKey();   // Tavily's free usage endpoint: this test costs no search
+    if (r.state === "ok") { sstat.className = "teststatus ok"; sstat.textContent = "✓ " + r.msg + " (this test used no searches)."; }
+    else { sstat.className = "teststatus err"; sstat.textContent = "✗ " + r.msg; }
   });
-  body.insertBefore(searchCard, anchor);
+  body.insertBefore(searchCard, body.firstChild);
+
+  /* --- token usage (real, provider-reported; in memory only) --- */
+  const tokCard = document.createElement("div");
+  tokCard.className = "prov-card";
+  tokCard.id = "tokenCard";
+  tokCard.innerHTML = `
+    <h3>📊 Token usage — this session</h3>
+    <div class="hint">What each provider itself reported for the calls made since this page loaded. Not an estimate.</div>
+    <div class="ab-scroll" tabindex="0" role="region" aria-label="Token usage by provider (scrollable table)"><table class="tok-table">
+      <thead><tr><th>Provider</th><th>Calls counted</th><th>Prompt</th><th>Completion</th><th>Total</th><th>No usage data</th></tr></thead>
+      <tbody id="tokBody"></tbody></table></div>
+    <div class="s-note">Only counts calls where the provider reported usage; some streamed responses may not. Calls that succeeded without usage data are shown in the last column, never estimated.</div>
+    <button class="danger-btn" id="tokReset" style="margin-top:8px">Reset counter</button>`;
+  tokCard.querySelector("#tokReset").addEventListener("click", () => { tokenUsageByProvider = {}; renderTokenPanel(); });
+  body.insertBefore(tokCard, anchor);
+  renderTokenPanel();
 
   for (const id of Object.keys(CONFIG.providers)) {
     const prov = CONFIG.providers[id];
