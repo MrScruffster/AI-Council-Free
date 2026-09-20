@@ -10,11 +10,17 @@ authenticated HTTP API on `127.0.0.1`.
 npm install
 npx playwright install chromium
 $env:AIC_RUNNER_TOKEN = "use-a-long-random-local-token"
+# Optional when using a different local app origin:
+# $env:AIC_RUNNER_ORIGINS = "https://www.ai-council.co.uk,http://localhost:4173"
 npm start
 ```
 
 The token must be sent in the `X-AI-Council-Token` header. The service refuses
 to start without one.
+
+Browser cross-origin requests are limited to the deployed AI Council origin and
+local Vite-style development origins by default. Set `AIC_RUNNER_ORIGINS` to a
+comma-separated allowlist when using another trusted frontend origin.
 
 ## Supported commands
 

@@ -12,13 +12,22 @@ const MAX_TEXT = 12000;
 const TASK_TTL_MS = 10 * 60 * 1000;
 const tasks = new Map();
 
+export function allowedOrigin(req) {
+  const origin = String(req.headers.origin || "");
+  if (!origin) return "";
+  const configured = String(process.env.AIC_RUNNER_ORIGINS || "https://www.ai-council.co.uk,http://localhost:4173,http://127.0.0.1:4173")
+    .split(",").map(value => value.trim()).filter(Boolean);
+  return configured.includes(origin) ? origin : "";
+}
+
 function json(res, status, body) {
+  const origin = res.req ? allowedOrigin(res.req) : "";
   const data = JSON.stringify(body);
   res.writeHead(status, {
     "Content-Type": "application/json",
     "Content-Length": Buffer.byteLength(data),
     "Cache-Control": "no-store",
-    "Access-Control-Allow-Origin": "null",
+    ...(origin ? { "Access-Control-Allow-Origin": origin, "Vary": "Origin" } : {}),
     "Access-Control-Allow-Headers": "Content-Type, X-AI-Council-Token",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS"
   });
@@ -158,7 +167,11 @@ async function action(task, body) {
 }
 
 async function handle(req, res) {
-  if (req.method === "OPTIONS") return json(res, 204, {});
+  res.req = req;
+  if (req.method === "OPTIONS") {
+    if (!allowedOrigin(req)) return json(res, 403, { error: "Origin is not allowed." });
+    return json(res, 204, {});
+  }
   if (!authorized(req)) return json(res, 401, { error: "Unauthorized runner request." });
   try {
     const path = new URL(req.url, `http://${HOST}:${PORT}`).pathname;
