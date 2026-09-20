@@ -1251,10 +1251,12 @@ function proxyOn() { return CONFIG.proxy.url.trim() !== ""; }
 function useProxy(prov) { return proxyOn() && !!prov.proxyable && !prov.key.trim(); }
 
 function availableProviders() {
-  return Object.keys(P).filter(id => {
+  const configured = Object.keys(P).filter(id => {
     if (proxyOn() && P[id].proxyable) return true;   // the Worker holds this one's key
     return P[id].key.trim() !== "" || !!P[id].keyOptional;   // keyOptional: works without a key (e.g. Pollinations, a local Ollama)
   });
+  const usable = configured.filter(id => !providerMetric(id).cooldownUntil || providerMetric(id).cooldownUntil <= Date.now());
+  return usable.length ? usable : configured;
 }
 
 /* Pick the provider for a role; fall back to whatever is available. */
@@ -1288,6 +1290,10 @@ function pickOtherProvider(notThisOne) {
    with (`sig`), so editing a key resets that provider to "unverified".
    ===================================================================== */
 const health = {};   // providerId -> { state, msg, sig, at }
+const providerMetrics = {}; // providerId -> session-only reliability counters
+function providerMetric(id) {
+  return providerMetrics[id] || (providerMetrics[id] = { successes: 0, failures: 0, consecutiveFailures: 0, rateLimits: 0, lastLatencyMs: 0, totalLatencyMs: 0, cooldownUntil: 0 });
+}
 
 function isConfigured(id) {
   const p = P[id];
@@ -1303,18 +1309,32 @@ function providerStatus(id) {
   if (p.corsBlocked && !useProxy(p)) return { state: "fail", msg: "Not connected — this provider blocks direct browser calls; it only works through the proxy" };
   const h = health[id];
   if (!h || h.sig !== healthSig(id)) return { state: "unverified", msg: "Key added but not tested yet" };
-  return h;
+  const m = providerMetric(id);
+  const latency = m.lastLatencyMs ? ` · ${Math.round(m.lastLatencyMs)} ms` : "";
+  return { ...h, msg: h.msg + latency };
 }
 function setHealth(id, state, msg) {
   if (!P[id]) return;
   health[id] = { state, msg, sig: healthSig(id), at: Date.now() };
   if (document.getElementById("provDots")) refreshDots();
 }
-function recordCallResult(id, err) {
+function recordCallResult(id, err, latencyMs) {
   if (!P[id] || !isConfigured(id)) return;
-  if (!err) return setHealth(id, "ok", "Connected — last request succeeded");
+  const metric = providerMetric(id);
+  metric.lastLatencyMs = latencyMs;
+  metric.totalLatencyMs += latencyMs;
+  if (typeof renderProviderReliability === "function") renderProviderReliability();
+  if (!err) {
+    metric.successes++;
+    metric.consecutiveFailures = 0;
+    metric.cooldownUntil = 0;
+    return setHealth(id, "ok", "Connected — last request succeeded");
+  }
   const m = String(err.message || err);
-  if (/rate limit/i.test(m)) return setHealth(id, "limited", "Connected but rate-limited right now");
+  metric.failures++;
+  metric.consecutiveFailures++;
+  if (/rate limit/i.test(m)) { metric.rateLimits++; metric.cooldownUntil = Date.now() + 60000; return setHealth(id, "limited", "Connected but rate-limited right now"); }
+  if (metric.consecutiveFailures >= 3) metric.cooldownUntil = Date.now() + 120000;
   if (/token limit|hidden reasoning/i.test(m)) return setHealth(id, "ok", "Connected");   // reached the model; not a connection problem
   if (/No API key/i.test(m)) return;
   return setHealth(id, "fail", "Not connected — " + m.replace(/\s+/g, " ").slice(0, 160));
@@ -1340,11 +1360,12 @@ function recordUsage(providerId, usage, anthropic) {
 }
 
 async function callModel(providerId, model, messages, maxTokens, onDelta, opts) {
+  const started = performance.now();
   try {
     const out = await callModelRaw(providerId, model, messages, maxTokens, onDelta, opts);
-    recordCallResult(providerId, null);
+    recordCallResult(providerId, null, performance.now() - started);
     return out;
-  } catch (e) { recordCallResult(providerId, e); throw e; }
+  } catch (e) { recordCallResult(providerId, e, performance.now() - started); throw e; }
 }
 
 /* The cheap "is this key accepted?" URL for a provider: its model list (a GET that generates no text and costs no
@@ -5317,6 +5338,24 @@ function renderTokenPanel() {
   body.appendChild(tr);
 }
 
+function renderProviderReliability() {
+  const body = document.getElementById("reliabilityBody");
+  if (!body) return;
+  body.innerHTML = "";
+  const ids = Object.keys(P);
+  ids.forEach(id => {
+    const m = providerMetric(id);
+    const total = m.successes + m.failures;
+    const success = total ? Math.round((m.successes / total) * 100) + "%" : "—";
+    const avg = total ? Math.round(m.totalLatencyMs / total) + " ms" : "—";
+    const row = document.createElement("tr");
+    [P[id].label, success, String(m.failures), String(m.rateLimits), avg, m.lastLatencyMs ? Math.round(m.lastLatencyMs) + " ms" : "—"].forEach(text => {
+      const td = document.createElement("td"); td.textContent = text; row.appendChild(td);
+    });
+    body.appendChild(row);
+  });
+}
+
 function refreshDots() {
   const el = document.getElementById("provDots");
   el.innerHTML = "";
@@ -5619,6 +5658,23 @@ function buildSettings() {
   tokCard.querySelector("#tokReset").addEventListener("click", () => { tokenUsageByProvider = {}; renderTokenPanel(); });
   body.insertBefore(tokCard, anchor);
   renderTokenPanel();
+
+  const reliabilityCard = document.createElement("div");
+  reliabilityCard.className = "prov-card";
+  reliabilityCard.innerHTML = `
+    <h3>🩺 Provider reliability — this session</h3>
+    <div class="hint">Live request outcomes since this page loaded. Routing puts recently failing or rate-limited providers last; use Test or reset to retry deliberately.</div>
+    <div class="ab-scroll" tabindex="0" role="region" aria-label="Provider reliability (scrollable table)"><table class="tok-table">
+      <thead><tr><th>Provider</th><th>Success</th><th>Failures</th><th>Rate limits</th><th>Average</th><th>Last call</th></tr></thead>
+      <tbody id="reliabilityBody"></tbody></table></div>
+    <button class="danger-btn" id="reliabilityReset" style="margin-top:8px">Reset reliability</button>`;
+  reliabilityCard.querySelector("#reliabilityReset").addEventListener("click", () => {
+    Object.keys(providerMetrics).forEach(id => delete providerMetrics[id]);
+    Object.keys(health).forEach(id => delete health[id]);
+    renderProviderReliability(); refreshDots();
+  });
+  body.insertBefore(reliabilityCard, anchor);
+  renderProviderReliability();
 
   for (const id of Object.keys(CONFIG.providers)) {
     const prov = CONFIG.providers[id];
