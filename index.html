@@ -5322,7 +5322,25 @@ inputEl.focus();
    the service worker deliberately never touches API calls (/api/* or any other origin). While offline a notice says so.
    ===================================================================== */
 if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
-  window.addEventListener("load", () => { navigator.serviceWorker.register("sw.js").catch(() => {}); });
+  const hadController = !!navigator.serviceWorker.controller;   // true when this page was opened by an already-installed worker
+  let reloaded = false;
+  /* When a NEW worker takes over (a new version was deployed), pick the new page up: reload right away if nothing is in progress,
+     otherwise offer a one-click reload so a half-typed message or a running answer is never thrown away. */
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (!hadController || reloaded) return;
+    if (!busy && !inputEl.value.trim()) { reloaded = true; location.reload(); return; }
+    if (document.getElementById("updateBar")) return;
+    const bar = document.createElement("div");
+    bar.id = "updateBar"; bar.setAttribute("role", "status");
+    bar.style.cssText = "background:rgba(108,140,255,.15);border-bottom:1px solid rgba(108,140,255,.4);color:var(--text);font-size:.78rem;padding:5px 16px;text-align:center";
+    bar.textContent = "A new version of AI Council is ready. ";
+    const btn = document.createElement("button");
+    btn.type = "button"; btn.className = "icon-btn"; btn.textContent = "Reload now"; btn.style.marginLeft = "8px";
+    btn.addEventListener("click", () => { reloaded = true; location.reload(); });
+    bar.appendChild(btn);
+    document.body.insertBefore(bar, document.body.firstChild);
+  });
+  window.addEventListener("load", () => { navigator.serviceWorker.register("sw.js").then(r => r.update().catch(() => {})).catch(() => {}); });
 }
 const offlineBarEl = document.getElementById("offlineBar");
 function refreshOfflineBar() { offlineBarEl.classList.toggle("on", navigator.onLine === false); }
