@@ -293,6 +293,60 @@
   .custom-card .cf-remove { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: .8rem; float: right; }
   .custom-card .cf-remove:hover { color: var(--err); }
   .s-note code { background: var(--bg); padding: 1px 4px; border-radius: 4px; }
+
+  /* ---------- Welcome / "get started" pop-up ---------- */
+  #welcome { position: fixed; inset: 0; z-index: 30; display: none; align-items: center; justify-content: center; padding: 16px; background: rgba(6, 8, 14, .72); }
+  #welcome.open { display: flex; }
+  .wl-card {
+    width: 100%; max-width: 580px; max-height: calc(100vh - 32px); overflow-y: auto;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 16px;
+    padding: 24px 24px 20px; box-shadow: 0 20px 60px rgba(0, 0, 0, .55); position: relative;
+  }
+  .wl-x { position: absolute; top: 12px; right: 12px; }
+  .wl-card h2 { font-size: 1.3rem; margin-bottom: 6px; padding-right: 32px; }
+  .wl-card h2 span { color: var(--accent); }
+  .wl-lead { color: var(--text-dim); font-size: .92rem; line-height: 1.55; margin-bottom: 18px; }
+  .wl-lead b { color: var(--text); }
+  .wl-step { display: flex; gap: 12px; margin-bottom: 16px; }
+  .wl-num { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: #fff; font-size: .82rem; font-weight: 650; display: inline-flex; align-items: center; justify-content: center; margin-top: 1px; }
+  .wl-step-body { flex: 1; min-width: 0; }
+  .wl-step h3 { font-size: .98rem; margin-bottom: 2px; }
+  .wl-step p { font-size: .82rem; color: var(--text-dim); line-height: 1.5; }
+  .wl-prov { display: flex; align-items: center; gap: 10px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-top: 8px; }
+  .wl-prov.rec { border-color: var(--accent); }
+  .wl-prov .wl-pname { flex: 1; min-width: 0; font-size: .88rem; line-height: 1.35; }
+  .wl-prov .wl-pname b { display: block; font-size: .92rem; }
+  .wl-prov .wl-pname small { color: var(--text-dim); font-size: .74rem; }
+  .wl-badge { display: inline-block; background: rgba(76, 195, 138, .15); color: var(--ok); border-radius: 999px; font-size: .66rem; padding: 1px 8px; margin-left: 6px; vertical-align: 1px; font-weight: 600; }
+  .wl-get { flex: none; background: var(--accent); color: #fff; text-decoration: none; border-radius: 8px; padding: 7px 12px; font-size: .8rem; white-space: nowrap; }
+  .wl-get:hover { filter: brightness(1.12); }
+  .wl-more { margin-top: 8px; }
+  .wl-more summary { cursor: pointer; font-size: .8rem; color: var(--text-dim); user-select: none; }
+  .wl-more summary:hover { color: var(--accent); }
+  .wl-paste { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+  .wl-paste select, .wl-paste input {
+    background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 8px;
+    padding: 9px 10px; font-family: inherit; font-size: .84rem; outline: none;
+  }
+  .wl-paste select { flex: 0 0 140px; }
+  .wl-paste input { flex: 1 1 180px; min-width: 0; font-family: ui-monospace, monospace; font-size: .8rem; }
+  .wl-paste select:focus, .wl-paste input:focus { border-color: var(--accent); }
+  .wl-connect { flex: none; background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 9px 16px; cursor: pointer; font-family: inherit; font-size: .84rem; font-weight: 600; }
+  .wl-connect:disabled { opacity: .55; cursor: default; }
+  .wl-status { font-size: .82rem; margin-top: 8px; min-height: 1.2em; line-height: 1.45; }
+  .wl-status.ok { color: var(--ok); }
+  .wl-status.err { color: var(--err); }
+  .wl-remember { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: .78rem; color: var(--text-dim); }
+  .wl-remember input { accent-color: var(--accent); }
+  .wl-safe { background: var(--panel-2); border: 1px solid var(--border); border-left: 3px solid var(--ok); border-radius: 8px; padding: 9px 12px; font-size: .78rem; color: var(--text-dim); line-height: 1.5; margin: 4px 0 14px; }
+  .wl-safe b { color: var(--text); }
+  .wl-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; border-top: 1px solid var(--border); padding-top: 14px; margin-top: 6px; }
+  .wl-foot label { display: flex; align-items: center; gap: 6px; font-size: .78rem; color: var(--text-dim); cursor: pointer; }
+  .wl-foot input { accent-color: var(--accent); }
+  .wl-foot .wl-link { background: none; border: none; color: var(--accent); cursor: pointer; font-family: inherit; font-size: .8rem; text-decoration: underline; }
+  .wl-done { background: var(--panel-2); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 8px 16px; cursor: pointer; font-family: inherit; font-size: .84rem; }
+  .wl-done.primary { background: var(--ok); border-color: var(--ok); color: #0b1a13; font-weight: 650; }
+  @media (max-width: 520px) { .wl-card { padding: 20px 16px 16px; } .wl-paste select { flex: 1 1 100%; } .wl-prov { flex-wrap: wrap; } .wl-get { width: 100%; text-align: center; } }
 </style>
 </head>
 <body>
@@ -310,6 +364,7 @@
   <button class="icon-btn active" id="plainToggle" title="Explain answers in plain, everyday language (with a simple diagram where it helps). The full technical answer stays one click away.">🗣 Plain: on</button>
   <button class="icon-btn" id="toolsToggle" title="Let a model use a small built-in toolset (calculator, current date/time) while drafting — Fast/Balanced modes only.">🔧 Tools: off</button>
   <button class="icon-btn" id="memoryBtn">🧠 Memory</button>
+  <button class="icon-btn" id="helpBtn" title="How to get set up: it takes about 2 minutes and needs no credit card">❓ How to start</button>
   <button class="icon-btn" id="settingsBtn">⚙ Keys</button>
 </header>
 
@@ -321,7 +376,7 @@
   </nav>
   <div id="maincol">
     <main id="chat">
-      <div class="sysnote">Pick a mode, add your API keys under <b>⚙ Keys</b>, and ask something.<br>
+      <div class="sysnote">New here? Click <b>❓ How to start</b> to get your free AI key (about 2 minutes), then pick a mode and ask something.<br>
       <b>Fast</b> = routing only · <b>Balanced</b> = routing + critique loop · <b>Council</b> = everything: ensemble + synthesis + critique.<br>
       Answers come back in plain English with a simple diagram where it helps — the full technical answer is one click below (switch off with <b>🗣 Plain</b>).</div>
     </main>
@@ -333,6 +388,81 @@
 </div>
 
 <div id="overlay"></div>
+
+<div id="welcome" role="dialog" aria-modal="true" aria-labelledby="wlTitle">
+  <div class="wl-card">
+    <button class="icon-btn wl-x" id="wlClose" aria-label="Close" title="Close">✕</button>
+    <h2 id="wlTitle">Welcome to AI <span>Council</span> 👋</h2>
+    <p class="wl-lead">AI Council asks several AI models at once and combines their best answers. To use it you need <b>your own free API key</b> — think of it as a password that lets this page talk to an AI service for you. It takes <b>about 2 minutes</b> and <b>no credit card</b>.</p>
+
+    <div class="wl-step">
+      <div class="wl-num">1</div>
+      <div class="wl-step-body">
+        <h3>Get a free key <small style="font-weight:400;color:var(--text-dim)">— you only need one to start</small></h3>
+        <p>Click a button, sign in (Google works on both), and create a key. It opens in a new tab.</p>
+        <div class="wl-prov rec">
+          <div class="wl-pname"><b>Groq <span class="wl-badge">Easiest</span></b><small>Very fast · sign in with Google, GitHub or email</small></div>
+          <a class="wl-get" href="https://console.groq.com/keys" target="_blank" rel="noopener">Get free key ↗</a>
+        </div>
+        <div class="wl-prov">
+          <div class="wl-pname"><b>Google Gemini</b><small>Great all-rounder · needs a Google account</small></div>
+          <a class="wl-get" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Get free key ↗</a>
+        </div>
+        <details class="wl-more">
+          <summary>More free options (add more later for better answers)</summary>
+          <div class="wl-prov">
+            <div class="wl-pname"><b>OpenRouter</b><small>Many free models · Google, GitHub or email</small></div>
+            <a class="wl-get" href="https://openrouter.ai/settings/keys" target="_blank" rel="noopener">Get free key ↗</a>
+          </div>
+          <div class="wl-prov">
+            <div class="wl-pname"><b>Cohere</b><small>Smaller free limit (about 1,000 calls a month)</small></div>
+            <a class="wl-get" href="https://dashboard.cohere.com/api-keys" target="_blank" rel="noopener">Get free key ↗</a>
+          </div>
+          <div class="wl-prov">
+            <div class="wl-pname"><b>Mistral</b><small>Choose the free "Experiment" plan when asked</small></div>
+            <a class="wl-get" href="https://console.mistral.ai/api-keys" target="_blank" rel="noopener">Get free key ↗</a>
+          </div>
+          <div class="wl-prov">
+            <div class="wl-pname"><b>Cerebras</b><small>Extremely fast · free tier may need account checks</small></div>
+            <a class="wl-get" href="https://cloud.cerebras.ai/platform" target="_blank" rel="noopener">Get free key ↗</a>
+          </div>
+        </details>
+      </div>
+    </div>
+
+    <div class="wl-step">
+      <div class="wl-num">2</div>
+      <div class="wl-step-body">
+        <h3>Copy your key</h3>
+        <p>On the provider's page, click <b>Create API key</b>, then <b>copy</b> the long code it shows you. It usually starts with letters like <code>gsk_</code> or <code>AIza</code>.</p>
+      </div>
+    </div>
+
+    <div class="wl-step">
+      <div class="wl-num">3</div>
+      <div class="wl-step-body">
+        <h3>Paste it here</h3>
+        <div class="wl-paste">
+          <select id="wlProv" aria-label="Which service is this key from?"></select>
+          <input type="password" id="wlKey" placeholder="Paste your key here" autocomplete="off" spellcheck="false" aria-label="API key">
+          <button class="wl-connect" id="wlConnect">Connect</button>
+        </div>
+        <label class="wl-remember"><input type="checkbox" id="wlRemember" checked> Remember it on this device so I don't have to do this again</label>
+        <div class="wl-status" id="wlStatus" role="status"></div>
+      </div>
+    </div>
+
+    <div class="wl-safe"><b>Your key stays private.</b> It's saved only in this browser and is sent only to the AI service you got it from — never to us. Free plans have usage limits, so if one service says "rate limited", wait a minute or add a second key.</div>
+
+    <div class="wl-foot">
+      <label><input type="checkbox" id="wlNever"> Don't show this again</label>
+      <span>
+        <button class="wl-link" id="wlAdvanced">Advanced key settings</button>
+        <button class="wl-done" id="wlDone">Close</button>
+      </span>
+    </div>
+  </div>
+</div>
 
 <aside id="memory" class="drawer">
   <div class="s-head">
@@ -391,17 +521,15 @@
    2) If a model is ever retired, swap its ID here.
    ===================================================================== */
 const CONFIG = {
-  /* This copy of the page is served BY the same Worker that runs the proxy
-     (see /src/index.js in this repo), so the proxy is already wired up —
-     it just points at its own origin's /api/* routes. Nothing to paste here.
-     If you set a PROXY_TOKEN secret when you deployed, paste that one value
-     into ⚙ Keys once per browser (see README.md). */
+  /* Optional key-holding proxy (see /worker in this repo). Visitors don't use
+     it: they paste their own keys and the app calls each provider directly.
+     It is only pre-filled when this page is itself served by the Worker
+     (a *.workers.dev address, whose own /api/* routes do the proxying). On
+     any static host — GitHub Pages, including a custom domain — there is no
+     /api/* route, so a pre-filled URL would just turn every request into a
+     405. The site owner can paste a Worker URL + token in ⚙ Keys instead. */
   proxy: {
-    /* Static hosts (GitHub Pages) have no /api/* routes, so pointing the proxy at
-       their own origin just makes every request 405. Leave it empty there and the
-       app calls each provider directly with the keys from ⚙ Keys. Paste a Worker
-       URL in ⚙ Keys if you deploy one. */
-    url: (typeof location !== "undefined" && !/\.github\.io$/i.test(location.hostname)
+    url: (typeof location !== "undefined" && /\.workers\.dev$/i.test(location.hostname)
           && /^https?:$/.test(location.protocol) ? location.origin : ""),
     token: ""
   },
@@ -418,7 +546,7 @@ const CONFIG = {
       key: "",                                   // <-- PASTE GROQ KEY HERE (console.groq.com)
       workhorse: "openai/gpt-oss-120b",          // main model used for this provider
       fast: "openai/gpt-oss-20b",                // quick/cheap model (used for routing)
-      keyUrl: "https://console.groq.com",
+      keyUrl: "https://console.groq.com/keys",
       signIn: "Google · GitHub · email",
       proxyable: true
     },
@@ -428,7 +556,7 @@ const CONFIG = {
       key: "",                                   // <-- PASTE GEMINI KEY HERE (ai.google.dev)
       workhorse: "gemini-flash-latest",
       fast: "gemini-flash-lite-latest",
-      keyUrl: "https://ai.google.dev",
+      keyUrl: "https://aistudio.google.com/apikey",
       signIn: "Google account (required — it's a Google product)",
       proxyable: true
     },
@@ -462,24 +590,15 @@ const CONFIG = {
       signIn: "email (smaller limit — 1,000 calls/month, ~33/day)",
       proxyable: true
     },
-    sambanova: {
-      label: "SambaNova",
-      url: "https://api.sambanova.ai/v1/chat/completions",
-      key: "",                                   // <-- PASTE SAMBANOVA KEY HERE (cloud.sambanova.ai/apis)
-      workhorse: "Meta-Llama-3.3-70B-Instruct",
-      fast: "Meta-Llama-3.3-70B-Instruct",       // 3.1-8B was retired from SambaCloud
-      keyUrl: "https://cloud.sambanova.ai/apis",
-      signIn: "email (blocks browser calls by design — only works through a proxy)",
-      corsBlocked: true,
-      proxyable: true
-    },
+    /* SambaNova was removed: its API sends no CORS headers, so no visitor's browser
+       can ever call it, and it now requires a paid billing method (HTTP 402). */
     mistral: {
       label: "Mistral",
       url: "https://api.mistral.ai/v1/chat/completions",
       key: "",                                   // <-- PASTE MISTRAL KEY HERE (console.mistral.ai) — Free mode, no card
-      workhorse: "mistral-large-latest",
-      fast: "mistral-small-latest",
-      keyUrl: "https://console.mistral.ai",
+      workhorse: "open-mistral-nemo",            // mistral-large-latest is not allowed on the free tier (HTTP 403)
+      fast: "ministral-8b-latest",
+      keyUrl: "https://console.mistral.ai/api-keys",
       signIn: "email (rate limits lowest on Free mode — fine for this app)",
       proxyable: true
     }
@@ -1953,10 +2072,9 @@ function buildSettings() {
   proxyCard.className = "prov-card";
   proxyCard.innerHTML = `
     <h3>🔒 Key-holding proxy — optional</h3>
-    <div class="hint">Optional. If you run a Worker that holds your keys, enter its URL here (it
-      is filled in automatically when this page is served by that Worker). On GitHub Pages
-      there is no proxy — leave this blank and paste your keys into the provider cards below.
-      Only add a token if you also set a PROXY_TOKEN secret.</div>
+    <div class="hint">Advanced — for people who run their own Worker that holds their keys. If that's
+      not you, leave this blank and paste your own keys into the provider cards below.
+      Only add a token if the Worker has a PROXY_TOKEN secret.</div>
     <div class="keyrow" style="margin-bottom:8px">
       <input type="text" id="proxyUrl" placeholder="Leave blank to call providers directly with your own keys" autocomplete="off">
     </div>
@@ -1994,6 +2112,7 @@ function buildSettings() {
     const prov = CONFIG.providers[id];
     const card = document.createElement("div");
     card.className = "prov-card";
+    card.dataset.pid = id;
     card.innerHTML = `
       <h3>${prov.label}</h3>
       <div class="hint">Get ${prov.paid ? "a" : "a free"} key at <a href="${prov.keyUrl}" target="_blank" rel="noopener">${prov.keyUrl.replace("https://", "")}</a> · models: ${prov.workhorse} / ${prov.fast}${prov.paid ? " · <b>paid, no free tier</b>" : ""}</div>
@@ -2161,6 +2280,111 @@ function showAddProviderForm() {
   });
 }
 
+/* =====================================================================
+   Welcome / "how to start" pop-up.
+   Shown automatically when a visitor has no key yet (unless they ticked
+   "Don't show this again"), and reopenable from the ❓ header button. It
+   walks them through getting a free key and lets them paste it right there,
+   so they never have to find the ⚙ Keys drawer. Keys are stored the same way
+   as everywhere else: in this browser only.
+   ===================================================================== */
+const WELCOME_KEY = "aicouncil-welcome-v1";
+const welcomeEl = document.getElementById("welcome");
+const wlProv = document.getElementById("wlProv");
+const wlKey = document.getElementById("wlKey");
+const wlStatus = document.getElementById("wlStatus");
+const wlConnect = document.getElementById("wlConnect");
+const wlDone = document.getElementById("wlDone");
+const wlNever = document.getElementById("wlNever");
+const wlRemember = document.getElementById("wlRemember");
+let wlLastFocus = null;
+
+/* Key prefixes that identify the service, so pasting a key can pick it automatically. */
+const KEY_PREFIXES = [[/^gsk_/, "groq"], [/^sk-or-/, "openrouter"], [/^csk-/, "cerebras"], [/^(AIza|AQ\.)/, "gemini"]];
+
+function setWelcomeStatus(cls, msg) { wlStatus.className = "wl-status" + (cls ? " " + cls : ""); wlStatus.textContent = msg; }
+
+function openWelcome() {
+  wlProv.innerHTML = "";
+  for (const id of Object.keys(CONFIG.providers)) {
+    const o = document.createElement("option");
+    o.value = id; o.textContent = CONFIG.providers[id].label;
+    wlProv.appendChild(o);
+  }
+  wlLastFocus = document.activeElement;
+  setWelcomeStatus("", "");
+  wlDone.textContent = "Close"; wlDone.classList.remove("primary");
+  welcomeEl.classList.add("open");
+  wlKey.focus();
+}
+function closeWelcome() {
+  if (wlNever.checked) { try { localStorage.setItem(WELCOME_KEY, "never"); } catch (_) {} }
+  welcomeEl.classList.remove("open");
+  if (wlLastFocus && wlLastFocus.focus) wlLastFocus.focus(); else inputEl.focus();
+}
+
+wlKey.addEventListener("input", () => {
+  const v = wlKey.value.trim();
+  for (const [re, id] of KEY_PREFIXES) if (re.test(v)) { wlProv.value = id; break; }
+});
+wlKey.addEventListener("keydown", e => { if (e.key === "Enter") wlConnect.click(); });
+
+wlConnect.addEventListener("click", async () => {
+  const id = wlProv.value, key = wlKey.value.trim();
+  if (!key) { setWelcomeStatus("err", "Paste your key into the box first."); wlKey.focus(); return; }
+  const prov = CONFIG.providers[id];
+  const previous = prov.key;
+  wlConnect.disabled = true;
+  setWelcomeStatus("", "Testing your key…");
+  prov.key = key; P[id].key = key;
+  let connected = false, note = "";
+  try {
+    await callModel(id, prov.fast, [{ role: "user", content: "Reply with the single word: ready" }], 10);
+    connected = true;
+  } catch (e) {
+    const m = String(e.message || e);
+    if (/token limit|hidden reasoning/i.test(m)) connected = true;                       // reached the model: the key is fine
+    else if (/rate limit|429/i.test(m)) { connected = true; note = " (It's a bit busy right now, so the first answer may take a moment.)"; }
+    else if (/401|403|reject|invalid|unauthor|incorrect|denied|permission/i.test(m)) {
+      setWelcomeStatus("err", "That key didn't work. Check you copied all of it (no spaces) and that the service in the list matches where you got it.");
+    } else if (/failed to fetch|network|blocked|cors/i.test(m)) {
+      setWelcomeStatus("err", "Couldn't reach " + prov.label + ". Check your internet connection (or try again in a moment).");
+    } else {
+      setWelcomeStatus("err", "Something went wrong: " + m.replace(/\s+/g, " ").slice(0, 140));
+    }
+  }
+  if (connected) {
+    if (wlRemember.checked) rememberedKeyIds.add(id); else rememberedKeyIds.delete(id);
+    saveProviderKeys();
+    const card = document.querySelector('#settingsBody .prov-card[data-pid="' + id + '"]');
+    if (card) { card.querySelector("input[type=password]").value = key; card.querySelector(".remember-cb").checked = rememberedKeyIds.has(id); }
+    wlKey.value = "";
+    setWelcomeStatus("ok", "✓ Connected to " + prov.label + "! You're ready to go." + note + " You can add another service any time for more variety.");
+    wlDone.textContent = "Start asking →"; wlDone.classList.add("primary");
+  } else {
+    prov.key = previous; P[id].key = previous;
+  }
+  wlConnect.disabled = false;
+  refreshDots();
+});
+
+wlDone.addEventListener("click", closeWelcome);
+document.getElementById("wlClose").addEventListener("click", closeWelcome);
+document.getElementById("wlAdvanced").addEventListener("click", () => { closeWelcome(); openSettings(); });
+document.getElementById("helpBtn").addEventListener("click", openWelcome);
+welcomeEl.addEventListener("mousedown", e => { if (e.target === welcomeEl) closeWelcome(); });
+document.addEventListener("keydown", e => {
+  if (!welcomeEl.classList.contains("open")) return;
+  if (e.key === "Escape") { closeWelcome(); return; }
+  if (e.key === "Tab") {   // keep keyboard focus inside the dialog
+    const f = [...welcomeEl.querySelectorAll("a[href], button, input, select, summary")].filter(el => !el.disabled && el.offsetParent !== null);
+    if (!f.length) return;
+    const first = f[0], last = f[f.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  }
+});
+
 loadProviderKeys();
 loadMemory();
 loadChats();
@@ -2170,6 +2394,13 @@ verifyProviders();   // dots go green only once a provider has actually answered
 renderMemoryPanel();
 renderChatList();
 inputEl.focus();
+
+/* First-time visitors (no key yet) get the welcome pop-up. */
+(function () {
+  let never = false;
+  try { never = localStorage.getItem(WELCOME_KEY) === "never"; } catch (_) {}
+  if (availableProviders().length === 0 && !never) openWelcome();
+})();
 </script>
 </body>
 </html>
