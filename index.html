@@ -1039,6 +1039,12 @@ pip install requests oss2 pyspark</code></pre>
       <h3>Remembered facts</h3>
       <div id="memFacts"><div class="mem-empty">Nothing remembered yet.</div></div>
     </div>
+    <div class="mem-section">
+      <h3>Task memory</h3>
+      <p class="s-note">Separate, user-managed preferences and recurring workflow notes. These are shown to models when relevant.</p>
+      <div class="keyrow"><input id="taskMemoryInput" type="text" maxlength="240" placeholder="Example: Prefer concise release checklists"><button class="testbtn" id="addTaskMemory">Add</button></div>
+      <div id="taskMemoryList"><div class="mem-empty">Nothing saved yet.</div></div>
+    </div>
     <button class="danger-btn" id="forgetAll">Forget everything</button>
   </div>
 </aside>
@@ -2885,8 +2891,10 @@ let busy = false;
                        persisted to localStorage when the browser allows it
    ===================================================================== */
 const MEMORY_KEY = "aicouncil-memory-v1";
+const TASK_MEMORY_KEY = "aicouncil-task-memory-v1";
 const FACT_TTL_DAYS = 90;   // durable facts quietly expire instead of accumulating forever — see pruneExpiredFacts()
 let memory = { summary: "", facts: [] };   // facts: [{text, addedAt}] — addedAt is unix seconds
+let taskMemory = []; // [{text, addedAt}] — explicitly user-managed, separate from extracted facts
 
 /* Drops facts older than FACT_TTL_DAYS. An unreferenced fact from months
    ago is more likely to be stale or was only ever situational (a one-off
@@ -2921,12 +2929,22 @@ function loadMemory() {
 function saveMemory() {
   try { localStorage.setItem(MEMORY_KEY, JSON.stringify(memory)); } catch (_) {}
 }
+function loadTaskMemory() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(TASK_MEMORY_KEY) || "[]");
+    if (Array.isArray(raw)) taskMemory = raw.map(x => ({ text: String(x.text || "").trim(), addedAt: Number(x.addedAt) || Date.now() })).filter(x => x.text).slice(-40);
+  } catch (_) {}
+}
+function saveTaskMemory() {
+  try { localStorage.setItem(TASK_MEMORY_KEY, JSON.stringify(taskMemory)); } catch (_) {}
+}
 
 /* Injected into every model's system prompt. */
 function memoryPreamble() {
   let s = "";
   if (memory.facts.length) s += "\n\nThings you know about this user from earlier conversations:\n- " + memory.facts.map(f => f.text).join("\n- ");
   if (memory.summary) s += "\n\nSummary of the earlier part of this conversation:\n" + memory.summary;
+  if (taskMemory.length) s += "\n\nUser-approved task preferences and recurring workflow notes:\n- " + taskMemory.map(f => f.text).join("\n- ");
   if (s) s += "\n\nUse this knowledge naturally when relevant; never recite it back unprompted.";
   return s;
 }
@@ -5302,10 +5320,31 @@ function renderMemoryPanel() {
     row.appendChild(del);
     factsEl.appendChild(row);
   });
+  const taskEl = document.getElementById("taskMemoryList");
+  if (!taskEl) return;
+  taskEl.innerHTML = "";
+  if (!taskMemory.length) { taskEl.innerHTML = `<div class="mem-empty">Nothing saved yet.</div>`; return; }
+  taskMemory.forEach((item, i) => {
+    const row = document.createElement("div"); row.className = "fact";
+    const span = document.createElement("span"); span.textContent = item.text;
+    const del = document.createElement("button"); del.textContent = "✕"; del.title = "Delete task memory";
+    del.addEventListener("click", () => { taskMemory.splice(i, 1); saveTaskMemory(); renderMemoryPanel(); });
+    row.append(span, del); taskEl.appendChild(row);
+  });
 }
+document.getElementById("addTaskMemory").addEventListener("click", () => {
+  const input = document.getElementById("taskMemoryInput");
+  const text = input.value.trim();
+  if (!text) return;
+  if (!taskMemory.some(x => x.text.toLowerCase() === text.toLowerCase())) taskMemory.push({ text: text.slice(0, 240), addedAt: Date.now() });
+  taskMemory = taskMemory.slice(-40); input.value = ""; saveTaskMemory(); renderMemoryPanel();
+});
+document.getElementById("taskMemoryInput").addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("addTaskMemory").click(); });
 document.getElementById("forgetAll").addEventListener("click", () => {
   memory = { summary: "", facts: [] };
+  taskMemory = [];
   saveMemory();
+  saveTaskMemory();
   renderMemoryPanel();
 });
 
@@ -6057,7 +6096,7 @@ function flashSideNote(msg) {
   sideNoteTimer = setTimeout(() => { sideNoteEl.textContent = sideNoteDefault; }, 7000);
 }
 function exportBackup() {
-  const payload = { app: "ai-council", version: 1, exportedAt: new Date().toISOString(), chats, folders: userFolders, memory };
+  const payload = { app: "ai-council", version: 1, exportedAt: new Date().toISOString(), chats, folders: userFolders, memory, taskMemory };
   const blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -6113,6 +6152,14 @@ function importBackup(text) {
       if (t && t.length <= 200 && !seen.has(t.toLowerCase())) {
         memory.facts.push({ text: t, addedAt: Number.isFinite(f.addedAt) ? f.addedAt : Math.floor(Date.now() / 1000) });
         seen.add(t.toLowerCase()); facts++;
+      }
+      if (Array.isArray(data.taskMemory)) {
+        const seen = new Set(taskMemory.map(x => x.text.toLowerCase()));
+        for (const item of data.taskMemory.slice(0, 80)) {
+          const text = item && typeof item.text === "string" ? item.text.trim().slice(0, 240) : "";
+          if (text && !seen.has(text.toLowerCase())) { taskMemory.push({ text, addedAt: Number(item.addedAt) || Date.now() }); seen.add(text.toLowerCase()); }
+        }
+        taskMemory = taskMemory.slice(-40); saveTaskMemory(); renderMemoryPanel();
       }
     }
     if (memory.facts.length > 40) memory.facts = memory.facts.slice(-40);
@@ -6267,6 +6314,7 @@ loadProviderKeys();
 loadProxy();
 loadSearchKey();
 loadMemory();
+loadTaskMemory();
 loadFolders();
 loadChats();
 loadRunnerConfig();
