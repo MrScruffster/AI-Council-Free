@@ -773,13 +773,13 @@
     <button data-mode="fast" title="Route to a specialist, answer directly. 2 calls.">Fast</button>
     <button data-mode="balanced" class="active" title="Route → generate → critique → revise. 3–4 calls.">Balanced</button>
     <button data-mode="council" title="All models answer in parallel, one synthesizes, another critiques, then a final revision. 6–7 calls.">Council</button>
-    <button data-mode="evidence" title="Answer normally, then attach independent web evidence and disclose what remains unverified.">Evidence</button>
     <button data-mode="agent" title="Create a checked task plan, approve each step, and run only safe built-in tools.">Agent</button>
   </div>
   <button class="icon-btn active" id="plainToggle" title="Explain answers in plain, everyday language (with a simple diagram where it helps). The full technical answer stays one click away.">🗣 Plain: on</button>
   <button class="icon-btn" id="toolsToggle" title="Let a model use a small built-in toolset (calculator, current date/time, web search when you add your own Tavily key, and page-reading tools when you add a TinyFish or Bright Data key in ⚙ Keys) while drafting — Fast/Balanced modes only.">🔧 Tools: off</button>
   <button class="icon-btn" id="structToggle" title="Get the answer as JSON in a shape you choose. Paste a JSON Schema or an example object; the reply is checked against it. Best-effort: how strictly it is enforced depends on the provider. Fast/Balanced only.">🧩 JSON: off</button>
   <button class="icon-btn" id="compressToggle" title="Shorten your question with one extra model call before the council sees it. It costs one extra call per question, so it mostly pays off in Council mode (several models each read the shorter question) and rarely in Fast mode. It can drop something you meant: both versions are shown in the workings.">🗜️ Compress: on</button>
+  <button class="icon-btn" id="evidenceToggle" title="Attach independent web sources to answers in any mode. Requires your Tavily key." aria-pressed="false">🔎 Evidence: off</button>
   <button class="icon-btn" id="stopAgent" type="button" title="Stop the running agent task">⏹ Stop agent</button>
   <button class="icon-btn" id="imageBtn" title="Generate an image with Pollinations. Results are cached in this browser.">🎨 Image</button>
   <button class="icon-btn active" id="memoryBtn" title="Working memory is on by default; review or delete what is remembered" aria-label="Memory (on by default)">🧠<span class="hb-opt"> Memory</span></button>
@@ -2964,6 +2964,7 @@ async function plainify(question, technical, disagreement, category, ui) {
    ===================================================================== */
 let history = [];   // [{role, content}] recent turns, verbatim
 let mode = "balanced";
+let evidenceEnabled = false;
 
 /* Plain-language mode (default on). Remembered per browser when storage allows. */
 const PLAIN_KEY = "aicouncil-plain-v1";
@@ -3751,7 +3752,7 @@ async function answer(question, ui) {
   if (structured) final = await structuredEnvelope(final, sc, ui, genProvId);   // validated and packed for the JSON viewer; never throws
   /* Council disagreement and Evidence mode: keep retrieved evidence out of model prose. */
   let sourceMd = "";
-  if ((mode === "council" && disagreement) || mode === "evidence") {
+  if ((mode === "council" && disagreement) || evidenceEnabled) {
     try { sourceMd = await sourceCheck(question, disagreement, ui, final); }
     catch (e) { ui.stage("src", "warn", "Source check unavailable"); ui.working("Source check", describeError(e)); }
   }
@@ -5142,7 +5143,7 @@ function checkStructInput() {
   else setStructStatus("✓ Example recognised: its keys become required properties, and their types are inferred from your values.", "ok");
 }
 function refreshStructToggle() {
-  const council = mode === "council", agent = mode === "agent", evidence = mode === "evidence", blockedByTools = toolsEnabled && !council;
+  const council = mode === "council", agent = mode === "agent", blockedByTools = toolsEnabled && !council;
   structToggleEl.disabled = council || agent || blockedByTools;
   structToggleEl.title = council ? "Not available in Council mode. Switch to Fast or Balanced to use structured output."
     : agent ? "Agent plans use a fixed safety schema and the optional approved local browser runner."
@@ -5153,7 +5154,7 @@ function refreshStructToggle() {
   structPanelEl.hidden = !structActive();
   toggleNoteEl.textContent = council ? "🔧 Tools and 🧩 Structured output work with a single model: switch to Fast or Balanced to use them."
     : agent ? "Agent mode creates a validated plan and requires approval before each permitted read-only step. Browser actions require the optional local runner and approved domains."
-    : evidence ? "Evidence mode keeps the model answer separate from independent web evidence. Add a Tavily key to verify claims; without one, the answer is explicitly marked unverified."
+    : evidenceEnabled ? "Evidence is on: answers in any mode get a separate independent source panel. Add a Tavily key to verify claims; without one, the answer is explicitly marked unverified."
     : structActive() ? "🔧 Tools is unavailable while 🧩 Structured output is on: the reply has to be JSON only, and tool calls need the model to answer in steps."
     : blockedByTools ? "🧩 Structured output is unavailable while 🔧 Tools is on: tool calls need the model to answer in steps, which a JSON-only reply can't do. Turn Tools off to use it."
     : "";
@@ -5178,6 +5179,15 @@ function refreshCompressToggle() {
 }
 compressToggleEl.addEventListener("click", () => { CONFIG.compression.enabled = !CONFIG.compression.enabled; refreshCompressToggle(); });
 refreshCompressToggle();
+
+const evidenceToggleEl = document.getElementById("evidenceToggle");
+function refreshEvidenceToggle() {
+  evidenceToggleEl.classList.toggle("active", evidenceEnabled);
+  evidenceToggleEl.textContent = "🔎 Evidence: " + (evidenceEnabled ? "on" : "off");
+  evidenceToggleEl.setAttribute("aria-pressed", String(evidenceEnabled));
+}
+evidenceToggleEl.addEventListener("click", () => { evidenceEnabled = !evidenceEnabled; refreshEvidenceToggle(); refreshStructToggle(); });
+refreshEvidenceToggle();
 
 /* ---------- Image studio: generation, history, and vision analysis ---------- */
 const imageBtnEl = document.getElementById("imageBtn");

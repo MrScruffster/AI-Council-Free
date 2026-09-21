@@ -22,7 +22,8 @@ test("frontend contains the critical startup controls", async () => {
   assert.match(html, /#input, #imagePrompt/);
   assert.match(html, /loadRunnerConfig\(\)/);
   assert.match(html, /COUNCIL_DECISION_SCHEMA/);
-  assert.match(html, /data-mode="evidence"/);
+  assert.match(html, /id=["']evidenceToggle["']/);
+  assert.match(html, /evidenceEnabled/);
   assert.match(html, /Evidence unavailable/);
   assert.match(html, /ANSWER TO CHECK/);
 });
