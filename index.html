@@ -16,6 +16,13 @@
 <meta property="og:title" content="AI Council — ask several AIs, get one checked answer">
 <meta property="og:description" content="Ask several AI models at once, with cross-model checking and disagreements flagged.">
 <meta property="og:url" content="https://www.ai-council.co.uk/">
+<meta property="og:image" content="https://www.ai-council.co.uk/social-preview.svg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="AI Council — ask several AIs, get one checked answer">
+<meta name="twitter:description" content="Ask several AI models at once, with cross-model checking and disagreements flagged.">
+<meta name="twitter:image" content="https://www.ai-council.co.uk/social-preview.svg">
 <meta name="theme-color" content="#171a23">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta http-equiv="Permissions-Policy" content="camera=(), geolocation=(), microphone=(self)">
@@ -26,8 +33,6 @@
 <meta name="apple-mobile-web-app-title" content="AI Council">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%234a67e8'/%3E%3Ctext x='50' y='67' font-size='54' font-weight='700' font-family='Arial,sans-serif' text-anchor='middle' fill='white'%3EAI%3C/text%3E%3C/svg%3E">
-<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5031821812267596"
-     crossorigin="anonymous"></script>
 <style>
   :root {
     --bg: #0f1117;
@@ -86,6 +91,28 @@
   .icon-btn.active { border-color: var(--accent); color: var(--accent); }
   .icon-btn:disabled { opacity: .4; cursor: not-allowed; }
   .icon-btn:disabled:hover { border-color: var(--border); }
+  .advanced-controls { display: inline-flex; align-items: center; position: relative; }
+  .advanced-controls > summary {
+    list-style: none; cursor: pointer; background: var(--panel-2); border: 1px solid var(--border);
+    color: var(--text); border-radius: 8px; padding: 6px 10px; font-size: .85rem;
+  }
+  .advanced-controls > summary::-webkit-details-marker { display: none; }
+  .advanced-controls[open] > summary { border-color: var(--accent); color: var(--accent); }
+  .advanced-controls .advanced-menu {
+    position: absolute; z-index: 20; right: 0; top: calc(100% + 6px); display: flex;
+    flex-direction: column; align-items: stretch; gap: 6px; min-width: 190px; padding: 8px;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.35);
+  }
+  .advanced-controls .advanced-menu .icon-btn { text-align: left; white-space: nowrap; }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f4f6fb; --panel: #fff; --panel-2: #eef1f8; --border: #cbd2e1;
+      --text: #182033; --text-dim: #58657d; --accent: #3657c8; --accent-2: #684bc7;
+      --accent-strong: #3657c8; --accent-2-strong: #684bc7; --ok: #16734d; --warn: #8c5f00; --err: #b63d2e;
+    }
+    .answer code, .answer pre, .details.tech .tech-body, .working-block .wb-body, .xexamine-reply { background: #f8f9fc; }
+  }
   .provider-dots { display: flex; gap: 6px; align-items: center; font-size: .78rem; color: var(--text-dim); }
   .provider-dots { cursor: pointer; flex-wrap: wrap; }
   .provider-dots > span { display: inline-flex; align-items: center; }
@@ -459,6 +486,9 @@
   .side-tools { display: flex; gap: 6px; margin: 0 12px 8px; }
   .side-tools button { flex: 1; background: var(--panel-2); color: var(--text-dim); border: 1px solid var(--border); border-radius: 8px; padding: 6px 4px; font-family: inherit; font-size: .74rem; cursor: pointer; }
   .side-tools button:hover { border-color: var(--accent); color: var(--text); }
+  .backup-menu { margin: 0 12px 8px; }
+  .backup-menu summary { cursor: pointer; color: var(--text-dim); font-size: .74rem; padding: 7px 2px; }
+  .backup-menu summary:hover { color: var(--text); }
   .errnote { color: var(--err); }
 
   /* ---------- Composer ---------- */
@@ -639,6 +669,8 @@
   .wl-badge { display: inline-block; background: rgba(76, 195, 138, .15); color: var(--ok); border-radius: 999px; font-size: .66rem; padding: 1px 8px; margin-left: 6px; vertical-align: 1px; font-weight: 600; }
   .wl-get { flex: none; background: var(--accent-strong); color: #fff; text-decoration: none; border-radius: 8px; padding: 7px 12px; font-size: .8rem; white-space: nowrap; }
   .wl-get:hover { filter: brightness(1.12); }
+  .wl-demo { background: transparent; color: var(--accent); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; font: inherit; font-size: .82rem; cursor: pointer; margin: 4px 0 12px; }
+  .wl-demo:hover { border-color: var(--accent); background: rgba(108, 140, 255, .08); }
   .wl-more { margin-top: 8px; }
   .wl-more summary { cursor: pointer; font-size: .8rem; color: var(--text-dim); user-select: none; }
   .wl-more summary:hover { color: var(--accent); }
@@ -770,26 +802,31 @@
   <div class="provider-dots" id="provDots"></div>
   <div class="spacer"></div>
   <div class="mode-picker" id="modePicker">
-    <button data-mode="fast" title="Route to a specialist, answer directly. 2 calls.">Fast</button>
-    <button data-mode="balanced" class="active" title="Route → generate → critique → revise. 3–4 calls.">Balanced</button>
-    <button data-mode="council" title="All models answer in parallel, one synthesizes, another critiques, then a final revision. 6–7 calls.">Council</button>
+    <button data-mode="fast" title="Route to a specialist, answer directly. About 2 calls.">Quick answer</button>
+    <button data-mode="balanced" class="active" title="Route, generate, critique, and revise. About 3–4 calls.">Checked answer</button>
+    <button data-mode="council" title="Compare several AIs, synthesize their answers, and surface disagreements. About 6–7 calls.">Compare AIs</button>
     <button data-mode="agent" title="Create a checked task plan, approve each step, and run only safe built-in tools.">Agent</button>
   </div>
   <button class="icon-btn active" id="plainToggle" title="Explain answers in plain, everyday language (with a simple diagram where it helps). The full technical answer stays one click away.">🗣 Plain: on</button>
-  <button class="icon-btn" id="toolsToggle" title="Let a model use a small built-in toolset (calculator, current date/time, web search when you add your own Tavily key, and page-reading tools when you add a TinyFish or Bright Data key in ⚙ Keys) while drafting — Fast/Balanced modes only.">🔧 Tools: off</button>
-  <button class="icon-btn" id="structToggle" title="Get the answer as JSON in a shape you choose. Paste a JSON Schema or an example object; the reply is checked against it. Best-effort: how strictly it is enforced depends on the provider. Fast/Balanced only.">🧩 JSON: off</button>
-  <button class="icon-btn" id="compressToggle" title="Shorten your question with one extra model call before the council sees it. It costs one extra call per question, so it mostly pays off in Council mode (several models each read the shorter question) and rarely in Fast mode. It can drop something you meant: both versions are shown in the workings.">🗜️ Compress: on</button>
-  <button class="icon-btn" id="evidenceToggle" title="Attach independent web sources to answers in any mode. Requires your Tavily key." aria-pressed="false">🔎 Evidence: off</button>
+  <details class="advanced-controls" id="advancedControls">
+    <summary aria-label="Open advanced answer controls">⚙ Advanced</summary>
+    <div class="advanced-menu" role="group" aria-label="Advanced answer controls">
+      <button class="icon-btn" id="toolsToggle" title="Let a model use a small built-in toolset (calculator, current date/time, web search when you add your own Tavily key, and page-reading tools when you add a TinyFish or Bright Data key in ⚙ Keys) while drafting — Fast/Balanced modes only.">🔧 Tools: off</button>
+      <button class="icon-btn" id="structToggle" title="Get the answer as JSON in a shape you choose. Paste a JSON Schema or an example object; the reply is checked against it. Best-effort: how strictly it is enforced depends on the provider. Fast/Balanced only.">🧩 JSON: off</button>
+      <button class="icon-btn" id="compressToggle" title="Shorten your question with one extra model call before the council sees it. It costs one extra call per question, so it mostly pays off in Council mode.">🗜️ Compress: on</button>
+      <button class="icon-btn" id="evidenceToggle" title="Attach independent web sources to answers in any mode. Requires your Tavily key." aria-pressed="false">🔎 Evidence: off</button>
+      <button class="icon-btn active" id="memoryBtn" title="Working memory is on by default; review or delete what is remembered" aria-label="Memory (on by default)">🧠 Memory</button>
+    </div>
+  </details>
   <button class="icon-btn" id="stopAgent" type="button" title="Stop the running agent task">⏹ Stop agent</button>
   <button class="icon-btn" id="imageBtn" title="Generate an image with Pollinations. Results are cached in this browser.">🎨 Image</button>
-  <button class="icon-btn active" id="memoryBtn" title="Working memory is on by default; review or delete what is remembered" aria-label="Memory (on by default)">🧠<span class="hb-opt"> Memory</span></button>
   <button class="icon-btn" id="aboutBtn" title="How AI Council works, and how it reduces incorrect answers" aria-label="About AI Council"><span id="abIco">ℹ️</span><span class="hb-text hb-opt" id="abTxt"> About</span></button>
   <button class="icon-btn" id="helpBtn" title="How to get set up: it takes about 2 minutes and needs no credit card" aria-label="How to start">❓<span class="hb-text"> How to start</span></button>
   <button class="icon-btn" id="settingsBtn" title="Your API keys and providers" aria-label="API keys">⚙<span class="hb-opt"> Keys</span></button>
 </header>
 
 <div id="layout">
-  <nav id="sidebar">
+  <nav id="sidebar" aria-label="Saved chats">
     <button id="newChat">＋ New chat</button>
     <div id="chatFind"><input id="chatSearch" type="search" placeholder="Search chats…" aria-label="Search chats by title, tag or content" autocomplete="off"></div>
     <div id="folderBar" aria-label="Folders"></div>
@@ -798,12 +835,15 @@
       <div class="gc-num" id="gcNum" aria-hidden="true">—</div>
       <div class="gc-label">questions asked by everyone, worldwide</div>
     </div>
-    <div class="side-tools">
-      <button id="exportChats" title="Download your chats and memory as a backup file (API keys are never included)">⬇ Export</button>
-      <button id="importChats" title="Restore chats from a backup file made with Export">⬆ Import</button>
-      <button id="feedbackCsv" title="Download your 👍/👎 ratings as a CSV (measurements only, no question or answer text). They are stored in this browser and never sent anywhere.">⬇ Ratings</button>
-      <input type="file" id="importFile" accept="application/json,.json" hidden>
-    </div>
+    <details class="backup-menu">
+      <summary>Backup and ratings</summary>
+      <div class="side-tools">
+        <button id="exportChats" title="Download your chats and memory as a backup file (API keys are never included)">⬇ Export</button>
+        <button id="importChats" title="Restore chats from a backup file made with Export">⬆ Import</button>
+        <button id="feedbackCsv" title="Download your 👍/👎 ratings as a CSV (measurements only, no question or answer text). They are stored in this browser and never sent anywhere.">⬇ Ratings</button>
+        <input type="file" id="importFile" accept="application/json,.json" hidden>
+      </div>
+    </details>
     <div class="sidebar-note">Your chats and memory stay in this browser only. Use Export to keep a backup — clearing site data erases them.</div>
   </nav>
   <div id="maincol">
@@ -872,7 +912,7 @@
     </div>
   </div>
 
-  <main id="aboutView" aria-labelledby="abTitle">
+  <section id="aboutView" aria-labelledby="abTitle">
     <article class="about">
       <p class="ab-kicker">Technical overview</p>
       <h1 id="abTitle">About AI Council</h1>
@@ -1006,7 +1046,7 @@ pip install requests oss2 pyspark</code></pre>
         <li><b>Optional extras.</b> ElevenLabs (natural read-aloud voice), TinyFish and Bright Data (page-reading tools) each work only if you add their own key in ⚙&nbsp;Keys, and each is called straight from your browser. With an ElevenLabs key, the text of an answer you choose to hear is sent to ElevenLabs; with a TinyFish or Bright Data key, the web address a model asks to read is sent to that service (Bright Data bills per request). Without a key, nothing is sent to any of them.</li>
         <li><b>Ratings, folders and installing.</b> 👍/👎 ratings, folders, tags and search are kept in this browser only; the ratings CSV holds measurements, never your questions or answers. Installing the app or using it offline just keeps this page's own files in your browser.</li>
         <li><b>The question counter.</b> The only things this site itself sends to a server of its own are one anonymous "+1" per question and, if a source check runs on your own Tavily key, one request for the public list of trusted domain names, with no prompt, key, chat or memory content in either. As with any web request, your IP address reaches that server; it is held in memory only, to apply the rate limit, and is not stored or logged by the counter's own code. (Cloudflare, which hosts the Worker, handles requests under its own terms.)</li>
-        <li><b>Advertising (Google AdSense).</b> This site loads Google's advertising script. In testing, a plain visit contacted Google's ad and consent-messaging servers (<code>pagead2.googlesyndication.com</code>, <code>fundingchoicesmessages.google.com</code>) and set one Google consent cookie on this domain. AI Council does not pass your keys, prompts or chats to that script. Like any third-party script, though, it executes in the same browsing context as the page, and Google's own privacy terms govern what it collects.</li>
+        <li><b>Advertising.</b> AI Council does not load advertising or consent scripts, so the page does not contact an advertising network during a normal visit.</li>
         <li><b>Erasure.</b> Delete a chat with ✕ in the sidebar, clear memory with "Forget everything", and remove a key by clearing its field in ⚙&nbsp;Keys ("Remember" is unticked by default).</li>
       </ul>
       <h2 id="ab-bench">9. Hallucination benchmark (in preparation)</h2>
@@ -1018,7 +1058,7 @@ pip install requests oss2 pyspark</code></pre>
       <p>The specifications, the public reference data (each figure with its source) and the comparison maths are open in the <a href="https://github.com/MrScruffster/AI-Council-Free/tree/main/benchmark" target="_blank" rel="noopener">benchmark folder on GitHub ↗</a>.</p>
       <p class="ab-foot">AI Council is an independent orchestration front-end and is not affiliated with any of the model providers it can call.</p>
     </article>
-  </main>
+  </section>
 </div>
 
 <div id="overlay"></div>
@@ -1028,6 +1068,7 @@ pip install requests oss2 pyspark</code></pre>
     <button class="icon-btn wl-x" id="wlClose" aria-label="Close" title="Close">✕</button>
     <h2 id="wlTitle">Welcome to AI <span>Council</span> 👋</h2>
     <p class="wl-lead">AI Council asks several AI models at once and combines their best answers. To use it you need <b>your own free API key</b> — think of it as a password that lets this page talk to an AI service for you. It takes <b>about 2 minutes</b> and <b>no credit card</b>.</p>
+    <button class="wl-demo" id="wlDemo" type="button">See a 10-second demo first</button>
 
     <div class="wl-step">
       <div class="wl-num">1</div>
@@ -1306,11 +1347,7 @@ const STARTER_TEMPLATES = [
   { icon: "✉️", label: "Draft an email",   prompt: "Write a [friendly / formal] email to [recipient] about [topic]. Keep it under [150] words and end with a clear next step." },
   { icon: "📝", label: "Summarise text",   prompt: "Summarise the following in [5] bullet points for [audience]:\n\n[paste text here]" },
   { icon: "🐛", label: "Debug my code",    prompt: "This [language] code should [what it should do] but instead [what happens]. Find the bug and explain the fix:\n\n[paste code here]" },
-  { icon: "🎓", label: "Explain simply",   prompt: "Explain [topic] to me as if I were [a 12-year-old / a beginner / a busy manager]. Use one everyday analogy." },
-  { icon: "⚖️", label: "Compare options",  prompt: "Compare [option A] and [option B] for [my situation]. Give a short list of pros and cons for each, then a recommendation." },
-  { icon: "🗓️", label: "Make a plan",      prompt: "Make a [number]-step plan to [goal] by [deadline], given that [constraints]." },
-  { icon: "🔍", label: "Fact-check a claim", prompt: "Fact-check this claim, say how confident you are, and say what sources would settle it: [paste claim here]" },
-  { icon: "🌍", label: "Translate",        prompt: "Translate the following into [language], keeping a [formal / casual] tone:\n\n[paste text here]" }
+  { icon: "🎓", label: "Explain simply",   prompt: "Explain [topic] to me as if I were [a beginner / a busy manager]. Use one everyday analogy." }
 ];
 
 let P = {};
@@ -5393,9 +5430,9 @@ function renderEmptyState(first) {
   const modes = document.createElement("div");
   modes.className = "es-modes";
   for (const [id, name, what, calls] of [
-    ["fast", "Fast", "Routing only", "2 calls"],
-    ["balanced", "Balanced", "Routing + critique loop", "3–4 calls"],
-    ["council", "Council", "Ensemble + synthesis + critique", "6–7 calls"],
+    ["fast", "Quick answer", "Direct specialist response", "about 2 calls"],
+    ["balanced", "Checked answer", "Critique and revise", "about 3–4 calls"],
+    ["council", "Compare AIs", "Ensemble and disagreements", "about 6–7 calls"],
     ["agent", "Agent", "Plan + approval + safe tools", "as needed"]
   ]) {
     const b = document.createElement("button");
@@ -5943,7 +5980,7 @@ function buildSettings() {
       <div class="hint">Get ${prov.paid ? "a" : "a free"} key at <a href="${prov.keyUrl}" target="_blank" rel="noopener">${prov.keyUrl.replace("https://", "")}</a> · models: ${prov.workhorse} / ${prov.fast}${prov.paid ? " · <b>paid, no free tier</b>" : ""}</div>
       ${prov.signIn ? `<span class="signin-badge">that page's sign-in: ${prov.signIn}</span>` : ""}
       <div class="keyrow" style="margin-top:10px">
-        <input type="password" placeholder="Paste ${prov.label} API key" autocomplete="off">
+        <input type="password" aria-label="${prov.label} API key" placeholder="Paste ${prov.label} API key" autocomplete="off">
         <button class="testbtn">Test</button>
       </div>
       <label class="remember-row"><input type="checkbox" class="remember-cb"> Remember this key in this browser</label>
@@ -6287,6 +6324,11 @@ wlDone.addEventListener("click", closeWelcome);
 document.getElementById("wlClose").addEventListener("click", closeWelcome);
 document.getElementById("wlAdvanced").addEventListener("click", () => { closeWelcome(); openSettings(); });
 document.getElementById("helpBtn").addEventListener("click", openWelcome);
+document.getElementById("wlDemo").addEventListener("click", () => {
+  closeWelcome();
+  addUserBubble("Which answer should I trust when AIs disagree?");
+  addStaticAiBubble("**Short answer:** treat disagreement as a signal to verify the specific claim, not as proof that every answer is wrong.\n\nDifferent models can share the same blind spot, so the Council shows the conflicting claims and points you toward independent evidence. Try the 🔎 Evidence toggle after connecting a key to run a live source check.", [], []);
+});
 welcomeEl.addEventListener("mousedown", e => { if (e.target === welcomeEl) closeWelcome(); });
 document.addEventListener("keydown", e => {
   if (!welcomeEl.classList.contains("open")) return;

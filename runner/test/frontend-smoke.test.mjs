@@ -24,6 +24,12 @@ test("frontend contains the critical startup controls", async () => {
   assert.match(html, /COUNCIL_DECISION_SCHEMA/);
   assert.match(html, /id=["']evidenceToggle["']/);
   assert.match(html, /evidenceEnabled/);
+  assert.match(html, /id=["']advancedControls["']/);
+  assert.match(html, /id=["']wlDemo["']/);
+  assert.match(html, /property=["']og:image["']/);
+  assert.match(html, /name=["']twitter:card["']/);
+  assert.match(html, /prefers-color-scheme: light/);
+  assert.doesNotMatch(html, /pagead2\.googlesyndication\.com/);
   assert.match(html, /Evidence unavailable/);
   assert.match(html, /ANSWER TO CHECK/);
 });
@@ -31,7 +37,7 @@ test("frontend contains the critical startup controls", async () => {
 test("all inline frontend scripts pass Node syntax validation", async () => {
   const html = await readFile(join(root, "index.html"), "utf8");
   const scripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map(match => match[1]);
-  assert.ok(scripts.length >= 2, "expected application scripts");
+  assert.ok(scripts.length >= 1, "expected application scripts");
   const dir = await mkdtemp(join(tmpdir(), "ai-council-frontend-"));
   try {
     for (const [index, source] of scripts.entries()) {
