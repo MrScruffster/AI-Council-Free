@@ -22,6 +22,7 @@
  *
  * One extra route sits beside the chat providers, behind the same origin + PROXY_TOKEN checks:
  *   POST /api/transcribe  multipart audio → { text }   Groq Whisper, using GROQ_API_KEY (no new secret)
+ *   POST /api/upload      multipart multimodal files → configured vision/generation/extraction LLM
  * Web search is NOT here on purpose: everyone uses their own Tavily key, straight from the browser, so no shared
  * search key (and no shared monthly allowance) exists on this Worker. What it does provide for search:
  *   GET /trusted-domains  the merged trusted list as [host, kind] pairs, for the website (allowed origin, no token)
@@ -51,6 +52,108 @@ const PROVIDERS = {
 };
 
 const MAX_BODY_BYTES = 256 * 1024;   // chat requests are small; refuse anything huge
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+const UPLOAD_MIME = {
+  png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg",
+  txt: "text/plain", json: "application/json",
+  pdf: "application/pdf",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+};
+const UPLOAD_DESTINATIONS = {
+  png: { label: "vision", urlEnv: "VISION_LLM_URL", keyEnv: "VISION_LLM_API_KEY" },
+  jpg: { label: "vision", urlEnv: "VISION_LLM_URL", keyEnv: "VISION_LLM_API_KEY" },
+  jpeg: { label: "vision", urlEnv: "VISION_LLM_URL", keyEnv: "VISION_LLM_API_KEY" },
+  txt: { label: "diffusion", urlEnv: "DIFFUSION_LLM_URL", keyEnv: "DIFFUSION_LLM_API_KEY" },
+  json: { label: "diffusion", urlEnv: "DIFFUSION_LLM_URL", keyEnv: "DIFFUSION_LLM_API_KEY" },
+  pdf: { label: "text-extraction", urlEnv: "TEXT_EXTRACTION_LLM_URL", keyEnv: "TEXT_EXTRACTION_LLM_API_KEY" },
+  docx: { label: "text-extraction", urlEnv: "TEXT_EXTRACTION_LLM_URL", keyEnv: "TEXT_EXTRACTION_LLM_API_KEY" }
+};
+
+function uploadExtension(name) {
+  const match = String(name || "").toLowerCase().match(/\.([a-z0-9]+)$/);
+  return match ? match[1] : "";
+}
+
+export function routeForUploadExtension(extension) {
+  return UPLOAD_DESTINATIONS[String(extension || "").toLowerCase()] || null;
+}
+
+async function hasUploadSignature(file, extension) {
+  const head = new Uint8Array(await file.slice(0, 8).arrayBuffer());
+  if (extension === "txt" || extension === "json") {
+    try {
+      const text = await new TextDecoder("utf-8", { fatal: true }).decode(await file.arrayBuffer());
+      if (extension === "json") JSON.parse(text);
+      return true;
+    } catch (_) { return false; }
+  }
+  if (extension === "png") return head.length >= 8 && head[0] === 0x89 && head[1] === 0x50 && head[2] === 0x4e && head[3] === 0x47;
+  if (extension === "jpg" || extension === "jpeg") return head.length >= 3 && head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff;
+  if (extension === "pdf") return String.fromCharCode(...head.slice(0, 5)) === "%PDF-";
+  if (extension === "docx") {
+    if (head.length < 4 || head[0] !== 0x50 || head[1] !== 0x4b || head[2] !== 0x03 || head[3] !== 0x04) return false;
+    const zipText = new TextDecoder("latin1").decode(await file.arrayBuffer());
+    return zipText.includes("[Content_Types].xml") && zipText.includes("word/document.xml");
+  }
+  return false;
+}
+
+export async function validateUploadFile(file) {
+  const extension = uploadExtension(file && file.name);
+  const destination = routeForUploadExtension(extension);
+  if (!destination) return { ok: false, status: 415, message: "Supported uploads are images, .txt, .json, .pdf and .docx." };
+  if (!file || typeof file === "string") return { ok: false, status: 400, message: "A file is required." };
+  if (!Number.isSafeInteger(file.size) || file.size === 0) return { ok: false, status: 400, message: "The file is empty or invalid." };
+  if (file.size > MAX_UPLOAD_BYTES) return { ok: false, status: 413, message: "File exceeds the 10 MiB limit." };
+  if (file.type !== UPLOAD_MIME[extension]) return { ok: false, status: 415, message: "The MIME type does not match the extension." };
+  if (!(await hasUploadSignature(file, extension))) return { ok: false, status: 415, message: "The file signature or content does not match the extension." };
+  return { ok: true, extension, bytes: file.size, destination };
+}
+
+const uploadHits = new Map();
+function uploadRateLimited(request) {
+  const now = Date.now();
+  const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+  const recent = (uploadHits.get(ip) || []).filter(t => now - t < 60000);
+  if (recent.length >= 10) { uploadHits.set(ip, recent); return true; }
+  recent.push(now);
+  uploadHits.set(ip, recent);
+  if (uploadHits.size > 5000) for (const [key, values] of uploadHits) if (!values.some(t => now - t < 60000)) uploadHits.delete(key);
+  return false;
+}
+
+async function handleUpload(request, env, cors) {
+  if (!env.PROXY_TOKEN || request.headers.get("X-Proxy-Token") !== env.PROXY_TOKEN) {
+    return json(401, { error: { message: "Upload authentication failed." } }, cors);
+  }
+  if (uploadRateLimited(request)) return json(429, { error: { message: "Too many uploads. Wait a minute and try again." } }, cors);
+  if (!/^multipart\/form-data/i.test(request.headers.get("Content-Type") || "")) {
+    return json(400, { error: { message: "Send the file as multipart/form-data with a file field." } }, cors);
+  }
+  if (Number(request.headers.get("Content-Length") || 0) > MAX_UPLOAD_BYTES + 64 * 1024) {
+    return json(413, { error: { message: "Request exceeds the upload limit." } }, cors);
+  }
+  let form;
+  try { form = await request.formData(); } catch (_) { return json(400, { error: { message: "Could not read the upload." } }, cors); }
+  const file = form.get("file");
+  const checked = await validateUploadFile(file);
+  if (!checked.ok) return json(checked.status, { error: { message: checked.message } }, cors);
+  const { destination } = checked;
+  const endpoint = env[destination.urlEnv];
+  const key = env[destination.keyEnv];
+  if (!endpoint || !key) return json(503, { error: { message: `${destination.label} destination is not configured.` } }, cors);
+
+  const forwarded = new FormData();
+  forwarded.set("file", file, file.name);
+  forwarded.set("route", destination.label);
+  let upstream;
+  try {
+    upstream = await fetch(endpoint, { method: "POST", headers: { Authorization: "Bearer " + key }, body: forwarded });
+  } catch (_) { return json(502, { error: { message: "Upload destination request failed." } }, cors); }
+  if (!upstream.ok) return json(502, { error: { message: "Upload destination rejected the file." } }, cors);
+  const contentType = upstream.headers.get("Content-Type") || "application/json";
+  return new Response(upstream.body, { status: 200, headers: { "Content-Type": contentType, ...cors, "Cache-Control": "no-store" } });
+}
 
 function corsHeaders(origin, env) {
   const allowed = (env.ALLOWED_ORIGIN || "").split(",").map(s => s.trim()).filter(Boolean);
@@ -475,6 +578,7 @@ export default {
 
     // The voice route shares the origin and token checks above.
     if (m[1].toLowerCase() === "transcribe") return handleTranscribe(request, env, cors);
+    if (m[1].toLowerCase() === "upload") return handleUpload(request, env, cors);
 
     const provider = PROVIDERS[m[1].toLowerCase()];
     if (!provider) return json(404, { error: { message: `Unknown provider "${m[1]}".` } }, cors);
