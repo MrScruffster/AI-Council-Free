@@ -36,7 +36,7 @@ Secret names: `GROQ_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`,
 |---|---|---|
 | `POST /api/<provider>` | forwards a chat request to that provider | that provider's key |
 | `POST /api/transcribe` | 🎙️ voice input: forwards a recording to Groq's Whisper (`whisper-large-v3-turbo`, fixed on the server) and returns `{ "text": "…" }` | `GROQ_API_KEY` |
-| `POST /api/upload` | routes validated images to the vision LLM, `.txt/.json` prompts to the diffusion LLM, and `.docx/.pdf` files to the text-extraction LLM | `VISION_LLM_*`, `DIFFUSION_LLM_*`, `TEXT_EXTRACTION_LLM_*` |
+| `POST /api/upload` | routes validated images to the existing vision-capable provider, prompts to an existing chat provider, and documents to an existing extraction-capable provider | existing `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `GROQ_API_KEY` or `MISTRAL_API_KEY` |
 | `GET /trusted-domains` | the website (allowed origin, no token): the merged trusted list as `[host, kind]` pairs, so a visitor's own-key searches get the IFCN/CISA parts too. Domain names only | optional KV `TRUSTED_KV` |
 | `GET` / `POST /trusted` | **you only** (`X-Proxy-Token`): report the trusted list's size and last refresh / refresh it now | optional KV `TRUSTED_KV` |
 
@@ -45,14 +45,10 @@ Secret names: `GROQ_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`,
 but is not a hard cap; Groq's own quota is the real ceiling.
 
 Uploads are limited to 10 MiB, require matching MIME types and file signatures,
-and are limited to ten requests per source IP per minute. Set the three
-destination URLs in Worker variables and their credentials as secrets:
-
-```bash
-npx wrangler secret put VISION_LLM_API_KEY
-npx wrangler secret put DIFFUSION_LLM_API_KEY
-npx wrangler secret put TEXT_EXTRACTION_LLM_API_KEY
-```
+and are limited to ten requests per source IP per minute. No additional upload
+credentials are required: the route reuses the existing provider secrets. PDF
+and DOCX extraction depends on the selected provider accepting the request;
+the Worker never executes an uploaded document.
 
 ## Voice input, read-aloud & web search
 

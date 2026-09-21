@@ -16,8 +16,8 @@ new_sqlite_classes = ["Counter"]
 #   GROQ_API_KEY GEMINI_API_KEY OPENROUTER_API_KEY COHERE_API_KEY SAMBANOVA_API_KEY MISTRAL_API_KEY  (chat providers)
 #   GROQ_API_KEY also powers voice input (/api/transcribe): no separate secret
 #   PROXY_TOKEN     shared token the app must send; set it
-#   VISION_LLM_API_KEY TEXT_EXTRACTION_LLM_API_KEY DIFFUSION_LLM_API_KEY
-# Upload destinations use VISION_LLM_URL, TEXT_EXTRACTION_LLM_URL and DIFFUSION_LLM_URL.
+# Uploads reuse the existing provider secrets above. Vision prefers Gemini/OpenRouter;
+# prompt and document processing prefer the existing Groq/Gemini/OpenRouter/Mistral keys.
 # For local `wrangler dev`, put the same names in a .dev.vars file (never commit it).
 
 # Trusted-source lists: the IFCN fact-checker list and a slice of CISA's .gov registry are stored in this KV

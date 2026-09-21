@@ -60,13 +60,13 @@ const UPLOAD_MIME = {
   docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 };
 const UPLOAD_DESTINATIONS = {
-  png: { label: "vision", urlEnv: "VISION_LLM_URL", keyEnv: "VISION_LLM_API_KEY" },
-  jpg: { label: "vision", urlEnv: "VISION_LLM_URL", keyEnv: "VISION_LLM_API_KEY" },
-  jpeg: { label: "vision", urlEnv: "VISION_LLM_URL", keyEnv: "VISION_LLM_API_KEY" },
-  txt: { label: "diffusion", urlEnv: "DIFFUSION_LLM_URL", keyEnv: "DIFFUSION_LLM_API_KEY" },
-  json: { label: "diffusion", urlEnv: "DIFFUSION_LLM_URL", keyEnv: "DIFFUSION_LLM_API_KEY" },
-  pdf: { label: "text-extraction", urlEnv: "TEXT_EXTRACTION_LLM_URL", keyEnv: "TEXT_EXTRACTION_LLM_API_KEY" },
-  docx: { label: "text-extraction", urlEnv: "TEXT_EXTRACTION_LLM_URL", keyEnv: "TEXT_EXTRACTION_LLM_API_KEY" }
+  png: { label: "vision", providers: ["gemini", "openrouter", "groq", "mistral"] },
+  jpg: { label: "vision", providers: ["gemini", "openrouter", "groq", "mistral"] },
+  jpeg: { label: "vision", providers: ["gemini", "openrouter", "groq", "mistral"] },
+  txt: { label: "diffusion", providers: ["groq", "gemini", "openrouter", "mistral"] },
+  json: { label: "diffusion", providers: ["groq", "gemini", "openrouter", "mistral"] },
+  pdf: { label: "text-extraction", providers: ["gemini", "openrouter", "groq", "mistral"] },
+  docx: { label: "text-extraction", providers: ["gemini", "openrouter", "groq", "mistral"] }
 };
 
 function uploadExtension(name) {
@@ -139,20 +139,39 @@ async function handleUpload(request, env, cors) {
   const checked = await validateUploadFile(file);
   if (!checked.ok) return json(checked.status, { error: { message: checked.message } }, cors);
   const { destination } = checked;
-  const endpoint = env[destination.urlEnv];
-  const key = env[destination.keyEnv];
-  if (!endpoint || !key) return json(503, { error: { message: `${destination.label} destination is not configured.` } }, cors);
-
-  const forwarded = new FormData();
-  forwarded.set("file", file, file.name);
-  forwarded.set("route", destination.label);
+  const providerId = destination.providers.find(id => env[PROVIDERS[id].secret]);
+  if (!providerId) return json(503, { error: { message: "No linked provider key is configured for uploads." } }, cors);
+  const provider = PROVIDERS[providerId];
+  const key = env[provider.secret];
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const base64 = [...bytes].map(byte => String.fromCharCode(byte)).join("");
+  const encoded = btoa(base64);
+  const isImage = ["png", "jpg", "jpeg"].includes(checked.extension);
+  const text = isImage
+    ? "Identify objects, scenes, and visual style in this image. Return concise JSON with objects, scene, style, and confidence."
+    : checked.extension === "txt" || checked.extension === "json"
+      ? new TextDecoder().decode(bytes).slice(0, 120000)
+      : `Extract and summarize the text from the uploaded ${checked.extension.toUpperCase()} document named ${file.name}.`;
+  const content = isImage
+    ? [{ type: "text", text }, { type: "image_url", image_url: { url: `data:${file.type};base64,${encoded}` } }]
+    : text;
+  const body = JSON.stringify({
+    model: providerId === "gemini" ? "gemini-2.0-flash" : providerId === "groq" ? "llama-3.3-70b-versatile" : "openai/gpt-4o-mini",
+    messages: [{ role: "user", content }],
+    temperature: 0.2,
+    max_tokens: 1200
+  });
   let upstream;
   try {
-    upstream = await fetch(endpoint, { method: "POST", headers: { Authorization: "Bearer " + key }, body: forwarded });
+    upstream = await fetch(provider.url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + key },
+      body
+    });
   } catch (_) { return json(502, { error: { message: "Upload destination request failed." } }, cors); }
   if (!upstream.ok) return json(502, { error: { message: "Upload destination rejected the file." } }, cors);
-  const contentType = upstream.headers.get("Content-Type") || "application/json";
-  return new Response(upstream.body, { status: 200, headers: { "Content-Type": contentType, ...cors, "Cache-Control": "no-store" } });
+  const result = await upstream.text();
+  return new Response(result, { status: 200, headers: { "Content-Type": "application/json", ...cors, "Cache-Control": "no-store", "X-AI-Council-Provider": providerId } });
 }
 
 function corsHeaders(origin, env) {
