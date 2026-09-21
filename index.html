@@ -480,12 +480,36 @@
     padding: 0 22px; font-size: .95rem; cursor: pointer; font-family: inherit; font-weight: 600;
   }
   #send:disabled { opacity: .5; cursor: not-allowed; }
-  #imagePanel { padding: 8px max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left)); background: var(--panel); border-top: 1px solid var(--border); }
+  #imagePanel { padding: 14px max(16px, env(safe-area-inset-right)) 16px max(16px, env(safe-area-inset-left)); background: var(--panel); border-top: 1px solid var(--border); }
   #imagePanel[hidden] { display: none; }
-  #imagePrompt { width: 100%; min-height: 52px; resize: vertical; }
-  .image-actions { display: flex; gap: 8px; align-items: center; margin-top: 6px; flex-wrap: wrap; }
-  .image-preview { max-width: min(720px, 100%); max-height: 55vh; border: 1px solid var(--border); border-radius: var(--radius); display: block; margin-top: 10px; }
+  .image-studio-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+  .image-studio-head h2 { margin: 0; font-size: 1rem; }
+  .image-studio-head p { margin: 2px 0 0; color: var(--text-dim); font-size: .76rem; }
+  .image-studio-tabs { display: flex; gap: 6px; }
+  .image-studio-tabs button, .image-chip { background: var(--panel-2); color: var(--text-dim); border: 1px solid var(--border); border-radius: 999px; padding: 6px 11px; font: inherit; font-size: .76rem; cursor: pointer; }
+  .image-studio-tabs button.active, .image-studio-tabs button:hover, .image-chip:hover { color: var(--text); border-color: var(--accent); }
+  .image-studio-view[hidden] { display: none; }
+  #imagePrompt { width: 100%; min-height: 68px; resize: vertical; }
+  .image-options { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .image-options label { display: flex; align-items: center; gap: 5px; color: var(--text-dim); font-size: .76rem; }
+  .image-options select { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font: inherit; font-size: .76rem; }
+  .image-actions { display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+  .image-actions .testbtn { min-width: 118px; }
   .image-note { font-size: .75rem; color: var(--text-dim); }
+  .image-drop { display: flex; align-items: center; justify-content: center; min-height: 72px; margin-top: 8px; padding: 12px; border: 1px dashed var(--border); border-radius: var(--radius); color: var(--text-dim); text-align: center; cursor: pointer; }
+  .image-drop:hover, .image-drop.dragover { border-color: var(--accent); color: var(--text); background: rgba(108, 140, 255, .06); }
+  .image-file-meta { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: .76rem; }
+  .image-file-meta img { width: 48px; height: 48px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); }
+  .image-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; margin-top: 12px; }
+  .image-card { min-width: 0; background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .image-card img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; display: block; cursor: pointer; }
+  .image-card-body { padding: 7px; }
+  .image-card-prompt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: .74rem; color: var(--text-dim); }
+  .image-card-actions { display: flex; gap: 5px; margin-top: 6px; }
+  .image-card-actions button { flex: 1; padding: 5px 4px; background: transparent; color: var(--text-dim); border: 1px solid var(--border); border-radius: 5px; cursor: pointer; font: inherit; font-size: .7rem; }
+  .image-card-actions button:hover { border-color: var(--accent); color: var(--text); }
+  .image-analysis-result { margin-top: 10px; padding: 10px 12px; background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius); white-space: pre-wrap; font-size: .82rem; max-height: 260px; overflow: auto; }
+  @media (max-width: 560px) { .image-studio-head { align-items: flex-start; flex-direction: column; } .image-studio-tabs { width: 100%; } .image-studio-tabs button { flex: 1; } }
   /* 🎙️ sits beside the box as an .icon-btn; while recording it takes the .active look plus the existing pulse */
   #mic { flex: none; font-size: 1.05rem; padding: 0 14px; border-radius: var(--radius); }
   #mic.recording { animation: pulse 1s infinite; }
@@ -781,14 +805,38 @@
     </div>
     <main id="chat"><!-- the welcome / starter-question panel is rendered by renderEmptyState() --></main>
     <div id="toggleNote" role="status" aria-live="polite"></div>
-    <div id="imagePanel" hidden aria-label="Pollinations image generator">
-      <textarea id="imagePrompt" rows="2" placeholder="Describe the image to generate…"></textarea>
-      <div class="image-actions">
-        <button class="testbtn" id="imageGenerate" type="button">Generate image</button>
-        <span class="image-note">No key needed for basic use. Results are cached locally and throttled to 10 requests/second.</span>
+    <div id="imagePanel" hidden aria-label="Image studio">
+      <div class="image-studio-head">
+        <div><h2>Image studio</h2><p>Create variations or ask questions about an uploaded image.</p></div>
+        <div class="image-studio-tabs" role="tablist" aria-label="Image studio mode">
+          <button type="button" class="active" id="imageCreateTab" role="tab" aria-selected="true">Create</button>
+          <button type="button" id="imageAnalyzeTab" role="tab" aria-selected="false">Analyze</button>
+        </div>
       </div>
-      <div id="imageStatus" class="teststatus" role="status" aria-live="polite"></div>
-      <img id="imagePreview" class="image-preview" alt="" hidden>
+      <div id="imageCreateView" class="image-studio-view">
+        <textarea id="imagePrompt" rows="3" placeholder="Describe the subject, setting, lighting, and visual style…"></textarea>
+        <div class="image-options">
+          <label>Shape <select id="imageRatio"><option value="square">Square</option><option value="portrait">Portrait</option><option value="landscape">Landscape</option><option value="wide">Wide</option></select></label>
+          <label>Style <select id="imageStyle"><option value="">Natural</option><option value="cinematic">Cinematic</option><option value="editorial">Editorial</option><option value="illustration">Illustration</option><option value="minimal">Minimal</option></select></label>
+        </div>
+        <div class="image-actions">
+          <button class="testbtn" id="imageGenerate" type="button">Generate</button>
+          <button class="image-chip" id="imageClearGallery" type="button">Clear history</button>
+          <span class="image-note">Free Pollinations generation; results stay in this browser.</span>
+        </div>
+        <div id="imageStatus" class="teststatus" role="status" aria-live="polite"></div>
+        <div id="imageGallery" class="image-gallery" aria-label="Generated images"></div>
+      </div>
+      <div id="imageAnalyzeView" class="image-studio-view" hidden>
+        <label class="image-drop" id="imageDrop" for="imageAnalyzeFile">Drop an image here or choose a file (PNG/JPG, up to 10 MiB)<input id="imageAnalyzeFile" type="file" accept="image/png,image/jpeg" hidden></label>
+        <div id="imageFileMeta" class="image-file-meta" hidden></div>
+        <div class="image-actions">
+          <button class="testbtn" id="imageAnalyze" type="button" disabled>Analyze image</button>
+          <span class="image-note">Uses your configured Worker provider and proxy token.</span>
+        </div>
+        <div id="imageAnalyzeStatus" class="teststatus" role="status" aria-live="polite"></div>
+        <div id="imageAnalysisResult" class="image-analysis-result" hidden></div>
+      </div>
     </div>
     <div id="structPanel" hidden>
       <label for="structSchema">🧩 Shape of the answer: paste a <b>JSON Schema</b> <i>or</i> a small <b>example JSON object</b></label>
@@ -5112,26 +5160,41 @@ function refreshCompressToggle() {
 compressToggleEl.addEventListener("click", () => { CONFIG.compression.enabled = !CONFIG.compression.enabled; refreshCompressToggle(); });
 refreshCompressToggle();
 
-/* ---------- Pollinations image helper ---------- */
+/* ---------- Image studio: generation, history, and vision analysis ---------- */
 const imageBtnEl = document.getElementById("imageBtn");
 const imagePanelEl = document.getElementById("imagePanel");
 const imagePromptEl = document.getElementById("imagePrompt");
 const imageGenerateEl = document.getElementById("imageGenerate");
 const imageStatusEl = document.getElementById("imageStatus");
-const imagePreviewEl = document.getElementById("imagePreview");
-const POLL_CACHE_KEY = "aicouncil-pollinations-images-v1";
+const imageGalleryEl = document.getElementById("imageGallery");
+const imageRatioEl = document.getElementById("imageRatio");
+const imageStyleEl = document.getElementById("imageStyle");
+const imageClearGalleryEl = document.getElementById("imageClearGallery");
+const imageCreateTabEl = document.getElementById("imageCreateTab");
+const imageAnalyzeTabEl = document.getElementById("imageAnalyzeTab");
+const imageCreateViewEl = document.getElementById("imageCreateView");
+const imageAnalyzeViewEl = document.getElementById("imageAnalyzeView");
+const imageAnalyzeFileEl = document.getElementById("imageAnalyzeFile");
+const imageDropEl = document.getElementById("imageDrop");
+const imageFileMetaEl = document.getElementById("imageFileMeta");
+const imageAnalyzeEl = document.getElementById("imageAnalyze");
+const imageAnalyzeStatusEl = document.getElementById("imageAnalyzeStatus");
+const imageAnalysisResultEl = document.getElementById("imageAnalysisResult");
+const POLL_CACHE_KEY = "aicouncil-image-studio-v2";
 const pollImageTimes = [];
-let pollImageCache = {};
+let pollImageCache = [];
 try { pollImageCache = JSON.parse(localStorage.getItem(POLL_CACHE_KEY) || "{}") || {}; } catch (_) {}
 function savePollImageCache() {
   try {
-    const keys = Object.keys(pollImageCache);
-    for (const oldKey of keys.slice(0, Math.max(0, keys.length - 100))) delete pollImageCache[oldKey];
+    pollImageCache = pollImageCache.slice(0, 24);
     localStorage.setItem(POLL_CACHE_KEY, JSON.stringify(pollImageCache));
   } catch (_) {}
 }
-function pollImageUrl(prompt) {
-  return "https://image.pollinations.ai/prompt/" + encodeURIComponent(prompt);
+if (!Array.isArray(pollImageCache)) pollImageCache = [];
+function pollImageUrl(prompt, ratio) {
+  const sizes = { square: [768, 768], portrait: [768, 1024], landscape: [1024, 768], wide: [1280, 720] };
+  const [width, height] = sizes[ratio] || sizes.square;
+  return "https://image.pollinations.ai/prompt/" + encodeURIComponent(prompt) + `?width=${width}&height=${height}&nologo=true`;
 }
 function pollImageAllowed() {
   const now = Date.now();
@@ -5144,29 +5207,88 @@ imageBtnEl.addEventListener("click", () => {
   imagePanelEl.hidden = !imagePanelEl.hidden;
   if (!imagePanelEl.hidden) imagePromptEl.focus();
 });
+function renderImageGallery() {
+  imageGalleryEl.innerHTML = pollImageCache.map((item, index) => `<article class="image-card">
+    <img src="${item.url}" alt="${escapeHtml(item.prompt)}" loading="lazy" data-image-open="${index}">
+    <div class="image-card-body"><div class="image-card-prompt" title="${escapeHtml(item.prompt)}">${escapeHtml(item.prompt)}</div>
+    <div class="image-card-actions"><button type="button" data-image-remix="${index}">Remix</button><button type="button" data-image-download="${index}">Save</button></div></div>
+  </article>`).join("");
+}
+renderImageGallery();
 imageGenerateEl.addEventListener("click", () => {
-  const prompt = imagePromptEl.value.trim();
-  if (!prompt) { imageStatusEl.className = "teststatus err"; imageStatusEl.textContent = "Describe the image first."; imagePromptEl.focus(); return; }
-  const key = prompt.toLowerCase();
-  let url = pollImageCache[key];
+  const basePrompt = imagePromptEl.value.trim();
+  const style = imageStyleEl.value;
+  const prompt = style ? `${basePrompt}, ${style} style` : basePrompt;
+  if (!basePrompt) { imageStatusEl.className = "teststatus err"; imageStatusEl.textContent = "Describe the image first."; imagePromptEl.focus(); return; }
+  const ratio = imageRatioEl.value;
+  const key = `${prompt.toLowerCase()}|${ratio}`;
+  const cached = pollImageCache.find(item => item.key === key);
+  let url = cached && cached.url;
   if (!url) {
     if (!pollImageAllowed()) {
       imageStatusEl.className = "teststatus err";
       imageStatusEl.textContent = "Pollinations allows up to 10 requests per second. Wait a moment and try again.";
       return;
     }
-    url = pollImageUrl(prompt);
-    pollImageCache[key] = url;
+    url = pollImageUrl(prompt, ratio);
+    pollImageCache.unshift({ key, url, prompt: basePrompt, ratio, createdAt: Date.now() });
     savePollImageCache();
-    imageStatusEl.className = "teststatus"; imageStatusEl.textContent = "Loading image…";
+    imageStatusEl.className = "teststatus"; imageStatusEl.textContent = "Generating your image…";
   } else {
     imageStatusEl.className = "teststatus ok"; imageStatusEl.textContent = "Loaded from this browser's cache.";
   }
-  imagePreviewEl.hidden = false;
-  imagePreviewEl.alt = prompt;
-  imagePreviewEl.src = url;
-  imagePreviewEl.onload = () => { imageStatusEl.className = "teststatus ok"; imageStatusEl.textContent = "Image ready. The generated URL is cached locally."; };
-  imagePreviewEl.onerror = () => { imageStatusEl.className = "teststatus err"; imageStatusEl.textContent = "Pollinations could not generate that image. Check the prompt or try again later."; };
+  renderImageGallery();
+  const card = imageGalleryEl.querySelector("img");
+  if (card) {
+    card.onload = () => { imageStatusEl.className = "teststatus ok"; imageStatusEl.textContent = "Image ready. Remix it or save it from the gallery."; };
+    card.onerror = () => { imageStatusEl.className = "teststatus err"; imageStatusEl.textContent = "Generation failed. Your prompt is preserved—try again or simplify it."; };
+  }
+});
+imageClearGalleryEl.addEventListener("click", () => { pollImageCache = []; savePollImageCache(); renderImageGallery(); imageStatusEl.textContent = "History cleared."; });
+imageGalleryEl.addEventListener("click", e => {
+  const remix = e.target.closest("[data-image-remix]");
+  const download = e.target.closest("[data-image-download]");
+  const open = e.target.closest("[data-image-open]");
+  const index = Number((remix || download || open)?.dataset[(remix && "imageRemix") || (download && "imageDownload") || (open && "imageOpen")]);
+  const item = pollImageCache[index];
+  if (!item) return;
+  if (remix) { imagePromptEl.value = item.prompt; imageRatioEl.value = item.ratio; imagePromptEl.focus(); return; }
+  if (open) window.open(item.url, "_blank", "noopener");
+  if (download) { const a = document.createElement("a"); a.href = item.url; a.download = "ai-council-image.png"; a.target = "_blank"; a.click(); }
+});
+function setImageStudioTab(analyze) {
+  imageCreateTabEl.classList.toggle("active", !analyze); imageAnalyzeTabEl.classList.toggle("active", analyze);
+  imageCreateTabEl.setAttribute("aria-selected", String(!analyze)); imageAnalyzeTabEl.setAttribute("aria-selected", String(analyze));
+  imageCreateViewEl.hidden = analyze; imageAnalyzeViewEl.hidden = !analyze;
+}
+imageCreateTabEl.addEventListener("click", () => setImageStudioTab(false));
+imageAnalyzeTabEl.addEventListener("click", () => setImageStudioTab(true));
+let imageAnalysisFile = null;
+function setAnalysisFile(file) {
+  if (!file) return;
+  if (!/^image\/(png|jpeg)$/.test(file.type) || file.size > 10 * 1024 * 1024) {
+    imageAnalyzeStatusEl.className = "teststatus err"; imageAnalyzeStatusEl.textContent = "Choose a PNG or JPG image up to 10 MiB."; return;
+  }
+  imageAnalysisFile = file; imageAnalyzeEl.disabled = false; imageAnalyzeStatusEl.textContent = "";
+  imageFileMetaEl.hidden = false; imageFileMetaEl.innerHTML = `<img src="${URL.createObjectURL(file)}" alt=""><span>${escapeHtml(file.name)} · ${(file.size / 1024).toFixed(0)} KB</span>`;
+}
+imageAnalyzeFileEl.addEventListener("change", () => setAnalysisFile(imageAnalyzeFileEl.files[0]));
+["dragenter", "dragover"].forEach(type => imageDropEl.addEventListener(type, e => { e.preventDefault(); imageDropEl.classList.add("dragover"); }));
+["dragleave", "drop"].forEach(type => imageDropEl.addEventListener(type, e => { e.preventDefault(); imageDropEl.classList.remove("dragover"); }));
+imageDropEl.addEventListener("drop", e => setAnalysisFile(e.dataTransfer.files[0]));
+imageAnalyzeEl.addEventListener("click", async () => {
+  if (!imageAnalysisFile) return;
+  if (!CONFIG.proxy.url.trim() || !CONFIG.proxy.token.trim()) { imageAnalyzeStatusEl.className = "teststatus err"; imageAnalyzeStatusEl.textContent = "Add the Worker URL and proxy token in ⚙ Keys first."; return; }
+  imageAnalyzeEl.disabled = true; imageAnalyzeStatusEl.className = "teststatus"; imageAnalyzeStatusEl.textContent = "Analyzing image…"; imageAnalysisResultEl.hidden = true;
+  const form = new FormData(); form.append("file", imageAnalysisFile, imageAnalysisFile.name);
+  try {
+    const response = await fetch(CONFIG.proxy.url.trim().replace(/\/+$/, "") + "/api/upload", { method: "POST", headers: { "X-Proxy-Token": CONFIG.proxy.token.trim() }, body: form });
+    const body = await response.text();
+    if (!response.ok) throw new Error(body || `Analysis failed (${response.status}).`);
+    imageAnalysisResultEl.hidden = false; imageAnalysisResultEl.textContent = body; imageAnalyzeStatusEl.className = "teststatus ok"; imageAnalyzeStatusEl.textContent = "Analysis complete.";
+  } catch (error) {
+    imageAnalyzeStatusEl.className = "teststatus err"; imageAnalyzeStatusEl.textContent = String(error.message || error).slice(0, 240);
+  } finally { imageAnalyzeEl.disabled = false; }
 });
 
 /* ---------- mode picker ---------- */
