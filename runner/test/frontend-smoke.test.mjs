@@ -11,7 +11,7 @@ const root = join(import.meta.dirname, "..", "..");
 
 test("frontend contains the critical startup controls", async () => {
   const html = await readFile(join(root, "index.html"), "utf8");
-  for (const id of ["modePicker", "settings", "memory", "composer", "input", "send", "imagePanel", "imagePrompt", "imageGenerate", "imageAnalyzeFile", "imageAnalyze"]) {
+  for (const id of ["modePicker", "settings", "memory", "composer", "input", "send", "imagePanel", "imagePrompt", "imageGenerate", "imageAnalyzeFile", "imageAnalyze", "textPromptMode", "imagePromptMode", "attachImage", "composerImageFile"]) {
     assert.match(html, new RegExp(`id=["']${id}["']`), `missing #${id}`);
   }
   assert.match(html, /imageGallery/);

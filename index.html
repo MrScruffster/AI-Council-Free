@@ -463,7 +463,7 @@
 
   /* ---------- Composer ---------- */
   #composer {
-    display: flex; gap: 10px;
+    display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap;
     padding: 12px max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
     background: var(--panel); border-top: 1px solid var(--border);
   }
@@ -480,8 +480,16 @@
     padding: 0 22px; font-size: .95rem; cursor: pointer; font-family: inherit; font-weight: 600;
   }
   #send:disabled { opacity: .5; cursor: not-allowed; }
-  #imagePanel { padding: 14px max(16px, env(safe-area-inset-right)) 16px max(16px, env(safe-area-inset-left)); background: var(--panel); border-top: 1px solid var(--border); }
+  .prompt-mode { display: flex; gap: 4px; width: 100%; }
+  .prompt-mode-btn { background: transparent; border: 1px solid var(--border); color: var(--text-dim); border-radius: 999px; padding: 4px 11px; font: inherit; font-size: .74rem; cursor: pointer; }
+  .prompt-mode-btn.active, .prompt-mode-btn:hover { background: var(--accent-strong); border-color: var(--accent-strong); color: #fff; }
+  #attachImage { flex: none; font-size: 1.05rem; padding: 0 12px; border-radius: var(--radius); }
+  #composer.image-mode #input { display: none; }
+  #composer.image-mode #mic, #composer.image-mode #send { display: none; }
+  #composer.image-mode #imagePanel { display: block; width: 100%; order: 3; }
+  #imagePanel { padding: 10px 0 0; background: var(--panel); }
   #imagePanel[hidden] { display: none; }
+  #imageBtn { display: none; }
   .image-studio-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
   .image-studio-head h2 { margin: 0; font-size: 1rem; }
   .image-studio-head p { margin: 2px 0 0; color: var(--text-dim); font-size: .76rem; }
@@ -846,9 +854,15 @@
     </div>
     <div class="teststatus" id="micStatus" role="status" aria-live="polite"></div>
     <div id="composer" role="region" aria-label="Write a message">
+      <div class="prompt-mode" role="group" aria-label="Prompt type">
+        <button type="button" class="prompt-mode-btn active" id="textPromptMode" aria-pressed="true">Text</button>
+        <button type="button" class="prompt-mode-btn" id="imagePromptMode" aria-pressed="false">Image</button>
+      </div>
       <textarea id="input" rows="1" placeholder="Ask the council anything…"></textarea>
+      <button class="icon-btn" id="attachImage" type="button" title="Upload an image to analyze" aria-label="Upload an image">📎</button>
       <button class="icon-btn" id="mic" type="button" hidden title="Speak your question: click to start recording, click again to stop (60 seconds at most)" aria-label="Start voice input" aria-pressed="false">🎙️</button>
       <button id="send">Send</button>
+      <input id="composerImageFile" type="file" accept="image/png,image/jpeg" hidden>
     </div>
   </div>
 
@@ -5180,6 +5194,11 @@ const imageFileMetaEl = document.getElementById("imageFileMeta");
 const imageAnalyzeEl = document.getElementById("imageAnalyze");
 const imageAnalyzeStatusEl = document.getElementById("imageAnalyzeStatus");
 const imageAnalysisResultEl = document.getElementById("imageAnalysisResult");
+const composerEl = document.getElementById("composer");
+const textPromptModeEl = document.getElementById("textPromptMode");
+const imagePromptModeEl = document.getElementById("imagePromptMode");
+const attachImageEl = document.getElementById("attachImage");
+const composerImageFileEl = document.getElementById("composerImageFile");
 const POLL_CACHE_KEY = "aicouncil-image-studio-v2";
 const pollImageTimes = [];
 let pollImageCache = [];
@@ -5204,9 +5223,27 @@ function pollImageAllowed() {
   return true;
 }
 imageBtnEl.addEventListener("click", () => {
-  imagePanelEl.hidden = !imagePanelEl.hidden;
-  if (!imagePanelEl.hidden) imagePromptEl.focus();
+  setPromptMode(true);
 });
+composerEl.appendChild(imagePanelEl);
+function setPromptMode(imageMode) {
+  composerEl.classList.toggle("image-mode", imageMode);
+  imagePanelEl.hidden = !imageMode;
+  textPromptModeEl.classList.toggle("active", !imageMode);
+  imagePromptModeEl.classList.toggle("active", imageMode);
+  textPromptModeEl.setAttribute("aria-pressed", String(!imageMode));
+  imagePromptModeEl.setAttribute("aria-pressed", String(imageMode));
+  if (imageMode) imagePromptEl.focus();
+  else inputEl.focus();
+}
+textPromptModeEl.addEventListener("click", () => setPromptMode(false));
+imagePromptModeEl.addEventListener("click", () => setPromptMode(true));
+attachImageEl.addEventListener("click", () => { setPromptMode(true); setImageStudioTab(true); composerImageFileEl.click(); });
+composerImageFileEl.addEventListener("change", () => {
+  const file = composerImageFileEl.files && composerImageFileEl.files[0];
+  if (file) { setImageStudioTab(true); setAnalysisFile(file); }
+});
+setPromptMode(false);
 function renderImageGallery() {
   imageGalleryEl.innerHTML = pollImageCache.map((item, index) => `<article class="image-card">
     <img src="${item.url}" alt="${escapeHtml(item.prompt)}" loading="lazy" data-image-open="${index}">
