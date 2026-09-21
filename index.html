@@ -480,7 +480,8 @@
     padding: 0 22px; font-size: .95rem; cursor: pointer; font-family: inherit; font-weight: 600;
   }
   #send:disabled { opacity: .5; cursor: not-allowed; }
-  .prompt-mode { display: flex; gap: 4px; width: 100%; }
+  .composer-submit { display: flex; flex-direction: column; gap: 5px; align-items: stretch; }
+  .prompt-mode { display: flex; gap: 4px; }
   .prompt-mode-btn { background: transparent; border: 1px solid var(--border); color: var(--text-dim); border-radius: 999px; padding: 4px 11px; font: inherit; font-size: .74rem; cursor: pointer; }
   .prompt-mode-btn.active, .prompt-mode-btn:hover { background: var(--accent-strong); border-color: var(--accent-strong); color: #fff; }
   #attachImage { flex: none; font-size: 1.05rem; padding: 0 12px; border-radius: var(--radius); }
@@ -503,6 +504,9 @@
   .image-options select { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font: inherit; font-size: .76rem; }
   .image-actions { display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
   .image-actions .testbtn { min-width: 118px; }
+  #imageGenerate, #imageAnalyze { background: var(--accent-strong); color: #fff; border: 0; border-radius: var(--radius); padding: 8px 16px; font: inherit; font-size: .86rem; font-weight: 600; cursor: pointer; }
+  #imageGenerate:hover, #imageAnalyze:hover { background: var(--accent); }
+  #imageGenerate:disabled, #imageAnalyze:disabled { opacity: .5; cursor: not-allowed; }
   .image-note { font-size: .75rem; color: var(--text-dim); }
   .image-drop { display: flex; align-items: center; justify-content: center; min-height: 72px; margin-top: 8px; padding: 12px; border: 1px dashed var(--border); border-radius: var(--radius); color: var(--text-dim); text-align: center; cursor: pointer; }
   .image-drop:hover, .image-drop.dragover { border-color: var(--accent); color: var(--text); background: rgba(108, 140, 255, .06); }
@@ -854,14 +858,16 @@
     </div>
     <div class="teststatus" id="micStatus" role="status" aria-live="polite"></div>
     <div id="composer" role="region" aria-label="Write a message">
-      <div class="prompt-mode" role="group" aria-label="Prompt type">
-        <button type="button" class="prompt-mode-btn active" id="textPromptMode" aria-pressed="true">Text</button>
-        <button type="button" class="prompt-mode-btn" id="imagePromptMode" aria-pressed="false">Image</button>
-      </div>
       <textarea id="input" rows="1" placeholder="Ask the council anything…"></textarea>
       <button class="icon-btn" id="attachImage" type="button" title="Upload an image to analyze" aria-label="Upload an image">📎</button>
       <button class="icon-btn" id="mic" type="button" hidden title="Speak your question: click to start recording, click again to stop (60 seconds at most)" aria-label="Start voice input" aria-pressed="false">🎙️</button>
-      <button id="send">Send</button>
+      <div class="composer-submit">
+        <div class="prompt-mode" role="group" aria-label="Prompt type">
+          <button type="button" class="prompt-mode-btn active" id="textPromptMode" aria-pressed="true">Text</button>
+          <button type="button" class="prompt-mode-btn" id="imagePromptMode" aria-pressed="false">Image</button>
+        </div>
+        <button id="send">Send</button>
+      </div>
       <input id="composerImageFile" type="file" accept="image/png,image/jpeg" hidden>
     </div>
   </div>
