@@ -26,6 +26,9 @@ test("frontend contains the critical startup controls", async () => {
   assert.match(html, /evidenceEnabled/);
   assert.match(html, /id=["']advancedControls["']/);
   assert.match(html, /id=["']wlDemo["']/);
+  assert.match(html, /chatTitleFromQuestion/);
+  assert.match(html, /className = "es-setup"/);
+  assert.match(html, /href=["']about\.html["']/);
   assert.match(html, /property=["']og:image["']/);
   assert.match(html, /name=["']twitter:card["']/);
   assert.match(html, /prefers-color-scheme: light/);

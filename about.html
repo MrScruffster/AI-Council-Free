@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI Council — technical reference</title>
+  <meta name="description" content="Technical reference for AI Council's browser-based multi-model orchestration, privacy model, evidence checks, and limitations.">
+  <link rel="canonical" href="https://www.ai-council.co.uk/about.html">
+  <meta property="og:title" content="AI Council technical reference">
+  <meta property="og:description" content="How AI Council routes, checks, and presents multi-model answers.">
+  <meta property="og:url" content="https://www.ai-council.co.uk/about.html">
+  <style>
+    :root { color-scheme: dark; --bg:#0f1117; --panel:#171a23; --border:#2a2f3d; --text:#e8eaf0; --dim:#9aa1b2; --accent:#6c8cff; }
+    * { box-sizing:border-box; } body { margin:0; background:var(--bg); color:var(--text); font:16px/1.65 system-ui,sans-serif; }
+    main { max-width:860px; margin:auto; padding:32px 20px 64px; } a { color:var(--accent); } h1 { font-size:2.1rem; line-height:1.2; } h2 { margin-top:34px; border-top:1px solid var(--border); padding-top:14px; } code { background:var(--panel); padding:2px 5px; border-radius:4px; } li { margin:8px 0; }
+    .lead { background:var(--panel); border-left:3px solid var(--accent); padding:14px 16px; border-radius:8px; }
+  </style>
+</head>
+<body><main>
+  <p><a href="./">← Back to AI Council</a></p>
+  <h1>Technical reference</h1>
+  <p class="lead"><strong>AI Council is a browser-based multi-model orchestration layer.</strong> It routes a question, compares or critiques model responses, preserves disagreements, and lets you inspect the intermediate work. Your keys and chats remain in this browser.</p>
+  <h2>Request pipeline</h2>
+  <ol><li>Local intent routing selects a specialist path.</li><li>A provider generates a draft using the recent conversation and optional working memory.</li><li>Balanced and Council modes use an independent critique; Council also queries connected providers in parallel and synthesizes their responses.</li><li>When Evidence is enabled, an independent Tavily source check is shown separately and never silently rewritten into the answer.</li></ol>
+  <h2>Modes and cost</h2>
+  <ul><li><strong>Quick answer:</strong> direct specialist response, about two model calls.</li><li><strong>Checked answer:</strong> generation plus critique and conditional revision, about three to four calls.</li><li><strong>Compare AIs:</strong> parallel provider answers, synthesis, critique, and possible revision.</li><li><strong>Agent:</strong> a validated plan with explicit approval before supported read-only actions.</li></ul>
+  <h2>Privacy and storage</h2>
+  <p>Prompts, recent history, and remembered facts go directly from your browser to the providers you configure. AI Council stores chats, memory, preferences, and optional remembered keys in browser storage. The site counter receives only an anonymous increment. Optional search, voice, image, and page-reading integrations send data to their named providers under their terms.</p>
+  <h2>Limitations</h2>
+  <p>Agreement is not proof: models can share blind spots. Source snippets are not ground truth, and no benchmark claim is made until the planned expert-reviewed benchmark is complete. Use primary sources and professional advice for high-stakes decisions.</p>
+  <h2>Security model</h2>
+  <p>Model output is escaped before markdown rendering, links are restricted to HTTPS, calculator input uses a whitelist, provider endpoints require HTTPS, and the optional proxy uses an origin allow-list and token. Never paste a key into a provider you do not trust.</p>
+  <p><a href="https://github.com/MrScruffster/AI-Council-Free/tree/main/benchmark" target="_blank" rel="noopener">View benchmark materials on GitHub ↗</a></p>
+</main></body></html>

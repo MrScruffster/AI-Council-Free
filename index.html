@@ -91,6 +91,12 @@
   .icon-btn.active { border-color: var(--accent); color: var(--accent); }
   .icon-btn:disabled { opacity: .4; cursor: not-allowed; }
   .icon-btn:disabled:hover { border-color: var(--border); }
+  button, summary, select, input[type="checkbox"], input[type="file"] { min-height: 38px; }
+  .icon-btn, .prompt-mode-btn, .copy-btn, .vote-btn { min-width: 38px; }
+  .es-setup { margin: 0 auto 16px; padding: 16px; background: var(--panel); border: 1px solid var(--accent); border-radius: var(--radius); text-align: left; }
+  .es-setup h2 { color: var(--text); font-size: 1.15rem; margin-bottom: 6px; }
+  .es-setup p { margin-bottom: 10px; }
+  .es-setup button { background: var(--accent-strong); color: #fff; border: 0; border-radius: 8px; padding: 9px 14px; font: inherit; font-weight: 650; cursor: pointer; }
   .advanced-controls { display: inline-flex; align-items: center; position: relative; }
   .advanced-controls > summary {
     list-style: none; cursor: pointer; background: var(--panel-2); border: 1px solid var(--border);
@@ -1057,6 +1063,7 @@ pip install requests oss2 pyspark</code></pre>
       </figure>
       <p>The specifications, the public reference data (each figure with its source) and the comparison maths are open in the <a href="https://github.com/MrScruffster/AI-Council-Free/tree/main/benchmark" target="_blank" rel="noopener">benchmark folder on GitHub ↗</a>.</p>
       <p class="ab-foot">AI Council is an independent orchestration front-end and is not affiliated with any of the model providers it can call.</p>
+      <p class="ab-foot"><a href="about.html">Open the full technical reference in a separate page ↗</a></p>
     </article>
   </section>
 </div>
@@ -3257,7 +3264,13 @@ function saveChats() {
 function persistCurrentChat(firstQuestion) {
   if (currentChatId === null) {
     currentChatId = String(Date.now());
-    chats.push({ id: currentChatId, title: firstQuestion.slice(0, 60), history: [], updatedAt: Date.now(), folder: userFolders.includes(activeFolder) ? activeFolder : DEFAULT_FOLDER, tags: [] });
+    chats.push({ id: currentChatId, title: chatTitleFromQuestion(firstQuestion), history: [], updatedAt: Date.now(), folder: userFolders.includes(activeFolder) ? activeFolder : DEFAULT_FOLDER, tags: [] });
+  }
+  function chatTitleFromQuestion(question) {
+    const clean = String(question || "").replace(/\s+/g, " ").trim().replace(/^[?.!]+|[?.!]+$/g, "");
+    if (!clean) return "New chat";
+    const title = clean.length > 56 ? clean.slice(0, 56).replace(/\s+\S*$/, "") + "…" : clean;
+    return title.charAt(0).toUpperCase() + title.slice(1);
   }
   const chat = chats.find(c => c.id === currentChatId);
   if (!chat) return;
@@ -5424,7 +5437,14 @@ function renderEmptyState(first) {
   const wrap = document.createElement("div");
   wrap.className = "es";
   const lead = document.createElement("p");
-  if (first) lead.innerHTML = "New here? Click <b>❓ How to start</b> to get your free AI key (about 2 minutes), then pick a mode and ask something.";
+  if (first && availableProviders().length === 0) {
+    const setup = document.createElement("div");
+    setup.className = "es-setup";
+    setup.innerHTML = "<h2>See what AI Council can do</h2><p>Connect one free AI key in about two minutes, or preview the workflow first. Your key stays in this browser and goes only to the provider you choose.</p><button type=\"button\">Get started</button>";
+    setup.querySelector("button").addEventListener("click", openWelcome);
+    wrap.appendChild(setup);
+    lead.textContent = "Once connected, choose a response style and ask anything.";
+  } else if (first) lead.innerHTML = "Choose a response style, then ask a question. You can change it any time.";
   else lead.textContent = "New chat. Long-term memory (🧠) carries over; the conversation itself starts fresh.";
   wrap.appendChild(lead);
   const modes = document.createElement("div");
@@ -6041,7 +6061,7 @@ function renderCustomProviderList() {
       <h3>${cp.label}</h3>
       <div class="hint">${cp.url} · models: ${cp.workhorse}${cp.fast && cp.fast !== cp.workhorse ? " / " + cp.fast : ""}</div>
       <div class="keyrow" style="margin-top:10px">
-        <input type="password" placeholder="${cp.keyOptional ? "API key (optional: blank works too)" : "Paste " + cp.label + " API key"}" autocomplete="off">
+        <input type="password" aria-label="${cp.label} API key" placeholder="${cp.keyOptional ? "API key (optional: blank works too)" : "Paste " + cp.label + " API key"}" autocomplete="off">
         <button class="testbtn">Test</button>
       </div>
       <div class="teststatus"></div>`;
@@ -6176,7 +6196,7 @@ function showAddProviderForm() {
     </select>
     <label id="cfUrlLabel">Chat-completions URL</label><input id="cfUrl" placeholder="https://.../v1/chat/completions">
     <label>Model ID</label><input id="cfModel" placeholder="e.g. gpt-4o-mini, mistral-small-latest">
-    <label id="cfKeyLabel">API key</label><input id="cfKey" type="password" placeholder="paste key (or leave blank if none needed)" autocomplete="off">
+    <label id="cfKeyLabel" for="cfKey">API key</label><input id="cfKey" type="password" placeholder="paste key (or leave blank if none needed)" autocomplete="off">
     <div class="hint" style="margin-top:8px">Must be an HTTPS URL. Whatever you type here — every message, plus your
       saved memory facts — gets sent straight to that address using the key above. Only add endpoints you trust;
       this app has no way to verify what's actually running on the other end.</div>
