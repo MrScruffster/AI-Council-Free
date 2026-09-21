@@ -467,14 +467,14 @@
     padding: 12px max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
     background: var(--panel); border-top: 1px solid var(--border);
   }
-  #input {
+  #input, #imagePrompt {
     flex: 1; resize: none; background: var(--panel-2); color: var(--text);
     border: 1px solid var(--border); border-radius: var(--radius);
     padding: 11px 14px; font-family: inherit; font-size: .95rem; line-height: 1.4;
-    max-height: 160px; outline: none;
+    min-height: 52px; max-height: 160px; outline: none;
     overflow-y: hidden;   /* autoGrow() switches this to auto only once the text passes max-height */
   }
-  #input:focus { border-color: var(--accent); }
+  #input:focus, #imagePrompt:focus { border-color: var(--accent); }
   #send {
     background: var(--accent-strong); color: #fff; border: none; border-radius: var(--radius);
     padding: 0 22px; font-size: .95rem; cursor: pointer; font-family: inherit; font-weight: 600;
@@ -497,7 +497,7 @@
   .image-studio-tabs button, .image-chip { background: var(--panel-2); color: var(--text-dim); border: 1px solid var(--border); border-radius: 999px; padding: 6px 11px; font: inherit; font-size: .76rem; cursor: pointer; }
   .image-studio-tabs button.active, .image-studio-tabs button:hover, .image-chip:hover { color: var(--text); border-color: var(--accent); }
   .image-studio-view[hidden] { display: none; }
-  #imagePrompt { width: 100%; min-height: 68px; resize: vertical; }
+  #imagePrompt { width: 100%; resize: vertical; }
   .image-options { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
   .image-options label { display: flex; align-items: center; gap: 5px; color: var(--text-dim); font-size: .76rem; }
   .image-options select { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font: inherit; font-size: .76rem; }
@@ -775,10 +775,10 @@
   <button class="icon-btn active" id="plainToggle" title="Explain answers in plain, everyday language (with a simple diagram where it helps). The full technical answer stays one click away.">🗣 Plain: on</button>
   <button class="icon-btn" id="toolsToggle" title="Let a model use a small built-in toolset (calculator, current date/time, web search when you add your own Tavily key, and page-reading tools when you add a TinyFish or Bright Data key in ⚙ Keys) while drafting — Fast/Balanced modes only.">🔧 Tools: off</button>
   <button class="icon-btn" id="structToggle" title="Get the answer as JSON in a shape you choose. Paste a JSON Schema or an example object; the reply is checked against it. Best-effort: how strictly it is enforced depends on the provider. Fast/Balanced only.">🧩 JSON: off</button>
-  <button class="icon-btn" id="compressToggle" title="Shorten your question with one extra model call before the council sees it. It costs one extra call per question, so it mostly pays off in Council mode (several models each read the shorter question) and rarely in Fast mode. It can drop something you meant: both versions are shown in the workings.">🗜️ Compress: off</button>
+  <button class="icon-btn" id="compressToggle" title="Shorten your question with one extra model call before the council sees it. It costs one extra call per question, so it mostly pays off in Council mode (several models each read the shorter question) and rarely in Fast mode. It can drop something you meant: both versions are shown in the workings.">🗜️ Compress: on</button>
   <button class="icon-btn" id="stopAgent" type="button" title="Stop the running agent task">⏹ Stop agent</button>
   <button class="icon-btn" id="imageBtn" title="Generate an image with Pollinations. Results are cached in this browser.">🎨 Image</button>
-  <button class="icon-btn" id="memoryBtn" title="Working memory: what the council remembers about you" aria-label="Memory">🧠<span class="hb-opt"> Memory</span></button>
+  <button class="icon-btn active" id="memoryBtn" title="Working memory is on by default; review or delete what is remembered" aria-label="Memory (on by default)">🧠<span class="hb-opt"> Memory</span></button>
   <button class="icon-btn" id="aboutBtn" title="How AI Council works, and how it reduces incorrect answers" aria-label="About AI Council"><span id="abIco">ℹ️</span><span class="hb-text hb-opt" id="abTxt"> About</span></button>
   <button class="icon-btn" id="helpBtn" title="How to get set up: it takes about 2 minutes and needs no credit card" aria-label="How to start">❓<span class="hb-text"> How to start</span></button>
   <button class="icon-btn" id="settingsBtn" title="Your API keys and providers" aria-label="API keys">⚙<span class="hb-opt"> Keys</span></button>
@@ -1274,10 +1274,9 @@ const CONFIG = {
      Groq directly (the model below is sent by the browser); otherwise, if a proxy is set, it goes to the Worker's
      /api/transcribe, which forces the same model itself. So it needs either a Groq key or a proxy that holds one.
      It counts against Groq's free-tier rate limits (console.groq.com/docs/rate-limits), not against chat tokens. */
-  /* Opt-in query compression (🗜️ Compress in the header). OFF by default: it costs one extra model call per question, so it
-     only pays off when many models will each read the shorter question (Council mode). A question shorter than minWords is
-     left alone, since there is nothing worth compressing and the extra call would be pure cost. See compressQuestion(). */
-  compression: { enabled: false, timeoutMs: 10000, minWords: 30 },
+  /* Query compression (🗜️ Compress in the header). ON by default; users can turn it off when preserving every word matters.
+     A question shorter than minWords is left alone, since there is nothing worth compressing. See compressQuestion(). */
+  compression: { enabled: true, timeoutMs: 10000, minWords: 30 },
 
   voice: { url: "https://api.groq.com/openai/v1/audio/transcriptions", model: "whisper-large-v3-turbo", maxSeconds: 60 },
 

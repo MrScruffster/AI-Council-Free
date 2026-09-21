@@ -17,6 +17,9 @@ test("frontend contains the critical startup controls", async () => {
   assert.match(html, /imageGallery/);
   assert.match(html, /imageRatio/);
   assert.match(html, /imageAnalysisResult/);
+  assert.match(html, /compression: \{ enabled: true/);
+  assert.match(html, /class=["'][^"']*active[^"']*["'][^>]*id=["']memoryBtn["']/);
+  assert.match(html, /#input, #imagePrompt/);
   assert.match(html, /loadRunnerConfig\(\)/);
   assert.match(html, /COUNCIL_DECISION_SCHEMA/);
   assert.match(html, /data-mode="evidence"/);
