@@ -1,0 +1,23 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+<link rel="redirect_uri" href="jarvis://auth">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Jarvis – Home Assistant app identity</title>
+<style>body{font:16px/1.6 system-ui,sans-serif;max-width:40rem;margin:2rem auto;padding:0 1rem;color:#222}</style>
+</head>
+<body>
+<h1>Jarvis</h1>
+<p>This page identifies the Jarvis app (client ID <code>https://www.ai-council.co.uk/jarvis</code>) when it asks to connect to your Home Assistant instance using Home Assistant's OAuth-based login flow.</p>
+<h2>Authorization disclosure</h2>
+<ul>
+<li>Jarvis signs in through your own Home Assistant login page. Jarvis does not collect, see, or store your Home Assistant username or password.</li>
+<li>After you approve access, Home Assistant returns you to the app at <code>jarvis://auth</code>.</li>
+<li>OAuth tokens stay local, on the device running Jarvis. They are not sent to ai-council.co.uk.</li>
+<li>This page has no scripts, analytics, API calls, or credential inputs.</li>
+</ul>
+<p>You can revoke Jarvis's access at any time from your Home Assistant user profile.</p>
+</body>
+</html>
