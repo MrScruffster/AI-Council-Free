@@ -52,3 +52,12 @@ test("all inline frontend scripts pass Node syntax validation", async () => {
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("jarvis OAuth client page declares redirect_uri early and stays inert", async () => {
+  const html = await readFile(join(root, "jarvis.html"), "utf8");
+  const idx = html.indexOf('<link rel="redirect_uri" href="jarvis://auth">');
+  assert.ok(idx >= 0 && idx < 10240, "redirect_uri link must be in the first 10KB");
+  assert.doesNotMatch(html, /<script|<input|<form|<img|https?:\/\/[^\s"'<]*\.(js|css)\b/i);
+  assert.match(html, /does not collect/i);
+  assert.match(html, /tokens stay local/i);
+});
